@@ -55,12 +55,10 @@ export default function App() {
     }
   };
 
-  return (
+return (
     <div className="min-h-screen bg-slate-50 text-slate-800 pb-20">
-      {/* 상단 레이아웃 통합 헤더 */}
       <header className="bg-white border-b sticky top-0 z-20 pt-4 px-6 shadow-sm">
         <div className="max-w-7xl mx-auto">
-          {/* 1층: 로고(왼쪽)와 검색창(오른쪽) */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <div className="p-1.5 bg-blue-600 rounded-lg text-white">
@@ -69,12 +67,13 @@ export default function App() {
               <h1 className="text-lg font-bold text-slate-800 tracking-tight">AI 스마트 기업 리포트</h1>
             </div>
             
-            <form onSubmit={handleSearch} className="relative w-full max-w-[280px]">
+            {/* 1️⃣ 상단 단일 검색창 Placeholder 수정 (예시 추가 및 너비 살짝 늘림) */}
+            <form onSubmit={handleSearch} className="relative w-full max-w-[320px]">
               <input 
                 type="text" 
                 value={searchInput} 
                 onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="기업명을 입력하세요" 
+                placeholder="정확한 종목명을 입력하세요 (예: 삼성전자)" 
                 className="w-full pl-9 pr-4 py-1.5 text-sm border border-slate-200 rounded-full outline-none focus:ring-1 focus:ring-blue-500 bg-slate-50/50"
               />
               <Search className="absolute left-3 top-2 text-slate-400" size={16} />

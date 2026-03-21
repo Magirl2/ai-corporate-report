@@ -3,12 +3,13 @@ import { extractJson } from '../utils/formatters';
 
 const fetchDartDisclosures = async (companyName) => {
   try {
-    const dartKey = import.meta.env.VITE_DART_API_KEY?.trim();
-    if (!dartKey) return "DART API 키가 설정되지 않았습니다.";
-
+    // 💡 더 이상 프론트엔드에서 DART API 키를 확인하지 않습니다.
+    
     // ✅ 필수: 브라우저 환경에서 한글 회사명이 깨지지 않도록 인코딩
     const encodedName = encodeURIComponent(companyName);
-    const url = `/api/dart?crtfc_key=${dartKey}&corp_name=${encodedName}&page_count=5`;
+    
+    // 💡 API 키(crtfc_key) 없이 자체 서버로 요청 (서버에서 몰래 붙여서 전달해 줍니다)
+    const url = `/api/dart?corp_name=${encodedName}&page_count=5`;
     const response = await fetch(url);
 
     const contentType = response.headers.get('content-type') || '';
@@ -42,8 +43,8 @@ const fetchWithRetry = async (url, options, retries = 3) => {
 };
 
 export const fetchCompanyData = async (companyName, onStatusUpdate) => {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY?.trim();
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${apiKey}`;
+  // 💡 Gemini API 키 관련 코드 삭제 및 자체 서버리스 함수(Proxy) 주소로 변경
+  const url = `/api/gemini`;
 
   onStatusUpdate?.(`[${companyName}] DART 공시 데이터 수집 중...`);
   const dartInfo = await fetchDartDisclosures(companyName);
