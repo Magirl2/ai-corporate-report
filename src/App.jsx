@@ -1,4 +1,3 @@
-// src/App.jsx
 import React, { useState } from 'react';
 import { Search, BarChart2, Loader2, TrendingUp, Briefcase, Activity, Newspaper, Target, Building2, AlertTriangle } from 'lucide-react';
 import { fetchCompanyData } from './api/companyService';
@@ -119,9 +118,7 @@ export default function App() {
                 <p className="text-sm max-w-xs leading-relaxed">미국 기업은 FMP, 한국 기업은 DART 전자공시 기반으로 최신 동향을 빠르게 수집합니다.</p>
               </div>
             )}
-            
-            {/* 개선된 레이아웃: 논리적 배치 & 뉴스 카드 그리드 적용 */}
-            {!loading && singleData && (
+{!loading && singleData && (
               <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
                 
                 {/* 헤더 영역 */}
