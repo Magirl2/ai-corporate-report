@@ -1,16 +1,22 @@
 import { extractJson } from '../utils/formatters';
 
-// --- 1. DART API 호출 함수 (CORS 우회 프록시 적용) ---
+// --- 1. DART API 호출 (차단 없는 안전한 프록시 방식으로 교체) ---
 const fetchDartDisclosures = async (companyName) => {
   try {
-    const dartKey = import.meta.env.VITE_DART_API_KEY; 
+    // 공백 제거 마법 적용
+    const dartKey = import.meta.env.VITE_DART_API_KEY?.trim(); 
     if (!dartKey) return "DART API 키가 설정되지 않았습니다.";
 
     const url = `https://opendart.fss.or.kr/api/list.json?crtfc_key=${dartKey}&corp_name=${companyName}&page_count=5`;
-    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+    // 차단 확률이 적은 allorigins의 /get 방식 사용
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
 
     const response = await fetch(proxyUrl);
-    const data = await response.json();
+    const proxyData = await response.json();
+
+    if (!proxyData.contents) return "프록시 응답 오류가 발생했습니다.";
+    // 문자열로 온 데이터를 다시 JSON으로 변환
+    const data = JSON.parse(proxyData.contents);
 
     if (data.status === "000" && data.list) {
       return data.list.map(d => `- [${d.rcept_dt}] ${d.report_nm}`).join('\n');
@@ -40,20 +46,18 @@ const fetchWithRetry = async (url, options, retries = 5) => {
   }
 };
 
-// --- 3. 핵심 분석 실행 (App.jsx에서 호출하는 함수) ---
+// --- 3. 핵심 분석 실행 ---
 export const fetchCompanyData = async (companyName, onStatusUpdate) => {
-  // Vite 환경 변수에서 Gemini API 키 가져오기
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  // 🚨 404 에러의 주범인 '보이지 않는 공백'을 .trim()으로 강제 제거!
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY?.trim();
   if (!apiKey) throw new Error("Gemini API 키가 설정되지 않았습니다.");
 
-  const model = 'gemini-2.0-flash';
+  const model = 'gemini-2.5-flash';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
   
-  // 1️⃣ DART 데이터 먼저 수집
   onStatusUpdate?.(`[${companyName}] DART 전자공시 데이터 수집 중...`);
   const dartInfo = await fetchDartDisclosures(companyName);
 
-  // 2️⃣ AI 분석 시작 (DART 데이터 포함)
   onStatusUpdate?.(`[${companyName}] AI 통합 분석 및 리포트 작성 중...`);
 
   const prompt = `
