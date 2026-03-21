@@ -1,5 +1,5 @@
 // api/dart-finance.js
-import { unzipSync } from 'fflate';
+import { inflateRawSync } from 'zlib';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -27,7 +27,7 @@ export default async function handler(req, res) {
       return res.status(502).json({ error: 'DART 기업코드 조회에 실패했습니다.' });
     }
 
-    const zipBuffer = await zipRes.arrayBuffer();
+    const zipBuffer = Buffer.from(await zipRes.arrayBuffer());
     const corpCode = extractCorpCode(zipBuffer, corpName);
 
     if (!corpCode) {
@@ -35,7 +35,6 @@ export default async function handler(req, res) {
     }
 
     // ─── STEP 2: 최근 4개 연도 재무제표 병렬 조회 ───────────────────────
-    // 3년치 지표 표시를 위해 성장률 계산용 전년도 포함 4년치 수집
     const currentYear = new Date().getFullYear();
     const years = [currentYear - 1, currentYear - 2, currentYear - 3, currentYear - 4];
 
@@ -52,7 +51,6 @@ export default async function handler(req, res) {
       });
       const data = await r.json();
 
-      // 연결재무제표 없으면 별도재무제표로 재시도
       if (data.status !== '000' || !data.list?.length) {
         const fallback = await fetch(url.replace('fs_div=CFS', 'fs_div=OFS'), {
           headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CorporateReportBot/1.0)' }
@@ -72,34 +70,34 @@ export default async function handler(req, res) {
       const toNum = (str) => parseInt((str || '0').replace(/,/g, ''), 10);
 
       rawByYear[year] = {
-        revenue:  toNum(find('매출액')?.thstrm_amount),
-        opIncome: toNum(find('영업이익')?.thstrm_amount),
-        netInc:   toNum(find('당기순이익')?.thstrm_amount),
-        equity:   toNum(find('자본총계')?.thstrm_amount),
-        liab:     toNum(find('부채총계')?.thstrm_amount),
-        revenueRaw: find('매출액')?.thstrm_amount   || '-',
-        opIncomeRaw: find('영업이익')?.thstrm_amount || '-',
+        revenue:     toNum(find('매출액')?.thstrm_amount),
+        opIncome:    toNum(find('영업이익')?.thstrm_amount),
+        netInc:      toNum(find('당기순이익')?.thstrm_amount),
+        equity:      toNum(find('자본총계')?.thstrm_amount),
+        liab:        toNum(find('부채총계')?.thstrm_amount),
+        revenueRaw:  find('매출액')?.thstrm_amount    || '-',
+        opIncomeRaw: find('영업이익')?.thstrm_amount  || '-',
         netIncRaw:   find('당기순이익')?.thstrm_amount || '-',
         equityRaw:   find('자본총계')?.thstrm_amount  || '-',
         liabRaw:     find('부채총계')?.thstrm_amount  || '-',
       };
     }
 
-    // ─── STEP 4: 표시용 3개 연도 지표 계산 (성장률은 직전 연도 대비) ────
-    const displayYears = years.slice(0, 3); // 최근 3년
+    // ─── STEP 4: 표시용 3개 연도 지표 계산 ───────────────────────────────
+    const displayYears = years.slice(0, 3);
     const yearlyMetrics = displayYears.map((year) => {
-      const cur  = rawByYear[year]      || {};
-      const prev = rawByYear[year - 1]  || {};
+      const cur  = rawByYear[year]     || {};
+      const prev = rawByYear[year - 1] || {};
 
       const pct = (v, base) =>
         base !== 0 ? `${((v - base) / Math.abs(base) * 100).toFixed(1)}%` : null;
 
       return {
         year,
-        revenueGrowth:    prev.revenue  ? pct(cur.revenue,  prev.revenue)  : null,
-        operatingMargin:  cur.revenue   ? `${(cur.opIncome / cur.revenue * 100).toFixed(1)}%` : null,
-        roe:              cur.equity    ? `${(cur.netInc   / cur.equity  * 100).toFixed(1)}%` : null,
-        debtRatio:        cur.equity    ? `${(cur.liab     / cur.equity  * 100).toFixed(1)}%` : null,
+        revenueGrowth:   prev.revenue ? pct(cur.revenue, prev.revenue) : null,
+        operatingMargin: cur.revenue  ? `${(cur.opIncome / cur.revenue * 100).toFixed(1)}%` : null,
+        roe:             cur.equity   ? `${(cur.netInc   / cur.equity  * 100).toFixed(1)}%` : null,
+        debtRatio:       cur.equity   ? `${(cur.liab     / cur.equity  * 100).toFixed(1)}%` : null,
         raw: {
           revenue:  cur.revenueRaw,
           opIncome: cur.opIncomeRaw,
@@ -112,7 +110,6 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       corpName,
-      // 최신 연도 keyMetrics (Gemini 프롬프트 호환용)
       bsnsYear: String(displayYears[0]),
       keyMetrics: {
         revenueGrowth:   yearlyMetrics[0].revenueGrowth,
@@ -121,7 +118,6 @@ export default async function handler(req, res) {
         debtRatio:       yearlyMetrics[0].debtRatio,
       },
       raw: yearlyMetrics[0].raw,
-      // 3년치 연도별 데이터 (표 렌더링용)
       yearlyMetrics,
     });
 
@@ -131,29 +127,45 @@ export default async function handler(req, res) {
   }
 }
 
-// ─── ZIP에서 CORPCODE.xml 파싱 후 corp_code 반환 ────────────────────────────
-function extractCorpCode(zipBuffer, corpName) {
-  const files = unzipSync(new Uint8Array(zipBuffer));
-  const xmlBytes = files['CORPCODE.xml'];
-  if (!xmlBytes) return null;
+// ─── Node.js 내장 zlib로 ZIP 파싱 후 corp_code 반환 ─────────────────────────
+function extractCorpCode(buf, corpName) {
+  let offset = 0;
 
-  const xml = new TextDecoder('utf-8').decode(xmlBytes);
+  while (offset < buf.length - 4) {
+    // Local file header signature: 0x04034b50 (PK\x03\x04)
+    if (buf.readUInt32LE(offset) !== 0x04034b50) { offset++; continue; }
 
-  const exactPattern = new RegExp(
-    `<list>[^<]*<corp_code>([^<]+)<\\/corp_code>[^<]*<corp_name>${escapeRegex(corpName)}<\\/corp_name>`,
-    'i'
-  );
-  const exactMatch = xml.match(exactPattern);
-  if (exactMatch) return exactMatch[1];
+    const compression  = buf.readUInt16LE(offset + 8);
+    const compressedSz = buf.readUInt32LE(offset + 18);
+    const fileNameLen  = buf.readUInt16LE(offset + 26);
+    const extraLen     = buf.readUInt16LE(offset + 28);
+    const dataOffset   = offset + 30 + fileNameLen + extraLen;
+    const compressed   = buf.slice(dataOffset, dataOffset + compressedSz);
 
-  const loosePattern = new RegExp(
-    `<list>[^<]*<corp_code>([^<]+)<\\/corp_code>[^<]*<corp_name>[^<]*${escapeRegex(corpName)}[^<]*<\\/corp_name>`,
-    'i'
-  );
-  const looseMatch = xml.match(loosePattern);
-  return looseMatch ? looseMatch[1] : null;
-}
+    let xml;
+    if (compression === 0) {
+      xml = compressed.toString('utf-8');
+    } else if (compression === 8) {
+      xml = inflateRawSync(compressed).toString('utf-8');
+    } else {
+      offset = dataOffset + compressedSz;
+      continue;
+    }
 
-function escapeRegex(str) {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    // 완전 일치 우선
+    const exact = xml.match(
+      new RegExp(`<corp_code>([^<]+)<\\/corp_code>\\s*<corp_name>${esc(corpName)}<\\/corp_name>`, 'i')
+    );
+    if (exact) return exact[1];
+
+    // 포함 검색 (예: "삼성전자" → "삼성전자주식회사")
+    const loose = xml.match(
+      new RegExp(`<corp_code>([^<]+)<\\/corp_code>\\s*<corp_name>[^<]*${esc(corpName)}[^<]*<\\/corp_name>`, 'i')
+    );
+    return loose ? loose[1] : null;
+  }
+
+  return null;
 }
