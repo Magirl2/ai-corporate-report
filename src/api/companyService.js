@@ -48,11 +48,11 @@ export const fetchCompanyData = async (companyName, onStatusUpdate) => {
   onStatusUpdate?.(`[${companyName}] DART 공시 데이터 수집 중...`);
   const dartInfo = await fetchDartDisclosures(companyName);
 
-  onStatusUpdate?.(`[${companyName}] 최신 웹 검색 및 AI 통합 분석 중...`); // ✅ 문구 업데이트
+  onStatusUpdate?.(`[${companyName}] 최신 웹 검색 및 AI 통합 분석 중...`);
   
-  // ✅ AI가 최신 정보를 정확히 검색할 수 있도록 오늘 날짜 주입
   const today = new Date().toLocaleDateString('ko-KR'); 
   
+  // 1️⃣ 프롬프트에서 주석(//)을 모두 제거했습니다.
   const prompt = `
     Today's date is ${today}. You must use the Google Search tool to find the most recent news, stock trends, and current events for '${companyName}'.
     Combine this real-time web search data with the following Korea DART data: ${dartInfo}. 
@@ -79,10 +79,12 @@ export const fetchCompanyData = async (companyName, onStatusUpdate) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ 
       contents: [{ parts: [{ text: prompt }] }],
-      // ✅ 실시간 구글 검색(Grounding) 도구 추가
-      tools: [
-        { googleSearch: {} }
-      ]
+      // 실시간 웹 검색 도구 활성화
+      tools: [{ googleSearch: {} }],
+      // 2️⃣ AI가 무조건 완전한 JSON 구조를 끝까지 지켜서 출력하도록 강제합니다.
+      generationConfig: {
+        responseMimeType: "application/json"
+      }
     })
   });
 
