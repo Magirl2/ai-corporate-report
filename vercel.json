@@ -1,6 +1,16 @@
 {
   "rewrites": [
-    { "source": "/api/dart", "destination": "/api/dart.js" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    {
+      "source": "/api/dart-finance",
+      "destination": "/api/dart-finance.js"
+    },
+    {
+      "source": "/api/dart",
+      "destination": "/api/dart.js"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
   ]
 }
