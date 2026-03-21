@@ -7,4 +7,13 @@ export default defineConfig({
     react(),
     tailwindcss(), // 엔진 가동
   ],
+  server: {
+    proxy: {
+      '/api/dart': {
+        target: 'https://opendart.fss.or.kr/api/list.json',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/dart/, '')
+      }
+    }
+  }
 })
