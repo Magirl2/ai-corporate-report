@@ -57,7 +57,7 @@ export const fetchCompanyData = async (companyName, onStatusUpdate) => {
         "businessModel": { "summary": "...", "detail": "..." },
         "industryStatus": { "summary": "...", "detail": "..." },
         "swotAnalysis": { "strength": "...", "weakness": "...", "opportunity": "...", "threat": "..." },
-        "financialAnalysis": { "overview": { "summary": "...", "detail": "..." } },
+        "financialAnalysis": { "overview": { "summary": "...", "detail": "..." }, "keyMetrics": [{ "revenueGrowth": "...", "operatingMargin": "...", "debtRatio": "...", "roe": "...", "eps": "..." }] },
         "riskOutlook": { "summary": "...", "detail": "..." },
         "recentNews": [{ "headline": "Title", "summary": "Summary", "detail": "Detail" }]
       }

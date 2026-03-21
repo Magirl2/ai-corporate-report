@@ -6,6 +6,7 @@ import MarketSentimentBanner from './components/MarketSentimentBanner';
 import ExpandableSection from './components/ExpandableSection';
 import ExpandableText from './components/ExpandableText';
 import SwotMatrix from './components/SwotMatrix';
+import CompareFinancials from './components/CompareFinancials';
 
 export default function App() {
   const [searchInput, setSearchInput] = useState('');
@@ -13,6 +14,14 @@ export default function App() {
   const [error, setError] = useState(null);
   const [statusMessage, setStatusMessage] = useState('');
   const [singleData, setSingleData] = useState(null);
+  const [tab, setTab] = useState('single');
+  const [inputA, setInputA] = useState('');
+  const [inputB, setInputB] = useState('');
+  const [compareDataA, setCompareDataA] = useState(null);
+  const [compareDataB, setCompareDataB] = useState(null);
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [compareError, setCompareError] = useState(null);
+  const [compareStatus, setCompareStatus] = useState('');
 
   const handleSearch = async (e) => {
     if (e) e.preventDefault();
@@ -28,6 +37,24 @@ export default function App() {
     }
   };
 
+  const handleCompareSearch = async (e) => {
+    if (e) e.preventDefault();
+    if (!inputA.trim() || !inputB.trim()) return;
+    setCompareLoading(true); setCompareError(null); setCompareDataA(null); setCompareDataB(null); setCompareStatus('');
+    try {
+      const [dataA, dataB] = await Promise.all([
+        fetchCompanyData(inputA, (msg) => setCompareStatus(msg)),
+        fetchCompanyData(inputB, (msg) => setCompareStatus(msg)),
+      ]);
+      setCompareDataA(dataA);
+      setCompareDataB(dataB);
+    } catch (err) {
+      setCompareError(`비교 분석 중 오류 발생: ${err.message}`);
+    } finally {
+      setCompareLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 pb-20">
       <header className="bg-white border-b sticky top-0 z-10 p-4">
@@ -36,27 +63,36 @@ export default function App() {
             <BarChart2 className="text-blue-600" size={32} />
             <h1 className="text-xl font-bold">AI 스마트 기업 리포트</h1>
           </div>
-          <form onSubmit={handleSearch} className="w-full sm:max-w-md relative">
-            <input 
-              type="text" value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="기업명을 입력하세요" className="w-full pl-10 pr-4 py-2 border rounded-full outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <Search className="absolute left-3 top-2.5 text-slate-400" size={20} />
-          </form>
+          {tab === 'single' && (
+            <form onSubmit={handleSearch} className="w-full sm:max-w-md relative">
+              <input 
+                type="text" value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="기업명을 입력하세요" className="w-full pl-10 pr-4 py-2 border rounded-full outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <Search className="absolute left-3 top-2.5 text-slate-400" size={20} />
+            </form>
+          )}
         </div>
       </header>
 
+      <nav className="bg-white border-b px-4">
+        <div className="max-w-7xl mx-auto flex gap-6">
+          <button onClick={() => setTab('single')} className={tabClass(tab === 'single')}>단일 기업 보고서</button>
+          <button onClick={() => setTab('compare')} className={tabClass(tab === 'compare')}>기업 1:1 비교 (VS)</button>
+        </div>
+      </nav>
+
       <main className="max-w-7xl mx-auto px-4 py-8">
-        {loading && (
-          <div className="flex flex-col items-center justify-center py-32">
-            <Loader2 className="animate-spin text-blue-600 mb-4" size={48} />
-            <p className="text-lg font-bold">{statusMessage || '분석 중...'}</p>
-          </div>
-        )}
-
-        {error && <div className="bg-red-50 text-red-600 p-4 rounded-xl border border-red-200 mb-6">{error}</div>}
-
-        {!loading && singleData && (
+        {tab === 'single' && (
+          <>
+            {loading && (
+              <div className="flex flex-col items-center justify-center py-32">
+                <Loader2 className="animate-spin text-blue-600 mb-4" size={48} />
+                <p className="text-lg font-bold">{statusMessage || '분석 중...'}</p>
+              </div>
+            )}
+            {error && <div className="bg-red-50 text-red-600 p-4 rounded-xl border border-red-200 mb-6">{error}</div>}
+            {!loading && singleData && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
             <h2 className="text-4xl font-black text-slate-900">{singleData.companyName}</h2>
             <MarketSentimentBanner sentiment={singleData.report?.marketSentiment} />
@@ -87,6 +123,43 @@ export default function App() {
               </div>
             </div>
           </div>
+            )}
+          </>
+        )}
+
+        {tab === 'compare' && (
+          <>
+            <form onSubmit={handleCompareSearch} className="flex flex-col sm:flex-row gap-3 mb-8">
+              <div className="relative flex-1">
+                <input type="text" value={inputA} onChange={(e) => setInputA(e.target.value)}
+                  placeholder="기업 A" className="w-full pl-10 pr-4 py-2 border rounded-full outline-none focus:ring-2 focus:ring-blue-500" />
+                <Search className="absolute left-3 top-2.5 text-slate-400" size={20} />
+              </div>
+              <div className="relative flex-1">
+                <input type="text" value={inputB} onChange={(e) => setInputB(e.target.value)}
+                  placeholder="기업 B" className="w-full pl-10 pr-4 py-2 border rounded-full outline-none focus:ring-2 focus:ring-rose-400" />
+                <Search className="absolute left-3 top-2.5 text-slate-400" size={20} />
+              </div>
+              <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-full font-semibold hover:bg-blue-700 transition-colors">비교 분석</button>
+            </form>
+            {compareLoading && (
+              <div className="flex flex-col items-center justify-center py-32">
+                <Loader2 className="animate-spin text-blue-600 mb-4" size={48} />
+                <p className="text-lg font-bold">{compareStatus || '분석 중...'}</p>
+              </div>
+            )}
+            {compareError && <div className="bg-red-50 text-red-600 p-4 rounded-xl border border-red-200 mb-6">{compareError}</div>}
+            {!compareLoading && compareDataA && compareDataB && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+                <div className="flex items-center justify-center gap-6 text-2xl font-black">
+                  <span className="text-blue-700">{compareDataA.companyName}</span>
+                  <span className="text-slate-400">VS</span>
+                  <span className="text-rose-700">{compareDataB.companyName}</span>
+                </div>
+                <CompareFinancials dataA={compareDataA} dataB={compareDataB} />
+              </div>
+            )}
+          </>
         )}
       </main>
     </div>
