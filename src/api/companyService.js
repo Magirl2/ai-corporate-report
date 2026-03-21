@@ -48,9 +48,14 @@ export const fetchCompanyData = async (companyName, onStatusUpdate) => {
   onStatusUpdate?.(`[${companyName}] DART 공시 데이터 수집 중...`);
   const dartInfo = await fetchDartDisclosures(companyName);
 
-  onStatusUpdate?.(`[${companyName}] AI 통합 심층 분석 중...`);
+  onStatusUpdate?.(`[${companyName}] 최신 웹 검색 및 AI 통합 분석 중...`); // ✅ 문구 업데이트
+  
+  // ✅ AI가 최신 정보를 정확히 검색할 수 있도록 오늘 날짜 주입
+  const today = new Date().toLocaleDateString('ko-KR'); 
+  
   const prompt = `
-    Analyze '${companyName}' using Korea DART data: ${dartInfo}. 
+    Today's date is ${today}. You must use the Google Search tool to find the most recent news, stock trends, and current events for '${companyName}'.
+    Combine this real-time web search data with the following Korea DART data: ${dartInfo}. 
     Provide a comprehensive business report strictly in the following JSON format:
     {
       "companyName": "Official Name",
@@ -61,7 +66,7 @@ export const fetchCompanyData = async (companyName, onStatusUpdate) => {
         "businessModel": { "summary": "...", "detail": "..." },
         "industryStatus": { "summary": "...", "detail": "..." },
         "swotAnalysis": { "strength": "...", "weakness": "...", "opportunity": "...", "threat": "..." },
-        "riskOutlook": { "summary": "...", "detail": "..." }, // ✅ 이 줄을 새로 추가했습니다!
+        "riskOutlook": { "summary": "...", "detail": "..." },
         "financialAnalysis": { "overview": { "summary": "...", "detail": "..." } },
         "recentNews": [{ "headline": "제목", "summary": "요약", "detail": "상세" }]
       }
@@ -72,8 +77,13 @@ export const fetchCompanyData = async (companyName, onStatusUpdate) => {
   const result = await fetchWithRetry(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    // ✅ 에러를 유발하던 404 주범(tools 옵션) 제거! AI가 자체 데이터 + DART 데이터만으로 분석합니다.
-    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+    body: JSON.stringify({ 
+      contents: [{ parts: [{ text: prompt }] }],
+      // ✅ 실시간 구글 검색(Grounding) 도구 추가
+      tools: [
+        { googleSearch: {} }
+      ]
+    })
   });
 
   const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
