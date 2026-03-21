@@ -92,6 +92,15 @@ export default function App() {
               </div>
             )}
             {error && <div className="bg-red-50 text-red-600 p-4 rounded-xl border border-red-200 mb-6">{error}</div>}
+            {!loading && !singleData && !error && (
+              <div className="flex flex-col items-center justify-center py-32 text-center text-slate-400">
+                <div className="w-20 h-20 mb-6 rounded-2xl bg-slate-100 flex items-center justify-center">
+                  <BarChart2 size={40} className="text-slate-300" />
+                </div>
+                <h2 className="text-xl font-bold text-slate-600 mb-2">글로벌 기업 인사이트 분석</h2>
+                <p className="text-sm max-w-xs leading-relaxed">미국 기업은 FMP, 한국 기업은 DART 전자공시 기반으로 최신 동향을 빠르게 수집합니다.</p>
+              </div>
+            )}
             {!loading && singleData && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
             <h2 className="text-4xl font-black text-slate-900">{singleData.companyName}</h2>
@@ -142,6 +151,15 @@ export default function App() {
               </div>
               <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-full font-semibold hover:bg-blue-700 transition-colors">비교 분석</button>
             </form>
+            {!compareLoading && !compareDataA && !compareDataB && !compareError && (
+              <div className="flex flex-col items-center justify-center py-32 text-center text-slate-400">
+                <div className="w-20 h-20 mb-6 rounded-2xl bg-slate-100 flex items-center justify-center">
+                  <BarChart2 size={40} className="text-slate-300" />
+                </div>
+                <h2 className="text-xl font-bold text-slate-600 mb-2">기업 1:1 비교 분석</h2>
+                <p className="text-sm max-w-xs leading-relaxed">두 기업명을 입력하면 재무 지표를 나란히 비교해 드립니다.</p>
+              </div>
+            )}
             {compareLoading && (
               <div className="flex flex-col items-center justify-center py-32">
                 <Loader2 className="animate-spin text-blue-600 mb-4" size={48} />
