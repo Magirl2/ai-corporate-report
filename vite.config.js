@@ -1,18 +1,19 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite' // 엔진 불러오기
+import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [
     react(),
-    tailwindcss(), // 엔진 가동
+    tailwindcss(),
   ],
   server: {
     proxy: {
       '/api/dart': {
-        target: 'https://opendart.fss.or.kr/api/list.json',
+        // ✅ 수정: target은 origin만, rewrite로 경로를 /api/list.json으로 변환
+        target: 'https://opendart.fss.or.kr',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/dart/, '')
+        rewrite: (path) => path.replace(/^\/api\/dart/, '/api/list.json')
       }
     }
   }

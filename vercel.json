@@ -1,8 +1,5 @@
 {
   "rewrites": [
-    {
-      "source": "/api/dart",
-      "destination": "https://opendart.fss.or.kr/api/list.json"
-    }
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }

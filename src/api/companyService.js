@@ -1,14 +1,20 @@
-// src/api/companyService.js 전체 교체
 import { extractJson } from '../utils/formatters';
 
 const fetchDartDisclosures = async (companyName) => {
   try {
-    const dartKey = import.meta.env.VITE_DART_API_KEY?.trim(); 
+    const dartKey = import.meta.env.VITE_DART_API_KEY?.trim();
     if (!dartKey) return "DART API 키가 설정되지 않았습니다.";
-    
-    // Vercel Rewrite 경로(/api/dart)를 사용하여 CORS 문제를 원천 차단합니다.
+
+    // Vercel 서버리스 함수(/api/dart.js)를 통해 CORS 문제를 원천 차단합니다.
     const url = `/api/dart?crtfc_key=${dartKey}&corp_name=${companyName}&page_count=5`;
     const response = await fetch(url);
+
+    // ✅ 수정: 응답이 JSON인지 먼저 확인 후 파싱 (SyntaxError 방지)
+    const contentType = response.headers.get('content-type') || '';
+    if (!response.ok || !contentType.includes('application/json')) {
+      console.error('DART API 오류 응답:', response.status);
+      return "DART API 응답 오류입니다. 잠시 후 다시 시도해 주세요.";
+    }
     const data = await response.json();
 
     if (data.status === "000" && data.list) {
@@ -36,8 +42,9 @@ const fetchWithRetry = async (url, options, retries = 3) => {
 
 export const fetchCompanyData = async (companyName, onStatusUpdate) => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY?.trim();
-  const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-  
+  // ✅ 수정: google_search 툴은 v1beta 엔드포인트에서만 지원됩니다.
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+
   onStatusUpdate?.(`[${companyName}] DART 공시 데이터 수집 중...`);
   const dartInfo = await fetchDartDisclosures(companyName);
 
