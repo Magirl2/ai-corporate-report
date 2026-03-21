@@ -1,11 +1,4 @@
 // api/dart-finance.js
-import { inflateRawSync } from 'zlib';
-
-// 모듈 수준 캐시 — Vercel 인스턴스가 살아있는 동안 재사용됨
-let corpCodeCache = null; // Map<corpName, corpCode>
-let corpCodeCachedAt = 0;
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24시간
-
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -22,28 +15,23 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'corp_name 파라미터가 필요합니다.' });
     }
 
-    // ─── STEP 1: corpCode.xml(ZIP)로 corp_code 조회 (캐시 활용) ────────
-    if (!corpCodeCache || Date.now() - corpCodeCachedAt > CACHE_TTL_MS) {
-      const zipRes = await fetch(
-        `https://opendart.fss.or.kr/api/corpCode.xml?crtfc_key=${DART_API_KEY}`,
-        { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CorporateReportBot/1.0)' } }
-      );
-      if (!zipRes.ok) {
-        return res.status(502).json({ error: 'DART 기업코드 조회에 실패했습니다.' });
-      }
-      const zipBuffer = Buffer.from(await zipRes.arrayBuffer());
-      corpCodeCache = buildCorpCodeMap(zipBuffer);
-      corpCodeCachedAt = Date.now();
+    // ─── STEP 1: company.json으로 corp_code 조회 ─────────────────────
+    const corpRes = await fetch(
+      `https://opendart.fss.or.kr/api/company.json?crtfc_key=${DART_API_KEY}&corp_name=${encodeURIComponent(corpName)}`,
+      { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CorporateReportBot/1.0)' } }
+    );
+
+    if (!corpRes.ok) {
+      return res.status(502).json({ error: 'DART 기업 조회에 실패했습니다.' });
     }
 
-    // 캐시에서 corp_code 조회
-    const corpCode = corpCodeCache.get(corpName)
-      || [...corpCodeCache.entries()].find(([k]) => k.includes(corpName))?.[1]
-      || null;
+    const corpData = await corpRes.json();
 
-    if (!corpCode) {
+    if (corpData.status !== '000' || !corpData.corp_code) {
       return res.status(404).json({ error: `'${corpName}'에 해당하는 기업을 찾을 수 없습니다.` });
     }
+
+    const corpCode = corpData.corp_code;
 
     // ─── STEP 2: 최근 4개 연도 재무제표 병렬 조회 ───────────────────────
     const currentYear = new Date().getFullYear();
@@ -110,11 +98,11 @@ export default async function handler(req, res) {
         roe:             cur.equity   ? `${(cur.netInc   / cur.equity  * 100).toFixed(1)}%` : null,
         debtRatio:       cur.equity   ? `${(cur.liab     / cur.equity  * 100).toFixed(1)}%` : null,
         raw: {
-          revenue:  cur.revenueRaw,
-          opIncome: cur.opIncomeRaw,
+          revenue:   cur.revenueRaw,
+          opIncome:  cur.opIncomeRaw,
           netIncome: cur.netIncRaw,
-          equity:   cur.equityRaw,
-          liab:     cur.liabRaw,
+          equity:    cur.equityRaw,
+          liab:      cur.liabRaw,
         }
       };
     });
@@ -136,39 +124,4 @@ export default async function handler(req, res) {
     console.error('DART finance proxy error:', error);
     return res.status(500).json({ error: '서버 내부 오류가 발생했습니다.', details: error.message });
   }
-}
-
-// ─── ZIP 전체를 파싱해서 Map<corp_name, corp_code> 반환 ──────────────────────
-function buildCorpCodeMap(buf) {
-  const map = new Map();
-  let offset = 0;
-
-  while (offset < buf.length - 4) {
-    if (buf.readUInt32LE(offset) !== 0x04034b50) { offset++; continue; }
-
-    const compression  = buf.readUInt16LE(offset + 8);
-    const compressedSz = buf.readUInt32LE(offset + 18);
-    const fileNameLen  = buf.readUInt16LE(offset + 26);
-    const extraLen     = buf.readUInt16LE(offset + 28);
-    const dataOffset   = offset + 30 + fileNameLen + extraLen;
-    const compressed   = buf.slice(dataOffset, dataOffset + compressedSz);
-
-    let xml;
-    try {
-      xml = (compression === 0 ? compressed : inflateRawSync(compressed)).toString('utf-8');
-    } catch {
-      offset = dataOffset + compressedSz;
-      continue;
-    }
-
-    // <list> 블록마다 corp_code / corp_name 추출해서 Map에 저장
-    const pattern = /<corp_code>([^<]+)<\/corp_code>\s*<corp_name>([^<]+)<\/corp_name>/gi;
-    let m;
-    while ((m = pattern.exec(xml)) !== null) {
-      map.set(m[2].trim(), m[1].trim());
-    }
-    break;
-  }
-
-  return map;
 }
