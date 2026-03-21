@@ -85,7 +85,7 @@ export const fetchCompanyData = async (companyName, onStatusUpdate) => {
         // ❌ 에러의 주범인 responseMimeType 줄은 완전히 삭제하세요!
         
         // ✅ 대신 글이 중간에 끊기지 않도록 출력 토큰(단어) 수를 최대치로 넉넉하게 늘려줍니다.
-        maxOutputTokens: 16834,
+        maxOutputTokens: 8192,
         // ✅ 답변을 더 기계적이고(JSON 형식 파괴 방지) 일관되게 만들도록 온도(창의성)를 낮춥니다.
         temperature: 0.2 
       }
