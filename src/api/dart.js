@@ -12,7 +12,12 @@ export default async function handler(req, res) {
     const params = new URLSearchParams(req.query).toString();
     const dartUrl = `https://opendart.fss.or.kr/api/list.json?${params}`;
 
-    const response = await fetch(dartUrl);
+    const response = await fetch(dartUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; CorporateReportBot/1.0)',
+        'Accept': 'application/json',
+      }
+    });
 
     // DART API가 JSON이 아닌 응답을 돌려줄 경우를 대비
     const contentType = response.headers.get('content-type') || '';
