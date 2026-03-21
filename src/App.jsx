@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Search, BarChart2, Loader2, TrendingUp, Briefcase, Activity, Newspaper, Target, Building2, AlertTriangle } from 'lucide-react';
-import { fetchCompanyData } from './api/companyService'; // 폴더 구조가 'src/api/companyService.js'인지 확인하세요!
+import { Search, Loader2, TrendingUp, Briefcase, Activity, Newspaper, Target, Building2, AlertTriangle } from 'lucide-react';
+import { fetchCompanyData } from './api/companyService';
 import { safeSummary, safeDetail, tabClass } from './utils/formatters';
 import MarketSentimentBanner from './components/MarketSentimentBanner';
 import ExpandableSection from './components/ExpandableSection';
@@ -56,29 +56,39 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 pb-20">
-      <header className="bg-white border-b sticky top-0 z-10 p-4">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <BarChart2 className="text-blue-600" size={32} />
-            <h1 className="text-xl font-bold">AI 스마트 기업 리포트</h1>
-          </div>
+    <div className="min-h-screen bg-slate-50 text-slate-800 pb-20 relative">
+      <header className="bg-white sticky top-0 z-20 py-5 px-4 shadow-sm">
+        <div className="max-w-7xl mx-auto flex items-center justify-center relative">
           {tab === 'single' && (
-            <form onSubmit={handleSearch} className="w-full sm:max-w-md relative">
-              <input 
-                type="text" value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="기업명을 입력하세요 (예: 삼성전자)" className="w-full pl-10 pr-4 py-2 border rounded-full outline-none focus:ring-2 focus:ring-blue-500"
+            <form onSubmit={handleSearch} className="w-full max-w-4xl relative">
+              <input
+                type="text"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="AI 스마트 기업 리포트 | 기업명을 입력하세요 (예: 삼성전자, SK하이닉스)"
+                className="w-full pl-14 pr-16 py-5 text-lg border border-slate-200 rounded-full outline-none focus:ring-2 focus:ring-blue-300 shadow-md bg-white transition-all duration-300 placeholder:text-slate-400"
               />
-              <Search className="absolute left-3 top-2.5 text-slate-400" size={20} />
+              <div className="absolute left-5 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                <Building2 className="text-blue-600" size={32} strokeWidth={2.5}/>
+              </div>
+              <button type="submit" className="absolute right-3 top-3 bottom-3 p-3 bg-blue-600 text-white rounded-full flex items-center justify-center hover:bg-blue-700 transition">
+                <Search size={24} />
+              </button>
             </form>
+          )}
+          {tab === 'compare' && (
+            <div className="w-full max-w-4xl relative flex items-center justify-center gap-2 border border-slate-200 rounded-full p-4 shadow-md bg-white">
+               <Building2 className="text-blue-600" size={32} strokeWidth={2.5}/>
+               <h1 className="text-2xl font-black text-slate-900 mx-2">기업 비교 (VS)</h1>
+            </div>
           )}
         </div>
       </header>
 
-      <nav className="bg-white border-b px-4">
-        <div className="max-w-7xl mx-auto flex gap-6">
+      <nav className="bg-white border-b px-4 z-10 sticky top-[96px]">
+        <div className="max-w-7xl mx-auto flex gap-10 justify-center">
           <button onClick={() => setTab('single')} className={tabClass(tab === 'single')}>단일 기업 보고서</button>
-          <button onClick={() => setTab('compare')} className={tabClass(tab === 'compare')}>기업 1:1 비교 (VS)</button>
+          <button onClick={() => setTab('compare')} className={tabClass(tab === 'compare')}>기업 비교</button>
         </div>
       </nav>
 
@@ -181,4 +191,4 @@ export default function App() {
       </main>
     </div>
   );
-} // 마지막 불필요한 중괄호 삭제됨
+}
