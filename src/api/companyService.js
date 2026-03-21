@@ -43,7 +43,7 @@ const fetchWithRetry = async (url, options, retries = 3) => {
 
 export const fetchCompanyData = async (companyName, onStatusUpdate) => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY?.trim();
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${apiKey}`;
 
   onStatusUpdate?.(`[${companyName}] DART 공시 데이터 수집 중...`);
   const dartInfo = await fetchDartDisclosures(companyName);
@@ -56,19 +56,25 @@ export const fetchCompanyData = async (companyName, onStatusUpdate) => {
   const prompt = `
     Today's date is ${today}. You must use the Google Search tool to find the most recent news, stock trends, and current events for '${companyName}'.
     Combine this real-time web search data with the following Korea DART data: ${dartInfo}. 
-    Provide a comprehensive business report strictly in the following JSON format:
+    
+    CRITICAL: You MUST provide a comprehensive business report filling out EVERY SINGLE FIELD in the JSON format below. Do not leave any field empty or use placeholders like "...".
+    
+    Output STRICTLY in this JSON format:
     {
       "companyName": "Official Name",
-      "macroTrend": { "summary": "요약", "detail": "상세내용" },
+      "macroTrend": { "summary": "요약 1문장", "detail": "상세 분석 내용" },
       "report": {
         "marketSentiment": { "status": "Positive/Neutral/Negative", "analysis": ["이유1", "이유2", "이유3"] },
-        "vision": { "summary": "...", "detail": "..." },
-        "businessModel": { "summary": "...", "detail": "..." },
-        "industryStatus": { "summary": "...", "detail": "..." },
-        "swotAnalysis": { "strength": "...", "weakness": "...", "opportunity": "...", "threat": "..." },
-        "riskOutlook": { "summary": "...", "detail": "..." },
-        "financialAnalysis": { "overview": { "summary": "...", "detail": "..." } },
-        "recentNews": [{ "headline": "제목", "summary": "요약", "detail": "상세" }]
+        "vision": { "summary": "비전 요약 1문장", "detail": "비전 상세 내용" },
+        "businessModel": { "summary": "비즈니스 모델 요약 1문장", "detail": "비즈니스 모델 상세 내용" },
+        "industryStatus": { "summary": "산업 현황 요약 1문장", "detail": "산업 현황 상세 내용" },
+        "swotAnalysis": { "strength": "강점 설명", "weakness": "약점 설명", "opportunity": "기회 설명", "threat": "위협 설명" },
+        "riskOutlook": { "summary": "리스크 전망 요약 1문장", "detail": "리스크 전망 상세 내용" },
+        "financialAnalysis": { "overview": { "summary": "재무 분석 요약 1문장", "detail": "재무 분석 상세 내용" } },
+        "recentNews": [
+          { "headline": "최신 뉴스 제목 1", "summary": "뉴스 요약", "detail": "뉴스 상세 내용" },
+          { "headline": "최신 뉴스 제목 2", "summary": "뉴스 요약", "detail": "뉴스 상세 내용" }
+        ]
       }
     }
     Translate all content to Korean.
@@ -87,7 +93,7 @@ export const fetchCompanyData = async (companyName, onStatusUpdate) => {
         // ✅ 대신 글이 중간에 끊기지 않도록 출력 토큰(단어) 수를 최대치로 넉넉하게 늘려줍니다.
         maxOutputTokens: 8192,
         // ✅ 답변을 더 기계적이고(JSON 형식 파괴 방지) 일관되게 만들도록 온도(창의성)를 낮춥니다.
-        temperature: 0.2 
+        temperature: 0 
       }
     })
   });
