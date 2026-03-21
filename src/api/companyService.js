@@ -71,7 +71,7 @@ export const fetchCompanyData = async (companyName, onStatusUpdate) => {
   const result = await fetchWithRetry(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], tools: [{ googleSearch: {} }] })
+    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], tools: [{ google_search: {} }] })
   });
 
   const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
