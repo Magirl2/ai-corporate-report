@@ -15,8 +15,8 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'corp_name 파라미터가 필요합니다.' });
     }
 
-    // ─── STEP 1: 회사명으로 corp_code 조회 ───────────────────────────
-    const corpUrl = `https://opendart.fss.or.kr/api/company.json?crtfc_key=${DART_API_KEY}&corp_name=${encodeURIComponent(corpName)}`;
+    // ─── STEP 1: 회사명으로 corp_code 조회 (corpSearch → 첫 번째 결과 사용) ──
+    const corpUrl = `https://opendart.fss.or.kr/api/corpSearch.json?crtfc_key=${DART_API_KEY}&corp_name=${encodeURIComponent(corpName)}&page_count=1`;
     const corpRes = await fetch(corpUrl, {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CorporateReportBot/1.0)' }
     });
@@ -27,12 +27,12 @@ export default async function handler(req, res) {
 
     const corpData = await corpRes.json();
 
-    // company.json은 단일 기업 정보를 반환 (status 000 = 정상)
-    if (corpData.status !== '000' || !corpData.corp_code) {
+    // corpSearch.json은 list 배열로 반환
+    if (corpData.status !== '000' || !corpData.list?.length) {
       return res.status(404).json({ error: `'${corpName}'에 해당하는 기업을 찾을 수 없습니다.` });
     }
 
-    const corpCode = corpData.corp_code;
+    const corpCode = corpData.list[0].corp_code;
 
     // ─── STEP 2: 재무제표 조회 ────────────────────────────────────────
     // bsns_year: 직전 사업연도, reprt_code: 11011 = 사업보고서(연간)

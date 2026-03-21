@@ -159,6 +159,38 @@ export default function App() {
                         <Activity className="text-emerald-500" /> 재무 분석
                       </h3>
                       <ExpandableText summary={safeSummary(singleData.report?.financialAnalysis?.overview)} detail={safeDetail(singleData.report?.financialAnalysis?.overview)} />
+                      {(() => {
+                        const metrics = singleData.report?.financialAnalysis?.keyMetrics?.[0];
+                        if (!metrics) return null;
+                        const rows = [
+                          { label: '매출 성장률',    value: metrics.revenueGrowth },
+                          { label: '영업이익률',      value: metrics.operatingMargin },
+                          { label: 'ROE (자기자본이익률)', value: metrics.roe },
+                          { label: '부채비율',        value: metrics.debtRatio },
+                          { label: 'EPS (주당순이익)', value: metrics.eps },
+                        ].filter(r => r.value && r.value !== '-');
+                        if (rows.length === 0) return null;
+                        return (
+                          <div className="mt-4 overflow-x-auto">
+                            <table className="w-full text-sm border-collapse">
+                              <thead>
+                                <tr className="bg-emerald-50">
+                                  <th className="text-left px-4 py-2 border border-slate-200 font-semibold text-slate-600">지표</th>
+                                  <th className="text-right px-4 py-2 border border-slate-200 font-semibold text-slate-600">수치</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {rows.map((r, i) => (
+                                  <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                    <td className="px-4 py-2 border border-slate-200 text-slate-700">{r.label}</td>
+                                    <td className="px-4 py-2 border border-slate-200 text-right font-mono font-semibold text-emerald-700">{r.value}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     <div className="bg-white p-6 rounded-2xl border shadow-sm">
