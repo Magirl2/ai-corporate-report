@@ -118,61 +118,35 @@ export default function App() {
                 <p className="text-sm max-w-xs leading-relaxed">미국 기업은 FMP, 한국 기업은 DART 전자공시 기반으로 최신 동향을 빠르게 수집합니다.</p>
               </div>
             )}
-{!loading && singleData && (
-              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
-                
-                {/* 헤더 영역 */}
-                <div className="border-b pb-6">
-                  <h2 className="text-4xl font-black text-slate-900 mb-4">{singleData.companyName}</h2>
-                  <MarketSentimentBanner sentiment={singleData.report?.marketSentiment} />
-                </div>
-
-                {/* 1층: 기업 개요 (기본 아이덴티티) */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <ExpandableSection title="비전 및 핵심 가치" icon={<Target className="text-purple-500" />} summary={safeSummary(singleData?.report?.vision)} detail={safeDetail(singleData?.report?.vision)} />
-                  <ExpandableSection title="비즈니스 모델" icon={<Briefcase className="text-amber-500" />} summary={safeSummary(singleData?.report?.businessModel)} detail={safeDetail(singleData?.report?.businessModel)} />
-                </div>
-
-                {/* 2층: 심층 분석 (좌: 외부 환경 / 우: 내부 역량) */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  
-                  {/* 좌측: 시장 및 산업 환경 (External) */}
+            {!loading && singleData && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+                <h2 className="text-4xl font-black text-slate-900">{singleData.companyName}</h2>
+                <MarketSentimentBanner sentiment={singleData.report?.marketSentiment} />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <div className="space-y-6">
-                    <h3 className="text-lg font-bold text-slate-700 border-l-4 border-blue-500 pl-3">시장 및 산업 환경</h3>
                     <ExpandableSection title="거시적 트렌드" icon={<TrendingUp className="text-blue-500" />} summary={safeSummary(singleData?.macroTrend)} detail={safeDetail(singleData?.macroTrend)} />
+                    <ExpandableSection title="비전 및 핵심 가치" icon={<Target className="text-purple-500" />} summary={safeSummary(singleData?.report?.vision)} detail={safeDetail(singleData?.report?.vision)} />
+                    <ExpandableSection title="비즈니스 모델" icon={<Briefcase className="text-amber-500" />} summary={safeSummary(singleData?.report?.businessModel)} detail={safeDetail(singleData?.report?.businessModel)} />
                     <ExpandableSection title="해당 산업 현황" icon={<Building2 className="text-cyan-500" />} summary={safeSummary(singleData?.report?.industryStatus)} detail={safeDetail(singleData?.report?.industryStatus)} />
-                    <ExpandableSection title="시장 리스크 & 전망" icon={<AlertTriangle className="text-rose-500" />} summary={safeSummary(singleData?.report?.riskOutlook)} detail={safeDetail(singleData?.report?.riskOutlook)} />
-                  </div>
-
-                  {/* 우측: 기업 내부 및 재무 분석 (Internal) */}
-                  <div className="space-y-6">
-                    <h3 className="text-lg font-bold text-slate-700 border-l-4 border-emerald-500 pl-3">내부 역량 및 재무</h3>
                     {singleData.report?.swotAnalysis && <SwotMatrix swot={singleData.report.swotAnalysis} />}
-                    <div className="bg-white p-6 rounded-2xl border shadow-sm hover:shadow-md transition-shadow">
-                      <h3 className="text-xl font-bold mb-4 flex items-center gap-2"><Activity className="text-emerald-500" /> 재무 분석 요약</h3>
-                      <div className="text-slate-600 leading-relaxed">
-                        <ExpandableText summary={safeSummary(singleData.report?.financialAnalysis?.overview)} detail={safeDetail(singleData.report?.financialAnalysis?.overview)} />
-                      </div>
-                    </div>
                   </div>
-
-                </div>
-
-                {/* 3층: 최신 뉴스 (카드 그리드 형태) */}
-                <div className="bg-white p-6 rounded-2xl border shadow-sm mt-8">
-                  <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><Newspaper className="text-indigo-500" /> 최근 주요 뉴스</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {(singleData.report?.recentNews || []).map((news, i) => (
-                      <div key={i} className="bg-slate-50 p-5 rounded-xl border border-slate-100 flex flex-col h-full hover:bg-slate-100 transition-colors">
-                        <h4 className="font-bold text-slate-800 mb-3 line-clamp-2">{news.headline}</h4>
-                        <div className="text-sm text-slate-600 leading-relaxed flex-grow">
+                  <div className="space-y-6">
+                    <ExpandableSection title="시장 리스크 & 전망" icon={<AlertTriangle className="text-rose-500" />} summary={safeSummary(singleData?.report?.riskOutlook)} detail={safeDetail(singleData?.report?.riskOutlook)} />
+                    <div className="bg-white p-6 rounded-2xl border shadow-sm">
+                      <h3 className="text-xl font-bold mb-4 flex items-center gap-2"><Activity className="text-emerald-500" /> 재무 분석</h3>
+                      <ExpandableText summary={safeSummary(singleData.report?.financialAnalysis?.overview)} detail={safeDetail(singleData.report?.financialAnalysis?.overview)} />
+                    </div>
+                    <div className="bg-white p-6 rounded-2xl border shadow-sm">
+                      <h3 className="text-xl font-bold mb-4 flex items-center gap-2"><Newspaper className="text-indigo-500" /> 주요 뉴스</h3>
+                      {(singleData.report?.recentNews || []).map((news, i) => (
+                        <div key={i} className="mb-4 border-b pb-4 last:border-0">
+                          <h4 className="font-bold">{news.headline}</h4>
                           <ExpandableText summary={news.summary} detail={news.detail} />
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </div>
-
               </div>
             )}
           </>
