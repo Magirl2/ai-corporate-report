@@ -1,36 +1,26 @@
-// api/dart.js - Vercel 서버리스 함수 (DART API 프록시)
+// api/dart.js (Vercel Serverless Function)
+import fetch from 'node-fetch';
+
 export default async function handler(req, res) {
-  // CORS 헤더 설정
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+  // 1. 브라우저에서 보낸 파라미터를 받습니다.
+  const { crtfc_key, corp_name, corp_code } = req.query;
+
+  // 2. 한글 검색어의 경우 안전하게 인코딩합니다.
+  const encodedName = encodeURIComponent(corp_name);
+
+  // 3. DART API 호출 (예: 기업개황 조회)
+  // 만약 corp_code가 있으면 그걸 쓰고, 없으면 이름을 씁니다.
+  const targetUrl = corp_code 
+    ? `https://opendart.fss.or.kr/api/company.json?crtfc_key=${crtfc_key}&corp_code=${corp_code}`
+    : `https://opendart.fss.or.kr/api/list.json?crtfc_key=${crtfc_key}&corp_name=${encodedName}&bgn_de=20240101`;
 
   try {
-    // 클라이언트로부터 받은 쿼리 파라미터를 그대로 DART API에 전달
-    const params = new URLSearchParams(req.query).toString();
-    const dartUrl = `https://opendart.fss.or.kr/api/list.json?${params}`;
-
-    const response = await fetch(dartUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; CorporateReportBot/1.0)',
-        'Accept': 'application/json',
-      }
-    });
-
-    // DART API가 JSON이 아닌 응답을 돌려줄 경우를 대비
-    const contentType = response.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      const text = await response.text();
-      console.error('DART API non-JSON response:', text.slice(0, 200));
-      return res.status(502).json({ error: 'DART API가 유효하지 않은 응답을 반환했습니다.' });
-    }
-
+    const response = await fetch(targetUrl);
     const data = await response.json();
-    return res.status(200).json(data);
+    
+    // 결과를 브라우저로 다시 보내줌
+    res.status(200).json(data);
   } catch (error) {
-    console.error('DART proxy error:', error);
-    return res.status(500).json({ error: '서버 내부 오류가 발생했습니다.' });
+    res.status(500).json({ error: 'DART API 통신 오류' });
   }
 }
