@@ -1,26 +1,40 @@
-// api/dart.js (Vercel Serverless Function)
-import fetch from 'node-fetch';
-
+// api/dart.js
 export default async function handler(req, res) {
-  // 1. 브라우저에서 보낸 파라미터를 받습니다.
-  const { crtfc_key, corp_name, corp_code } = req.query;
-
-  // 2. 한글 검색어의 경우 안전하게 인코딩합니다.
-  const encodedName = encodeURIComponent(corp_name);
-
-  // 3. DART API 호출 (예: 기업개황 조회)
-  // 만약 corp_code가 있으면 그걸 쓰고, 없으면 이름을 씁니다.
-  const targetUrl = corp_code 
-    ? `https://opendart.fss.or.kr/api/company.json?crtfc_key=${crtfc_key}&corp_code=${corp_code}`
-    : `https://opendart.fss.or.kr/api/list.json?crtfc_key=${crtfc_key}&corp_name=${encodedName}&bgn_de=20240101`;
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
 
   try {
-    const response = await fetch(targetUrl);
-    const data = await response.json();
+    // 1. Vercel 환경에서 안전하게 쿼리스트링 추출
+    const queryString = req.url.split('?')[1] || '';
+    const searchParams = new URLSearchParams(queryString);
     
-    // 결과를 브라우저로 다시 보내줌
-    res.status(200).json(data);
+    // 2. DART API 필수 요건: 회사명 검색 시 '시작일(bgn_de)'이 무조건 있어야 함!
+    if (!searchParams.has('bgn_de')) {
+      searchParams.append('bgn_de', '20240101'); 
+    }
+
+    const dartUrl = `https://opendart.fss.or.kr/api/list.json?${searchParams.toString()}`;
+
+    const response = await fetch(dartUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; CorporateReportBot/1.0)',
+        'Accept': 'application/json',
+      }
+    });
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      return res.status(502).json({ error: 'DART API가 유효하지 않은 응답을 반환했습니다.' });
+    }
+
+    const data = await response.json();
+    return res.status(200).json(data);
   } catch (error) {
-    res.status(500).json({ error: 'DART API 통신 오류' });
+    console.error('DART proxy error:', error);
+    // 에러 상세 내용을 볼 수 있도록 details 추가
+    return res.status(500).json({ error: '서버 내부 오류가 발생했습니다.', details: error.message });
   }
 }

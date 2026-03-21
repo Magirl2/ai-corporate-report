@@ -1,3 +1,4 @@
+// src/api/companyService.js
 import { extractJson } from '../utils/formatters';
 
 const fetchDartDisclosures = async (companyName) => {
@@ -5,25 +6,22 @@ const fetchDartDisclosures = async (companyName) => {
     const dartKey = import.meta.env.VITE_DART_API_KEY?.trim();
     if (!dartKey) return "DART API 키가 설정되지 않았습니다.";
 
-    // ✅ 수정 1: 한글 회사명을 안전하게 인코딩 (013 에러 방지)
+    // ✅ 필수: 브라우저 환경에서 한글 회사명이 깨지지 않도록 인코딩
     const encodedName = encodeURIComponent(companyName);
     const url = `/api/dart?crtfc_key=${dartKey}&corp_name=${encodedName}&page_count=5`;
-    
     const response = await fetch(url);
 
     const contentType = response.headers.get('content-type') || '';
     if (!response.ok || !contentType.includes('application/json')) {
-      return "DART API 응답 오류입니다.";
+      console.error('DART API 오류 응답:', response.status);
+      return "DART API 응답 오류입니다. 잠시 후 다시 시도해 주세요.";
     }
-    
     const data = await response.json();
 
-    // DART 특유의 성공 코드 "000" 확인
     if (data.status === "000" && data.list) {
       return data.list.map(d => `- [${d.rcept_dt}] ${d.report_nm}`).join('\n');
     }
-    // 데이터가 없는 경우(013 등) 처리
-    return `최근 공시 내역이 없습니다. (DART 응답: ${data.message || '데이터 없음'})`;
+    return "해당 기업의 최근 공시 내역이 없거나 한국 상장사가 아닙니다.";
   } catch (error) {
     console.error("DART API 에러:", error);
     return "공시 정보를 가져오는 중 에러가 발생했습니다.";
@@ -45,7 +43,6 @@ const fetchWithRetry = async (url, options, retries = 3) => {
 
 export const fetchCompanyData = async (companyName, onStatusUpdate) => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY?.trim();
-  // v1beta 엔드포인트 유지
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
   onStatusUpdate?.(`[${companyName}] DART 공시 데이터 수집 중...`);
@@ -54,36 +51,32 @@ export const fetchCompanyData = async (companyName, onStatusUpdate) => {
   onStatusUpdate?.(`[${companyName}] AI 통합 심층 분석 중...`);
   const prompt = `
     Analyze '${companyName}' using Korea DART data: ${dartInfo}. 
-    Provide a comprehensive business report strictly in JSON format.
+    Provide a comprehensive business report strictly in the following JSON format:
+    {
+      "companyName": "Official Name",
+      "macroTrend": { "summary": "요약", "detail": "상세내용" },
+      "report": {
+        "marketSentiment": { "status": "Positive/Neutral/Negative", "analysis": ["이유1", "이유2", "이유3"] },
+        "vision": { "summary": "...", "detail": "..." },
+        "businessModel": { "summary": "...", "detail": "..." },
+        "industryStatus": { "summary": "...", "detail": "..." },
+        "swotAnalysis": { "strength": "...", "weakness": "...", "opportunity": "...", "threat": "..." },
+        "financialAnalysis": { "overview": { "summary": "...", "detail": "..." } },
+        "recentNews": [{ "headline": "제목", "summary": "요약", "detail": "상세" }]
+      }
+    }
     Translate all content to Korean.
   `;
 
   const result = await fetchWithRetry(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ 
-      contents: [{ parts: [{ text: prompt }] }],
-      // ✅ 수정 2: 정확한 툴 명칭 사용 (google_search_retrieval)
-      tools: [{ google_search_retrieval: {} }],
-      // ✅ 추가 3: 안정적인 JSON 응답을 위해 설정 추가
-      generationConfig: {
-        response_mime_type: "application/json"
-      }
-    })
+    // ✅ 에러를 유발하던 404 주범(tools 옵션) 제거! AI가 자체 데이터 + DART 데이터만으로 분석합니다.
+    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
   });
 
-  // Gemini의 응답 구조에 맞춰 텍스트 추출
   const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-  
-  if (!text) throw new Error("분석 데이터를 생성하지 못했습니다.");
-
-  try {
-    // generationConfig 덕분에 바로 JSON.parse가 가능할 확률이 높습니다.
-    return JSON.parse(text);
-  } catch (e) {
-    // 만약 마크다운 형식이 포함되었다면 기존 추출기 사용
-    const jsonStr = extractJson(text);
-    if (!jsonStr) throw new Error("JSON 추출 실패");
-    return JSON.parse(jsonStr);
-  }
+  const jsonStr = extractJson(text);
+  if (!jsonStr) throw new Error("분석 데이터를 읽을 수 없습니다.");
+  return JSON.parse(jsonStr);
 };
