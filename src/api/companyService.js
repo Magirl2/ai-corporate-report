@@ -36,7 +36,7 @@ const fetchWithRetry = async (url, options, retries = 3) => {
 
 export const fetchCompanyData = async (companyName, onStatusUpdate) => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY?.trim();
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
   
   onStatusUpdate?.(`[${companyName}] DART 공시 데이터 수집 중...`);
   const dartInfo = await fetchDartDisclosures(companyName);
