@@ -7,7 +7,7 @@ const fetchDartDisclosures = async (companyName) => {
     if (!dartKey) return "DART API 키가 설정되지 않았습니다.";
 
     const url = `https://opendart.fss.or.kr/api/list.json?crtfc_key=${dartKey}&corp_name=${companyName}&page_count=5`;
-    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
 
     const response = await fetch(proxyUrl);
     const data = await response.json();
@@ -46,7 +46,7 @@ export const fetchCompanyData = async (companyName, onStatusUpdate) => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   if (!apiKey) throw new Error("Gemini API 키가 설정되지 않았습니다.");
 
-  const model = 'gemini-2.5-flash-preview-09-2025';
+  const model = 'gemini-2.0-flash';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
   
   // 1️⃣ DART 데이터 먼저 수집
