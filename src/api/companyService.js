@@ -41,8 +41,3 @@ const extractJson = (text) => {
   if (!text) return null;
   const match = text.match(/
 http://googleusercontent.com/immersive_entry_chip/0
-
-### ⚠️ 주의사항 (아주 중요!)
-위 코드의 DART 프록시가 정상적으로 작동하려면 이전 답변에서 말씀드린 **`vercel.json` 파일 생성**과 **`vite.config.js` 파일 수정**이 반드시 함께 되어 있어야 합니다. 
-
-이 3가지를 모두 마치셨다면 GitHub에 올려주세요! 코드가 아주 멋지게 동작할 것입니다.
