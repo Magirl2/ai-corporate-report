@@ -61,6 +61,7 @@ export const fetchCompanyData = async (companyName, onStatusUpdate) => {
         "businessModel": { "summary": "...", "detail": "..." },
         "industryStatus": { "summary": "...", "detail": "..." },
         "swotAnalysis": { "strength": "...", "weakness": "...", "opportunity": "...", "threat": "..." },
+        "riskOutlook": { "summary": "...", "detail": "..." }, // ✅ 이 줄을 새로 추가했습니다!
         "financialAnalysis": { "overview": { "summary": "...", "detail": "..." } },
         "recentNews": [{ "headline": "제목", "summary": "요약", "detail": "상세" }]
       }
