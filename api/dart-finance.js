@@ -1,4 +1,6 @@
 // api/dart-finance.js
+import { unzipSync } from 'fflate';
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -15,61 +17,113 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'corp_name 파라미터가 필요합니다.' });
     }
 
-    // ─── STEP 1: 공시검색(list.json)으로 corp_code 추출 ─────────────
-    const listUrl = `https://opendart.fss.or.kr/api/list.json` +
-      `?crtfc_key=${DART_API_KEY}` +
-      `&corp_name=${encodeURIComponent(corpName)}` +
-      `&page_count=1`;
+    // ─── STEP 1: corpCode.xml(ZIP)로 corp_code 조회 ──────────────────
+    const zipRes = await fetch(
+      `https://opendart.fss.or.kr/api/corpCode.xml?crtfc_key=${DART_API_KEY}`,
+      { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CorporateReportBot/1.0)' } }
+    );
 
-    const corpRes = await fetch(listUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CorporateReportBot/1.0)' }
-    });
-
-    if (!corpRes.ok) {
-      return res.status(502).json({ error: 'DART 기업 조회에 실패했습니다.' });
+    if (!zipRes.ok) {
+      return res.status(502).json({ error: 'DART 기업코드 조회에 실패했습니다.' });
     }
 
-    const corpData = await corpRes.json();
+    const zipBuffer = await zipRes.arrayBuffer();
+    const corpCode = extractCorpCode(zipBuffer, corpName);
 
-    // list.json은 공시 목록을 반환 — 첫 번째 항목의 corp_code 사용
-    if (corpData.status !== '000' || !corpData.list?.length) {
+    if (!corpCode) {
       return res.status(404).json({ error: `'${corpName}'에 해당하는 기업을 찾을 수 없습니다.` });
     }
 
-    const corpCode = corpData.list[0].corp_code;
+    // ─── STEP 2: 최근 4개 연도 재무제표 병렬 조회 ───────────────────────
+    // 3년치 지표 표시를 위해 성장률 계산용 전년도 포함 4년치 수집
+    const currentYear = new Date().getFullYear();
+    const years = [currentYear - 1, currentYear - 2, currentYear - 3, currentYear - 4];
 
-    // ─── STEP 2: 재무제표 조회 ────────────────────────────────────────
-    // bsns_year: 직전 사업연도, reprt_code: 11011 = 사업보고서(연간)
-    // fs_div: CFS = 연결재무제표, OFS = 별도재무제표
-    const bsnsYear = String(new Date().getFullYear() - 1); // 전년도 기준
-    const financeUrl = `https://opendart.fss.or.kr/api/fnlttSinglAcntAll.json` +
-      `?crtfc_key=${DART_API_KEY}` +
-      `&corp_code=${corpCode}` +
-      `&bsns_year=${bsnsYear}` +
-      `&reprt_code=11011` +   // 사업보고서
-      `&fs_div=CFS`;          // 연결재무제표 우선
+    const fetchYear = async (year) => {
+      const url = `https://opendart.fss.or.kr/api/fnlttSinglAcntAll.json` +
+        `?crtfc_key=${DART_API_KEY}` +
+        `&corp_code=${corpCode}` +
+        `&bsns_year=${year}` +
+        `&reprt_code=11011` +
+        `&fs_div=CFS`;
 
-    const finRes = await fetch(financeUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CorporateReportBot/1.0)' }
-    });
-
-    if (!finRes.ok) {
-      return res.status(502).json({ error: 'DART 재무제표 조회에 실패했습니다.' });
-    }
-
-    const finData = await finRes.json();
-
-    // 연결재무제표 없으면 별도재무제표로 재시도
-    if (finData.status !== '000' || !finData.list?.length) {
-      const fallbackUrl = financeUrl.replace('fs_div=CFS', 'fs_div=OFS');
-      const fallbackRes = await fetch(fallbackUrl, {
+      const r = await fetch(url, {
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CorporateReportBot/1.0)' }
       });
-      const fallbackData = await fallbackRes.json();
-      return res.status(200).json(extractMetrics(fallbackData.list || [], corpName, bsnsYear));
+      const data = await r.json();
+
+      // 연결재무제표 없으면 별도재무제표로 재시도
+      if (data.status !== '000' || !data.list?.length) {
+        const fallback = await fetch(url.replace('fs_div=CFS', 'fs_div=OFS'), {
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CorporateReportBot/1.0)' }
+        });
+        const fallbackData = await fallback.json();
+        return { year, list: fallbackData.list || [] };
+      }
+      return { year, list: data.list };
+    };
+
+    const results = await Promise.all(years.map(fetchYear));
+
+    // ─── STEP 3: 연도별 원시 수치 추출 ──────────────────────────────────
+    const rawByYear = {};
+    for (const { year, list } of results) {
+      const find = (nm) => list.find(r => r.account_nm === nm);
+      const toNum = (str) => parseInt((str || '0').replace(/,/g, ''), 10);
+
+      rawByYear[year] = {
+        revenue:  toNum(find('매출액')?.thstrm_amount),
+        opIncome: toNum(find('영업이익')?.thstrm_amount),
+        netInc:   toNum(find('당기순이익')?.thstrm_amount),
+        equity:   toNum(find('자본총계')?.thstrm_amount),
+        liab:     toNum(find('부채총계')?.thstrm_amount),
+        revenueRaw: find('매출액')?.thstrm_amount   || '-',
+        opIncomeRaw: find('영업이익')?.thstrm_amount || '-',
+        netIncRaw:   find('당기순이익')?.thstrm_amount || '-',
+        equityRaw:   find('자본총계')?.thstrm_amount  || '-',
+        liabRaw:     find('부채총계')?.thstrm_amount  || '-',
+      };
     }
 
-    return res.status(200).json(extractMetrics(finData.list, corpName, bsnsYear));
+    // ─── STEP 4: 표시용 3개 연도 지표 계산 (성장률은 직전 연도 대비) ────
+    const displayYears = years.slice(0, 3); // 최근 3년
+    const yearlyMetrics = displayYears.map((year) => {
+      const cur  = rawByYear[year]      || {};
+      const prev = rawByYear[year - 1]  || {};
+
+      const pct = (v, base) =>
+        base !== 0 ? `${((v - base) / Math.abs(base) * 100).toFixed(1)}%` : null;
+
+      return {
+        year,
+        revenueGrowth:    prev.revenue  ? pct(cur.revenue,  prev.revenue)  : null,
+        operatingMargin:  cur.revenue   ? `${(cur.opIncome / cur.revenue * 100).toFixed(1)}%` : null,
+        roe:              cur.equity    ? `${(cur.netInc   / cur.equity  * 100).toFixed(1)}%` : null,
+        debtRatio:        cur.equity    ? `${(cur.liab     / cur.equity  * 100).toFixed(1)}%` : null,
+        raw: {
+          revenue:  cur.revenueRaw,
+          opIncome: cur.opIncomeRaw,
+          netIncome: cur.netIncRaw,
+          equity:   cur.equityRaw,
+          liab:     cur.liabRaw,
+        }
+      };
+    });
+
+    return res.status(200).json({
+      corpName,
+      // 최신 연도 keyMetrics (Gemini 프롬프트 호환용)
+      bsnsYear: String(displayYears[0]),
+      keyMetrics: {
+        revenueGrowth:   yearlyMetrics[0].revenueGrowth,
+        operatingMargin: yearlyMetrics[0].operatingMargin,
+        roe:             yearlyMetrics[0].roe,
+        debtRatio:       yearlyMetrics[0].debtRatio,
+      },
+      raw: yearlyMetrics[0].raw,
+      // 3년치 연도별 데이터 (표 렌더링용)
+      yearlyMetrics,
+    });
 
   } catch (error) {
     console.error('DART finance proxy error:', error);
@@ -77,64 +131,29 @@ export default async function handler(req, res) {
   }
 }
 
-// ─── 필요한 지표만 추출하는 헬퍼 함수 ──────────────────────────────────────
-function extractMetrics(list, corpName, bsnsYear) {
-  // account_nm 기준으로 항목을 찾는 유틸
-  const find = (nm) => list.find(r => r.account_nm === nm);
+// ─── ZIP에서 CORPCODE.xml 파싱 후 corp_code 반환 ────────────────────────────
+function extractCorpCode(zipBuffer, corpName) {
+  const files = unzipSync(new Uint8Array(zipBuffer));
+  const xmlBytes = files['CORPCODE.xml'];
+  if (!xmlBytes) return null;
 
-  const revenue      = find('매출액');
-  const revenuePrev  = find('매출액');   // 전기 thstrm_amount vs frmtrm_amount
-  const operatingPL  = find('영업이익');
-  const netIncome    = find('당기순이익');
-  const totalAssets  = find('자산총계');
-  const totalLiab    = find('부채총계');
-  const totalEquity  = find('자본총계');
+  const xml = new TextDecoder('utf-8').decode(xmlBytes);
 
-  const toNum = (str) => parseInt((str || '0').replace(/,/g, ''), 10);
+  const exactPattern = new RegExp(
+    `<list>[^<]*<corp_code>([^<]+)<\\/corp_code>[^<]*<corp_name>${escapeRegex(corpName)}<\\/corp_name>`,
+    'i'
+  );
+  const exactMatch = xml.match(exactPattern);
+  if (exactMatch) return exactMatch[1];
 
-  const revenueThis  = toNum(revenue?.thstrm_amount);
-  const revenuePast  = toNum(revenue?.frmtrm_amount);   // 전기 매출
-  const opIncome     = toNum(operatingPL?.thstrm_amount);
-  const netInc       = toNum(netIncome?.thstrm_amount);
-  const equity       = toNum(totalEquity?.thstrm_amount);
-  const liab         = toNum(totalLiab?.thstrm_amount);
+  const loosePattern = new RegExp(
+    `<list>[^<]*<corp_code>([^<]+)<\\/corp_code>[^<]*<corp_name>[^<]*${escapeRegex(corpName)}[^<]*<\\/corp_name>`,
+    'i'
+  );
+  const looseMatch = xml.match(loosePattern);
+  return looseMatch ? looseMatch[1] : null;
+}
 
-  // 매출 성장률
-  const revenueGrowth = revenuePast !== 0
-    ? `${((revenueThis - revenuePast) / Math.abs(revenuePast) * 100).toFixed(1)}%`
-    : null;
-
-  // 영업이익률
-  const operatingMargin = revenueThis !== 0
-    ? `${(opIncome / revenueThis * 100).toFixed(1)}%`
-    : null;
-
-  // ROE (자기자본이익률)
-  const roe = equity !== 0
-    ? `${(netInc / equity * 100).toFixed(1)}%`
-    : null;
-
-  // 부채비율
-  const debtRatio = equity !== 0
-    ? `${(liab / equity * 100).toFixed(1)}%`
-    : null;
-
-  return {
-    corpName,
-    bsnsYear,
-    keyMetrics: {
-      revenueGrowth,
-      operatingMargin,
-      roe,
-      debtRatio,
-    },
-    // 원본 금액도 포함 (Gemini 프롬프트에 컨텍스트로 넘길 용도)
-    raw: {
-      revenue:  revenue?.thstrm_amount  || '-',
-      opIncome: operatingPL?.thstrm_amount || '-',
-      netIncome: netIncome?.thstrm_amount  || '-',
-      equity:   totalEquity?.thstrm_amount || '-',
-      liab:     totalLiab?.thstrm_amount   || '-',
-    }
-  };
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

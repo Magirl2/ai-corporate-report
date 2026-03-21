@@ -160,30 +160,34 @@ export default function App() {
                       </h3>
                       <ExpandableText summary={safeSummary(singleData.report?.financialAnalysis?.overview)} detail={safeDetail(singleData.report?.financialAnalysis?.overview)} />
                       {(() => {
-                        const metrics = singleData.report?.financialAnalysis?.keyMetrics?.[0];
-                        if (!metrics) return null;
-                        const rows = [
-                          { label: '매출 성장률',    value: metrics.revenueGrowth },
-                          { label: '영업이익률',      value: metrics.operatingMargin },
-                          { label: 'ROE (자기자본이익률)', value: metrics.roe },
-                          { label: '부채비율',        value: metrics.debtRatio },
-                          { label: 'EPS (주당순이익)', value: metrics.eps },
-                        ].filter(r => r.value && r.value !== '-');
-                        if (rows.length === 0) return null;
+                        const yearly = singleData.dartFinance?.yearlyMetrics;
+                        if (!yearly?.length) return null;
+                        const labels = [
+                          { key: 'revenueGrowth',   label: '매출 성장률' },
+                          { key: 'operatingMargin', label: '영업이익률' },
+                          { key: 'roe',             label: 'ROE' },
+                          { key: 'debtRatio',       label: '부채비율' },
+                        ];
                         return (
                           <div className="mt-4 overflow-x-auto">
                             <table className="w-full text-sm border-collapse">
                               <thead>
                                 <tr className="bg-emerald-50">
                                   <th className="text-left px-4 py-2 border border-slate-200 font-semibold text-slate-600">지표</th>
-                                  <th className="text-right px-4 py-2 border border-slate-200 font-semibold text-slate-600">수치</th>
+                                  {yearly.map(y => (
+                                    <th key={y.year} className="text-right px-4 py-2 border border-slate-200 font-semibold text-slate-600">{y.year}년</th>
+                                  ))}
                                 </tr>
                               </thead>
                               <tbody>
-                                {rows.map((r, i) => (
-                                  <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                                    <td className="px-4 py-2 border border-slate-200 text-slate-700">{r.label}</td>
-                                    <td className="px-4 py-2 border border-slate-200 text-right font-mono font-semibold text-emerald-700">{r.value}</td>
+                                {labels.map((l, i) => (
+                                  <tr key={l.key} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                    <td className="px-4 py-2 border border-slate-200 text-slate-700">{l.label}</td>
+                                    {yearly.map(y => (
+                                      <td key={y.year} className="px-4 py-2 border border-slate-200 text-right font-mono font-semibold text-emerald-700">
+                                        {y[l.key] ?? '-'}
+                                      </td>
+                                    ))}
                                   </tr>
                                 ))}
                               </tbody>

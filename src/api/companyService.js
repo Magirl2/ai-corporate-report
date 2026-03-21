@@ -147,5 +147,7 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
   const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
   const jsonStr = extractJson(text);
   if (!jsonStr) throw new Error("분석 데이터를 읽을 수 없습니다.");
-  return JSON.parse(jsonStr);
+  const parsed = JSON.parse(jsonStr);
+  if (dartFinance?.yearlyMetrics) parsed.dartFinance = dartFinance;
+  return parsed;
 };
