@@ -3,12 +3,7 @@ import { extractJson } from '../utils/formatters';
 
 const fetchDartDisclosures = async (companyName) => {
   try {
-    // 💡 더 이상 프론트엔드에서 DART API 키를 확인하지 않습니다.
-    
-    // ✅ 필수: 브라우저 환경에서 한글 회사명이 깨지지 않도록 인코딩
     const encodedName = encodeURIComponent(companyName);
-    
-    // 💡 API 키(crtfc_key) 없이 자체 서버로 요청 (서버에서 몰래 붙여서 전달해 줍니다)
     const url = `/api/dart?corp_name=${encodedName}&page_count=5`;
     const response = await fetch(url);
 
@@ -29,6 +24,24 @@ const fetchDartDisclosures = async (companyName) => {
   }
 };
 
+// ✅ [추가 1] DART 재무제표 수치 가져오기
+const fetchDartFinance = async (companyName) => {
+  try {
+    const encodedName = encodeURIComponent(companyName);
+    const response = await fetch(`/api/dart-finance?corp_name=${encodedName}`);
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!response.ok || !contentType.includes('application/json')) {
+      console.error('DART Finance API 오류:', response.status);
+      return null;
+    }
+    return await response.json(); // { keyMetrics, raw, bsnsYear }
+  } catch (error) {
+    console.error("DART Finance 에러:", error);
+    return null;
+  }
+};
+
 const fetchWithRetry = async (url, options, retries = 3) => {
   for (let i = 0; i < retries; i++) {
     try {
@@ -43,20 +56,46 @@ const fetchWithRetry = async (url, options, retries = 3) => {
 };
 
 export const fetchCompanyData = async (companyName, onStatusUpdate) => {
-  // 💡 Gemini API 키 관련 코드 삭제 및 자체 서버리스 함수(Proxy) 주소로 변경
   const url = `/api/gemini`;
 
   onStatusUpdate?.(`[${companyName}] DART 공시 데이터 수집 중...`);
   const dartInfo = await fetchDartDisclosures(companyName);
 
+  // ✅ [추가 2] 재무제표 수치 병렬 수집
+  onStatusUpdate?.(`[${companyName}] DART 재무제표 수집 중...`);
+  const dartFinance = await fetchDartFinance(companyName);
+
   onStatusUpdate?.(`[${companyName}] 최신 웹 검색 및 AI 통합 분석 중...`);
-  
-  const today = new Date().toLocaleDateString('ko-KR'); 
-  
-  // 1️⃣ 프롬프트에서 주석(//)을 모두 제거했습니다.
+
+  const today = new Date().toLocaleDateString('ko-KR');
+
+  // ✅ [추가 3] DART 실수치를 프롬프트 컨텍스트로 주입, keyMetrics 필드 명시
+  const dartFinanceContext = dartFinance
+    ? `
+DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
+- 매출액: ${dartFinance.raw.revenue}
+- 영업이익: ${dartFinance.raw.opIncome}
+- 당기순이익: ${dartFinance.raw.netIncome}
+- 자본총계: ${dartFinance.raw.equity}
+- 부채총계: ${dartFinance.raw.liab}
+
+계산된 지표 (이 값을 keyMetrics에 그대로 사용하세요):
+- 매출 성장률: ${dartFinance.keyMetrics.revenueGrowth ?? '데이터 없음'}
+- 영업이익률: ${dartFinance.keyMetrics.operatingMargin ?? '데이터 없음'}
+- ROE: ${dartFinance.keyMetrics.roe ?? '데이터 없음'}
+- 부채비율: ${dartFinance.keyMetrics.debtRatio ?? '데이터 없음'}
+`
+    : 'DART 재무제표 실수치를 가져오지 못했습니다. 웹 검색으로 추정하여 채워주세요.';
+
   const prompt = `
     Today's date is ${today}. You must use the Google Search tool to find the most recent news, stock trends, and current events for '${companyName}'.
-    Combine this real-time web search data with the following Korea DART data: ${dartInfo}. 
+    Combine this real-time web search data with the following Korea DART data:
+    
+    [공시 목록]
+    ${dartInfo}
+    
+    [재무 수치]
+    ${dartFinanceContext}
     
     CRITICAL: You MUST provide a comprehensive business report filling out EVERY SINGLE FIELD in the JSON format below. Do not leave any field empty or use placeholders like "...".
     
@@ -71,7 +110,18 @@ export const fetchCompanyData = async (companyName, onStatusUpdate) => {
         "industryStatus": { "summary": "산업 현황 요약 1문장", "detail": "산업 현황 상세 내용" },
         "swotAnalysis": { "strength": "강점 설명", "weakness": "약점 설명", "opportunity": "기회 설명", "threat": "위협 설명" },
         "riskOutlook": { "summary": "리스크 전망 요약 1문장", "detail": "리스크 전망 상세 내용" },
-        "financialAnalysis": { "overview": { "summary": "재무 분석 요약 1문장", "detail": "재무 분석 상세 내용" } },
+        "financialAnalysis": {
+          "overview": { "summary": "재무 분석 요약 1문장", "detail": "재무 분석 상세 내용" },
+          "keyMetrics": [
+            {
+              "revenueGrowth": "매출 성장률 (예: +12.3%)",
+              "operatingMargin": "영업이익률 (예: 8.7%)",
+              "roe": "자기자본이익률 (예: 18.5%)",
+              "debtRatio": "부채비율 (예: 142.0%)",
+              "eps": "주당순이익 (예: 4,250원)"
+            }
+          ]
+        },
         "recentNews": [
           { "headline": "최신 뉴스 제목 1", "summary": "뉴스 요약", "detail": "뉴스 상세 내용" },
           { "headline": "최신 뉴스 제목 2", "summary": "뉴스 요약", "detail": "뉴스 상세 내용" }
@@ -84,17 +134,12 @@ export const fetchCompanyData = async (companyName, onStatusUpdate) => {
   const result = await fetchWithRetry(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ 
+    body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
-      // ✅ 실시간 웹 검색 도구는 그대로 유지합니다.
       tools: [{ googleSearch: {} }],
       generationConfig: {
-        // ❌ 에러의 주범인 responseMimeType 줄은 완전히 삭제하세요!
-        
-        // ✅ 대신 글이 중간에 끊기지 않도록 출력 토큰(단어) 수를 최대치로 넉넉하게 늘려줍니다.
         maxOutputTokens: 8192,
-        // ✅ 답변을 더 기계적이고(JSON 형식 파괴 방지) 일관되게 만들도록 온도(창의성)를 낮춥니다.
-        temperature: 0 
+        temperature: 0
       }
     })
   });
