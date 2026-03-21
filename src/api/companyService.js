@@ -79,11 +79,15 @@ export const fetchCompanyData = async (companyName, onStatusUpdate) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ 
       contents: [{ parts: [{ text: prompt }] }],
-      // 실시간 웹 검색 도구 활성화
+      // ✅ 실시간 웹 검색 도구는 그대로 유지합니다.
       tools: [{ googleSearch: {} }],
-      // 2️⃣ AI가 무조건 완전한 JSON 구조를 끝까지 지켜서 출력하도록 강제합니다.
       generationConfig: {
-        responseMimeType: "application/json"
+        // ❌ 에러의 주범인 responseMimeType 줄은 완전히 삭제하세요!
+        
+        // ✅ 대신 글이 중간에 끊기지 않도록 출력 토큰(단어) 수를 최대치로 넉넉하게 늘려줍니다.
+        maxOutputTokens: 8192,
+        // ✅ 답변을 더 기계적이고(JSON 형식 파괴 방지) 일관되게 만들도록 온도(창의성)를 낮춥니다.
+        temperature: 0.2 
       }
     })
   });
