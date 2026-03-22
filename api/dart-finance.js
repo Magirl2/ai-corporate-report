@@ -92,22 +92,30 @@ export default async function handler(req, res) {
     const results = await Promise.all(years.map(fetchYear));
 
     // ─── STEP 3: 연도별 원시 수치 추출 ──────────────────────────────────
+// ─── STEP 3: 연도별 원시 수치 추출 ──────────────────────────────────
     const rawByYear = {};
     for (const { year, list } of results) {
-      const find = (nm) => list.find(r => r.account_nm === nm);
+      // 💡 단일 문자열이 아닌, 배열 안의 이름 중 하나라도 일치하면 찾아오도록 수정
+      const find = (names) => list.find(r => names.includes(r.account_nm));
       const toNum = (str) => parseInt((str || '0').replace(/,/g, ''), 10);
 
+      const rev = find(['매출액', '수익(매출액)']);
+      const op = find(['영업이익', '영업이익(손실)']);
+      const net = find(['당기순이익', '당기순이익(손실)', '연결당기순이익', '연결당기순이익(손실)']);
+      const eq = find(['자본총계']);
+      const lb = find(['부채총계']);
+
       rawByYear[year] = {
-        revenue:     toNum(find('매출액')?.thstrm_amount),
-        opIncome:    toNum(find('영업이익')?.thstrm_amount),
-        netInc:      toNum(find('당기순이익')?.thstrm_amount),
-        equity:      toNum(find('자본총계')?.thstrm_amount),
-        liab:        toNum(find('부채총계')?.thstrm_amount),
-        revenueRaw:  find('매출액')?.thstrm_amount    || '-',
-        opIncomeRaw: find('영업이익')?.thstrm_amount  || '-',
-        netIncRaw:   find('당기순이익')?.thstrm_amount || '-',
-        equityRaw:   find('자본총계')?.thstrm_amount  || '-',
-        liabRaw:     find('부채총계')?.thstrm_amount  || '-',
+        revenue:     toNum(rev?.thstrm_amount),
+        opIncome:    toNum(op?.thstrm_amount),
+        netInc:      toNum(net?.thstrm_amount),
+        equity:      toNum(eq?.thstrm_amount),
+        liab:        toNum(lb?.thstrm_amount),
+        revenueRaw:  rev?.thstrm_amount    || '-',
+        opIncomeRaw: op?.thstrm_amount  || '-',
+        netIncRaw:   net?.thstrm_amount || '-',
+        equityRaw:   eq?.thstrm_amount  || '-',
+        liabRaw:     lb?.thstrm_amount  || '-',
       };
     }
 
