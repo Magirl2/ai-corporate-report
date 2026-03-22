@@ -7,13 +7,27 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 1. Vercel 환경에서 안전하게 쿼리스트링 추출
     const queryString = req.url.split('?')[1] || '';
     const searchParams = new URLSearchParams(queryString);
     
-    // 2. DART API 필수 요건: 회사명 검색 시 '시작일(bgn_de)'이 무조건 있어야 함!
+    // 💡 핵심: 오늘 기준 정확히 3개월 전 날짜 계산
+    const today = new Date();
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(today.getMonth() - 3);
+    
+    const formatDate = (date) => {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}${m}${d}`;
+    };
+
+    // DART API 규칙: 고유번호 없이 회사명 검색 시 최대 3개월까지만 조회 가능
     if (!searchParams.has('bgn_de')) {
-      searchParams.append('bgn_de', '20240101'); 
+      searchParams.append('bgn_de', formatDate(threeMonthsAgo)); 
+    }
+    if (!searchParams.has('end_de')) {
+      searchParams.append('end_de', formatDate(today)); 
     }
 
     const dartUrl = `https://opendart.fss.or.kr/api/list.json?${searchParams.toString()}`;
@@ -34,7 +48,6 @@ export default async function handler(req, res) {
     return res.status(200).json(data);
   } catch (error) {
     console.error('DART proxy error:', error);
-    // 에러 상세 내용을 볼 수 있도록 details 추가
     return res.status(500).json({ error: '서버 내부 오류가 발생했습니다.', details: error.message });
   }
 }

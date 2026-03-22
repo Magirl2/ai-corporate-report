@@ -15,29 +15,55 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'corp_name 파라미터가 필요합니다.' });
     }
 
-    // ─── STEP 1: company.json으로 corp_code 조회 ─────────────────────
-   // ─── STEP 1: list.json으로 corp_code 조회 ─────────────────────
-    // company.json은 회사명 검색을 지원하지 않으므로, list.json을 우회 사용합니다.
-    const listRes = await fetch(
-      `https://opendart.fss.or.kr/api/list.json?crtfc_key=${DART_API_KEY}&corp_name=${encodeURIComponent(corpName)}&bgn_de=20240101`,
+    // ─── STEP 1: list.json으로 corp_code 우회 조회 (3개월 제한 준수) ──────────
+    const today = new Date();
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(today.getMonth() - 3);
+    
+    const formatDate = (date) => {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}${m}${d}`;
+    };
+
+    let corpCode = null;
+    let bgnDe = formatDate(threeMonthsAgo);
+    let endDe = formatDate(today);
+
+    // 최근 3개월 조회
+    let listRes = await fetch(
+      `https://opendart.fss.or.kr/api/list.json?crtfc_key=${DART_API_KEY}&corp_name=${encodeURIComponent(corpName)}&bgn_de=${bgnDe}&end_de=${endDe}`,
       { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CorporateReportBot/1.0)' } }
     );
+    let listData = await listRes.json();
 
-    if (!listRes.ok) {
-      return res.status(502).json({ error: 'DART 기업 조회에 실패했습니다.' });
+    if (listData.status === '000' && listData.list?.length > 0) {
+      corpCode = listData.list[0].corp_code;
+    } else {
+      // 💡 안정성 추가: 최근 3개월 내에 공시가 없다면, 3~6개월 전 데이터로 한 번 더 시도
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(today.getMonth() - 6);
+      bgnDe = formatDate(sixMonthsAgo);
+      endDe = formatDate(threeMonthsAgo);
+      
+      listRes = await fetch(
+        `https://opendart.fss.or.kr/api/list.json?crtfc_key=${DART_API_KEY}&corp_name=${encodeURIComponent(corpName)}&bgn_de=${bgnDe}&end_de=${endDe}`,
+        { headers: { 'User-Agent': 'Mozilla/5.0' } }
+      );
+      listData = await listRes.json();
+      
+      if (listData.status === '000' && listData.list?.length > 0) {
+        corpCode = listData.list[0].corp_code;
+      }
     }
 
-    const listData = await listRes.json();
-
-    // API 키가 없거나, 검색 결과가 없으면 에러 반환
-    if (listData.status !== '000' || !listData.list || listData.list.length === 0) {
-      return res.status(404).json({ error: `'${corpName}'에 해당하는 기업을 찾을 수 없거나 API 키 확인이 필요합니다.` });
+    if (!corpCode) {
+      return res.status(404).json({ error: `'${corpName}'에 해당하는 기업을 찾을 수 없거나 최근 6개월 내 공시가 없습니다.` });
     }
 
-    // 검색된 첫 번째 공시 데이터에서 8자리 고유번호(corp_code)만 쏙 뽑아옵니다.
-    const corpCode = listData.list[0].corp_code;
     // ─── STEP 2: 최근 4개 연도 재무제표 병렬 조회 ───────────────────────
-    const currentYear = new Date().getFullYear();
+    const currentYear = today.getFullYear();
     const years = [currentYear - 1, currentYear - 2, currentYear - 3, currentYear - 4];
 
     const fetchYear = async (year) => {
@@ -55,7 +81,7 @@ export default async function handler(req, res) {
 
       if (data.status !== '000' || !data.list?.length) {
         const fallback = await fetch(url.replace('fs_div=CFS', 'fs_div=OFS'), {
-          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CorporateReportBot/1.0)' }
+          headers: { 'User-Agent': 'Mozilla/5.0' }
         });
         const fallbackData = await fallback.json();
         return { year, list: fallbackData.list || [] };
@@ -92,7 +118,7 @@ export default async function handler(req, res) {
       const prev = rawByYear[year - 1] || {};
 
       const pct = (v, base) =>
-        base !== 0 ? `${((v - base) / Math.abs(base) * 100).toFixed(1)}%` : null;
+        base !== 0 && !isNaN(v) && !isNaN(base) ? `${((v - base) / Math.abs(base) * 100).toFixed(1)}%` : null;
 
       return {
         year,
