@@ -93,11 +93,13 @@ export default async function handler(req, res) {
 
     // ─── STEP 3: 연도별 원시 수치 추출 ──────────────────────────────────
 // ─── STEP 3: 연도별 원시 수치 추출 ──────────────────────────────────
+    // ─── STEP 3: 연도별 원시 수치 추출 ──────────────────────────────────
     const rawByYear = {};
     for (const { year, list } of results) {
-      // 💡 단일 문자열이 아닌, 배열 안의 이름 중 하나라도 일치하면 찾아오도록 수정
       const find = (names) => list.find(r => names.includes(r.account_nm));
-      const toNum = (str) => parseInt((str || '0').replace(/,/g, ''), 10);
+      
+      // 💡 핵심 수정: 값이 없을 때 0이 아닌 NaN(숫자 아님)으로 처리하여 억지 계산을 방지합니다.
+      const toNum = (str) => str ? parseInt(str.replace(/,/g, ''), 10) : NaN;
 
       const rev = find(['매출액', '수익(매출액)']);
       const op = find(['영업이익', '영업이익(손실)']);
@@ -118,7 +120,6 @@ export default async function handler(req, res) {
         liabRaw:     lb?.thstrm_amount  || '-',
       };
     }
-
     // ─── STEP 4: 표시용 3개 연도 지표 계산 ───────────────────────────────
     const displayYears = years.slice(0, 3);
     const yearlyMetrics = displayYears.map((year) => {
