@@ -144,10 +144,34 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
     })
   });
 
-  const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
   const jsonStr = extractJson(text);
   if (!jsonStr) throw new Error("분석 데이터를 읽을 수 없습니다.");
-  const parsed = JSON.parse(jsonStr);
+  
+  let parsed = JSON.parse(jsonStr);
+
+  // 💡 마법의 청소기: 뉴스, SWOT, 전망 등 모든 데이터에서 [숫자, 숫자] 형태의 각주를 일괄 삭제합니다.
+  const cleanFootnotes = (data) => {
+    if (typeof data === 'string') {
+      // 텍스트일 경우 각주 패턴과 그 앞의 띄어쓰기를 지웁니다.
+      return data.replace(/\s*\[[\d\s,]+\]/g, ''); 
+    }
+    if (Array.isArray(data)) {
+      return data.map(cleanFootnotes);
+    }
+    if (data !== null && typeof data === 'object') {
+      const cleaned = {};
+      for (let key in data) {
+        cleaned[key] = cleanFootnotes(data[key]);
+      }
+      return cleaned;
+    }
+    return data;
+  };
+
+  // 파싱된 데이터 전체를 청소기에 한 번 돌려 화면으로 보냅니다.
+  parsed = cleanFootnotes(parsed);
+
   if (dartFinance?.yearlyMetrics) parsed.dartFinance = dartFinance;
   return parsed;
 };
