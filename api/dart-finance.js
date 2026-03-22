@@ -16,23 +16,26 @@ export default async function handler(req, res) {
     }
 
     // ─── STEP 1: company.json으로 corp_code 조회 ─────────────────────
-    const corpRes = await fetch(
-      `https://opendart.fss.or.kr/api/company.json?crtfc_key=${DART_API_KEY}&corp_name=${encodeURIComponent(corpName)}`,
+   // ─── STEP 1: list.json으로 corp_code 조회 ─────────────────────
+    // company.json은 회사명 검색을 지원하지 않으므로, list.json을 우회 사용합니다.
+    const listRes = await fetch(
+      `https://opendart.fss.or.kr/api/list.json?crtfc_key=${DART_API_KEY}&corp_name=${encodeURIComponent(corpName)}&bgn_de=20240101`,
       { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CorporateReportBot/1.0)' } }
     );
 
-    if (!corpRes.ok) {
+    if (!listRes.ok) {
       return res.status(502).json({ error: 'DART 기업 조회에 실패했습니다.' });
     }
 
-    const corpData = await corpRes.json();
+    const listData = await listRes.json();
 
-    if (corpData.status !== '000' || !corpData.corp_code) {
-      return res.status(404).json({ error: `'${corpName}'에 해당하는 기업을 찾을 수 없습니다.` });
+    // API 키가 없거나, 검색 결과가 없으면 에러 반환
+    if (listData.status !== '000' || !listData.list || listData.list.length === 0) {
+      return res.status(404).json({ error: `'${corpName}'에 해당하는 기업을 찾을 수 없거나 API 키 확인이 필요합니다.` });
     }
 
-    const corpCode = corpData.corp_code;
-
+    // 검색된 첫 번째 공시 데이터에서 8자리 고유번호(corp_code)만 쏙 뽑아옵니다.
+    const corpCode = listData.list[0].corp_code;
     // ─── STEP 2: 최근 4개 연도 재무제표 병렬 조회 ───────────────────────
     const currentYear = new Date().getFullYear();
     const years = [currentYear - 1, currentYear - 2, currentYear - 3, currentYear - 4];
