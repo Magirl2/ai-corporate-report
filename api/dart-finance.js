@@ -140,12 +140,15 @@ export default async function handler(req, res) {
       const pct = (v, base) =>
         base !== 0 && !isNaN(v) && !isNaN(base) ? `${((v - base) / Math.abs(base) * 100).toFixed(1)}%` : null;
 
+      const calcMargin = (num, den) => 
+        (den !== 0 && !isNaN(num) && !isNaN(den)) ? `${(num / den * 100).toFixed(1)}%` : null;
+
       return {
         year,
         revenueGrowth:   prev.revenue ? pct(cur.revenue, prev.revenue) : null,
-        operatingMargin: cur.revenue  ? `${(cur.opIncome / cur.revenue * 100).toFixed(1)}%` : null,
-        roe:             cur.equity   ? `${(cur.netInc   / cur.equity  * 100).toFixed(1)}%` : null,
-        debtRatio:       cur.equity   ? `${(cur.liab     / cur.equity  * 100).toFixed(1)}%` : null,
+        operatingMargin: calcMargin(cur.opIncome, cur.revenue),
+        roe:             calcMargin(cur.netInc, cur.equity),
+        debtRatio:       calcMargin(cur.liab, cur.equity),
         raw: {
           revenue:   cur.revenueRaw,
           opIncome:  cur.opIncomeRaw,
