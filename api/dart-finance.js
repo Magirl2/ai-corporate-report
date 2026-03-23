@@ -62,9 +62,10 @@ export default async function handler(req, res) {
       return res.status(404).json({ error: `'${corpName}'에 해당하는 기업을 찾을 수 없거나 최근 6개월 내 공시가 없습니다.` });
     }
 
-    // ─── STEP 2: 최근 4개 연도 재무제표 병렬 조회 ───────────────────────
+    // ─── STEP 2: 최근 5개 연도 재무제표 병렬 조회 (데이터 있는 연도 동적 선택) ───
     const currentYear = today.getFullYear();
-    const years = [currentYear - 1, currentYear - 2, currentYear - 3, currentYear - 4];
+    // 가장 최신의 3개 연도를 보여주기 위해 넉넉히 5년치를 조회 (당해 연도가 아직 안 나왔을 수 있으므로)
+    const years = [currentYear - 1, currentYear - 2, currentYear - 3, currentYear - 4, currentYear - 5];
 
     const fetchYear = async (year) => {
       const url = `https://opendart.fss.or.kr/api/fnlttSinglAcntAll.json` +
@@ -91,11 +92,14 @@ export default async function handler(req, res) {
 
     const results = await Promise.all(years.map(fetchYear));
 
-    // ─── STEP 3: 연도별 원시 수치 추출 ──────────────────────────────────
-// ─── STEP 3: 연도별 원시 수치 추출 ──────────────────────────────────
+    // 실제 공시 데이터가 존재하는 연도만 필터링 후 최신순 정렬
+    const validResults = results
+      .filter(r => r.list && r.list.length > 0)
+      .sort((a, b) => b.year - a.year);
+
     // ─── STEP 3: 연도별 원시 수치 추출 ──────────────────────────────────
     const rawByYear = {};
-    for (const { year, list } of results) {
+    for (const { year, list } of validResults) {
       const find = (names) => list.find(r => names.includes(r.account_nm));
       
       // 💡 핵심 수정: 값이 없을 때 0이 아닌 NaN(숫자 아님)으로 처리하여 억지 계산을 방지합니다.
@@ -121,7 +125,12 @@ export default async function handler(req, res) {
       };
     }
     // ─── STEP 4: 표시용 3개 연도 지표 계산 ───────────────────────────────
-    const displayYears = years.slice(0, 3);
+    const validYears = validResults.map(r => r.year);
+    if (validYears.length === 0) {
+      return res.status(404).json({ error: '최근 5년간의 재무제표 데이터를 찾을 수 없습니다.' });
+    }
+    const displayYears = validYears.slice(0, 3);
+
     const yearlyMetrics = displayYears.map((year) => {
       const cur  = rawByYear[year]     || {};
       const prev = rawByYear[year - 1] || {};
