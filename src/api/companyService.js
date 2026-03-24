@@ -1,6 +1,7 @@
 // src/api/companyService.js
 import { extractJson } from '../utils/formatters';
 
+
 const fetchDartDisclosures = async (companyName) => {
   try {
     const encodedName = encodeURIComponent(companyName);
@@ -90,15 +91,15 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
 
   const searchPrompt = `
     Today's date is ${today}. You are a top-tier financial analyst. 
-    Conduct an in-depth web search using the Google Search tool for the most recent news, stock market trends, and industry issues regarding '${companyName}'.
+    Conduct an extremely expansive web search using the Google Search tool for the most recent news, macro-economic conditions, stock market trends, product releases, competitor actions, and industry issues regarding '${companyName}'.
     IMPORTANT: You must conduct your search in English, and you MUST write your entire research briefing notes completely in English.
-    Combine your web search findings with the provided Korea DART data below to create a highly detailed, comprehensive research briefing.
-    Include specific facts, numbers, and news headlines (in English) so that another AI can use it to write a detailed report.
-    Do not summarize; provide as much detail as possible.
+    Combine your extensive web search findings with the provided Korea DART data below to create a remarkably verbose and comprehensive research briefing.
+    Include specific facts, raw numbers, exact statistics, executive quotes, and multiple news headlines (in English) so that another AI can use it to write an exhaustive report.
+    CRITICAL INSTRUCTION: DO NOT summarize. Output the absolute maximum amount of detail possible (Aim for 3,000 ~ 5,000+ words). Break down every aspect of the company and industry in granular detail.
 
     [Korean DART Disclosure List]
     ${dartInfo}
-    
+
     [Korean DART Financial Data]
     ${dartFinanceContext}
   `;
@@ -107,11 +108,12 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'gemini-2.5-pro',
+      model: 'gemini-3.1-pro',
       contents: [{ parts: [{ text: searchPrompt }] }],
       tools: [{ googleSearch: {} }],
       generationConfig: {
-        temperature: 0.2
+        temperature: 0.3,
+        maxOutputTokens: 8192
       }
     })
   });
@@ -212,7 +214,8 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
         model: 'gemini-2.5-flash',
         contents: [{ parts: [{ text: task.prompt }] }],
         generationConfig: {
-          temperature: 0.2
+          temperature: 0.2,
+          maxOutputTokens: 8192
         }
       })
     });
