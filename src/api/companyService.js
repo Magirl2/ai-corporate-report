@@ -95,7 +95,7 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
     IMPORTANT: You must conduct your search in English, and you MUST write your entire research briefing notes completely in English.
     Combine your extensive web search findings with the provided Korea DART data below to create a remarkably verbose and comprehensive research briefing.
     Include specific facts, raw numbers, exact statistics, executive quotes, and multiple news headlines (in English) so that another AI can use it to write an exhaustive report.
-    CRITICAL INSTRUCTION: DO NOT summarize. Output a high volume of detail (Aim for 2,000 ~ 2,500 words). Break down every aspect of the company and industry in granular detail.
+    CRITICAL INSTRUCTION: DO NOT summarize. Output a remarkably exhaustive and high-volume briefing (Aim for at least 15,000~20,000+ characters or 7,000+ tokens). Break down every aspect of the company, industry, and macroeconomic context in granular detail so that the next AI phase has a massive amount of data to process.
 
     [Korean DART Disclosure List]
     ${dartInfo}
@@ -134,7 +134,7 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
     
     위 자료를 바탕으로 보고서의 [${groupName}] 파트들을 분석하여 한국어로 작성해 주세요. 
     
-    각 파트의 'detail' 필드는 현업 애널리스트가 쓰듯 최소 2개의 문단, 300자 이상의 상세한 리포트로 작성해야 합니다!! 내용이 너무 부실하면 보고서 전체가 반려됩니다.
+    각 파트의 'detail' 필드는 현업 수석 애널리스트가 작성한 심층 리포트 형식으로, **최소 1,500~2,500 단어 또는 3,000~5,000 토큰 이상의 방대한 분량**으로 작성해야 합니다!! 내용이 부실하면 리포트 가치가 없으므로, 최대한 구체적인 수치와 논리적 분석을 쏟아넣으세요.
     
     지시사항: 
     ${groupInstructions}
