@@ -9,7 +9,7 @@ export default defineConfig({
   ],
   server: {
     proxy: {
-      '/api/dart': {
+      '^/api/dart(\\?|$)': {
         // ✅ 수정: target은 origin만, rewrite로 경로를 /api/list.json으로 변환
         target: 'https://opendart.fss.or.kr',
         changeOrigin: true,

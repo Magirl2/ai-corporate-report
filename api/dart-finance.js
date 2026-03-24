@@ -102,7 +102,10 @@ export default async function handler(req, res) {
     for (const { year, list } of validResults) {
       // 💡 핵심 수정: 재무제표 구분(sj_div)을 명시적으로 필터링하여 엉뚱한 표(예: 자본변동표 등)에서 값을 가져오는 오류를 방지합니다.
       // BS: 재무상태표, IS: 손익계산서, CIS: 포괄손익계산서
-      const find = (names, sj_divs) => list.find(r => names.includes(r.account_nm) && (!sj_divs || sj_divs.includes(r.sj_div)));
+      const find = (names, sj_divs) => list.find(r => 
+        (names.some(n => r.account_nm && r.account_nm.includes(n))) && 
+        (!sj_divs || sj_divs.includes(r.sj_div))
+      );
       
       // 값이 없을 때 0이 아닌 NaN(숫자 아님)으로 처리하여 억지 계산을 방지합니다.
       const toNum = (str) => str ? parseInt(str.replace(/,/g, ''), 10) : NaN;
