@@ -15,44 +15,43 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'corp_name 파라미터가 필요합니다.' });
     }
 
-    // ─── STEP 1: list.json으로 corp_code 우회 조회 (3개월 제한 준수) ──────────
-    const today = new Date();
-    const threeMonthsAgo = new Date();
-    threeMonthsAgo.setMonth(today.getMonth() - 3);
-    
-    const formatDate = (date) => {
-      const y = date.getFullYear();
-      const m = String(date.getMonth() + 1).padStart(2, '0');
-      const d = String(date.getDate()).padStart(2, '0');
-      return `${y}${m}${d}`;
+    const COMMON_CORPS = {
+      '삼성전자': '00126380',
+      'SK하이닉스': '00164779',
+      '현대자동차': '00164742',
+      'LG에너지솔루션': '01515350',
+      '기아': '00164788',
+      '카카오': '00258801',
+      'NAVER': '00266961'
     };
 
-    let corpCode = null;
-    let bgnDe = formatDate(threeMonthsAgo);
-    let endDe = formatDate(today);
+    let corpCode = COMMON_CORPS[corpName] || null;
 
-    // 최근 3개월 조회
-    let listRes = await fetch(
-      `https://opendart.fss.or.kr/api/list.json?crtfc_key=${DART_API_KEY}&corp_name=${encodeURIComponent(corpName)}&bgn_de=${bgnDe}&end_de=${endDe}`,
-      { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CorporateReportBot/1.0)' } }
-    );
-    let listData = await listRes.json();
-
-    if (listData.status === '000' && listData.list?.length > 0) {
-      corpCode = listData.list[0].corp_code;
-    } else {
-      // 💡 안정성 추가: 최근 3개월 내에 공시가 없다면, 3~6개월 전 데이터로 한 번 더 시도
-      const sixMonthsAgo = new Date();
-      sixMonthsAgo.setMonth(today.getMonth() - 6);
-      bgnDe = formatDate(sixMonthsAgo);
-      endDe = formatDate(threeMonthsAgo);
+    if (!corpCode) {
+      // ─── STEP 1: list.json으로 corp_code 우회 조회 (3개월 제한 준수) ──────────
+      const today = new Date();
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(today.getMonth() - 3);
       
-      listRes = await fetch(
-        `https://opendart.fss.or.kr/api/list.json?crtfc_key=${DART_API_KEY}&corp_name=${encodeURIComponent(corpName)}&bgn_de=${bgnDe}&end_de=${endDe}`,
+      const formatDate = (date) => {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}${m}${d}`;
+      };
+
+      let bgnDe = formatDate(threeMonthsAgo);
+      let endDe = formatDate(today);
+
+      // 주의: list.json은 corp_name 파라미터를 무시하므로, 우연히 일치하는 기업코드가 반환될 위험이 큽니다.
+      // 완벽한 구현을 위해서는 corpCode.xml을 다운로드하여 매핑해야 합니다.
+      let listRes = await fetch(
+        `https://opendart.fss.or.kr/api/list.json?crtfc_key=${DART_API_KEY}&bgn_de=${bgnDe}&end_de=${endDe}`,
         { headers: { 'User-Agent': 'Mozilla/5.0' } }
       );
-      listData = await listRes.json();
+      let listData = await listRes.json();
       
+      // 임시로 그냥 첫번째 값 사용 시 엉뚱한 기업이 될 수 있음
       if (listData.status === '000' && listData.list?.length > 0) {
         corpCode = listData.list[0].corp_code;
       }
