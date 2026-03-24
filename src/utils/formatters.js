@@ -21,10 +21,30 @@ export const repairJson = (jsonString) => {
 
 export const extractJson = (text) => {
   if (!text) return null;
-  const start = text.indexOf('{');
-  if (start === -1) return null;
-  const end = text.lastIndexOf('}');
-  if (end === -1) return null;
+  
+  const objStart = text.indexOf('{');
+  const arrStart = text.indexOf('[');
+  let start = -1;
+  let end = -1;
+
+  if (objStart !== -1 && arrStart !== -1) {
+    if (objStart < arrStart) {
+      start = objStart;
+      end = text.lastIndexOf('}');
+    } else {
+      start = arrStart;
+      end = text.lastIndexOf(']');
+    }
+  } else if (objStart !== -1) {
+    start = objStart;
+    end = text.lastIndexOf('}');
+  } else if (arrStart !== -1) {
+    start = arrStart;
+    end = text.lastIndexOf(']');
+  }
+
+  if (start === -1 || end === -1 || start >= end) return null;
+  
   const jsonPart = text.slice(start, end + 1);
   return repairJson(jsonPart);
 };
