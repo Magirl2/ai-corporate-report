@@ -19,11 +19,11 @@ export default function SwotMatrix({ swot }) {
   ];
 
   return (
-    <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm mt-6">
+    <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
       <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
         <Target className="text-indigo-500" /> 전략적 SWOT 분석
       </h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="flex flex-col gap-4">
         {boxes.map((box, idx) => (
           <div key={idx} className={`p-5 rounded-xl border ${box.color}`}>
             <h4 className="font-black text-sm mb-3 border-b border-current/20 pb-2">{box.title}</h4>

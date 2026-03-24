@@ -142,8 +142,6 @@ export default function App() {
                       </h3>
                       <ExpandableText summary={safeSummary(singleData?.report?.industryStatus)} detail={safeDetail(singleData?.report?.industryStatus)} />
                     </div>
-
-                    {singleData.report?.swotAnalysis && <SwotMatrix swot={singleData.report.swotAnalysis} />}
                   </div>
 
                   {/* 오른쪽 컬럼 */}
@@ -204,6 +202,8 @@ export default function App() {
                       </h3>
                       <ExpandableNewsList newsList={singleData.report?.recentNews} />
                     </div>
+
+                    {singleData.report?.swotAnalysis && <SwotMatrix swot={singleData.report.swotAnalysis} />}
                   </div>
                 </div>
               </div>
