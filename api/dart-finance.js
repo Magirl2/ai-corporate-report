@@ -102,7 +102,7 @@ export default async function handler(req, res) {
       // 💡 핵심 수정: 재무제표 구분(sj_div)을 명시적으로 필터링하여 엉뚱한 표(예: 자본변동표 등)에서 값을 가져오는 오류를 방지합니다.
       // BS: 재무상태표, IS: 손익계산서, CIS: 포괄손익계산서
       const find = (names, sj_divs) => list.find(r => 
-        (names.some(n => r.account_nm && r.account_nm.includes(n))) && 
+        (names.some(n => r.account_nm && r.account_nm.trim().startsWith(n))) && 
         (!sj_divs || sj_divs.includes(r.sj_div))
       );
       
