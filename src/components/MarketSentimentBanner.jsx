@@ -1,5 +1,5 @@
-// src/components/MarketSentimentBanner.jsx
 import React from 'react';
+import MarkdownViewer from './MarkdownViewer';
 
 export default function MarketSentimentBanner({ sentiment }) {
   if (!sentiment) return null;
@@ -21,11 +21,13 @@ export default function MarketSentimentBanner({ sentiment }) {
         <h4 className="text-sm font-bold text-slate-800 border-b border-slate-200/50 pb-2">
           핵심 뉴스 요약
         </h4>
-        <ul className="space-y-2 mt-3">
+        <ul className="space-y-4 mt-3">
           {(sentiment.analysis || []).map((text, i) => (
-            <li key={i} className="flex items-start gap-2 text-sm font-medium text-slate-700 leading-relaxed">
+            <li key={i} className="flex items-start gap-3">
               <span className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${theme.bg.replace('50', '400')}`}></span>
-              {text}
+              <div className="text-sm font-medium text-slate-700 w-full">
+                <MarkdownViewer text={text} />
+              </div>
             </li>
           ))}
         </ul>

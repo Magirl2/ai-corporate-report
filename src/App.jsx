@@ -5,6 +5,7 @@ import { safeSummary, safeDetail, tabClass } from './utils/formatters';
 import MarketSentimentBanner from './components/MarketSentimentBanner';
 // 💡 더 이상 사용하지 않는 ExpandableSection import 제거
 import ExpandableText from './components/ExpandableText';
+import ExpandableNewsList from './components/ExpandableNewsList';
 import SwotMatrix from './components/SwotMatrix';
 import CompareFinancials from './components/CompareFinancials';
 
@@ -201,12 +202,7 @@ export default function App() {
                       <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
                         <Newspaper className="text-indigo-500" /> 주요 뉴스
                       </h3>
-                      {(singleData.report?.recentNews || []).map((news, i) => (
-                        <div key={i} className="mb-4 border-b pb-4 last:border-0">
-                          <h4 className="font-bold">{news.headline}</h4>
-                          <ExpandableText summary={news.summary} detail={news.detail} />
-                        </div>
-                      ))}
+                      <ExpandableNewsList newsList={singleData.report?.recentNews} />
                     </div>
                   </div>
                 </div>
