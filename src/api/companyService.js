@@ -123,7 +123,11 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
   });
 
   const researchBriefing = searchResult.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  if (!researchBriefing) throw new Error("메인 엔진의 검색 데이터를 읽을 수 없습니다.");
+  if (!researchBriefing) {
+    console.error('메인 엔진 응답 구조:', JSON.stringify(searchResult).substring(0, 500));
+    const blockReason = searchResult.candidates?.[0]?.finishReason || searchResult.promptFeedback?.blockReason;
+    throw new Error(`메인 엔진의 검색 데이터를 읽을 수 없습니다. (사유: ${blockReason || '응답 없음'})`);
+  }
 
   // --- 추출: 검색 출처 (Grounding Metadata) ---
   const groundingMetadata = searchResult.candidates?.[0]?.groundingMetadata;

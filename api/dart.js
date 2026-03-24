@@ -10,6 +10,21 @@ export default async function handler(req, res) {
     const queryString = req.url.split('?')[1] || '';
     const searchParams = new URLSearchParams(queryString);
     
+    // 💡 주요 기업 고유번호 매핑 (dart-finance.js와 동일)
+    // corp_name 대신 corp_code를 사용해야 정확한 기업의 공시만 반환됩니다.
+    const COMMON_CORPS = {
+      '삼성전자': '00126380',
+      'SK하이닉스': '00164779',
+      '현대자동차': '00164742',
+      'LG에너지솔루션': '01515350',
+      '기아': '00164788',
+      '카카오': '00258801',
+      'NAVER': '00266961'
+    };
+
+    const corpName = searchParams.get('corp_name');
+    const corpCode = corpName ? COMMON_CORPS[corpName] : null;
+
     // 💡 핵심: 오늘 기준 정확히 3개월 전 날짜 계산
     const today = new Date();
     const threeMonthsAgo = new Date();
@@ -28,6 +43,12 @@ export default async function handler(req, res) {
     }
     if (!searchParams.has('end_de')) {
       searchParams.append('end_de', formatDate(today)); 
+    }
+
+    // 💡 corp_code가 있으면 corp_name 대신 사용 (정확한 필터링)
+    if (corpCode) {
+      searchParams.delete('corp_name');
+      searchParams.append('corp_code', corpCode);
     }
 
     // 💡 누락된 API 키 파라미터 강제 주입
