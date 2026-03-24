@@ -141,8 +141,10 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
     지시사항: 
     ${groupInstructions}
     
-    CRITICAL: 반드시 모든 내용을 완벽하고 일관된 '한국어(Korean)'로 작성해야 합니다!
-    CRITICAL: JSON 문자열 내부에 실제 줄바꿈(Enter) 탭(Tab) 등의 제어문자를 절대 사용하지 마세요. (Bad control character 에러 발생) 줄바꿈이 필요하다면 반드시 문자 그대로의 '\\n' 을 명시하세요.
+CRITICAL: 반드시 모든 내용을 완벽하고 일관된 '한국어(Korean)'로 작성해야 합니다!
+    CRITICAL: JSON 문자열 내부에 실제 줄바꿈(Enter) 탭(Tab) 등의 제어문자를 절대 사용하지 마세요.
+    // 👇 아래 한 줄을 추가해 주세요! 👇
+    CRITICAL: JSON의 Value(내용) 텍스트 안에 큰따옴표(")를 절대 사용하지 마세요. 강조가 필요하면 작은따옴표(')를 쓰세요.
     출력은 반드시 다른 텍스트 없이 아래 JSON 구조만 출력하세요. (마크다운 백틱 등 금지)
     출력 포맷:
     ${outputFormat}
@@ -215,7 +217,8 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
         contents: [{ parts: [{ text: task.prompt }] }],
         generationConfig: {
           temperature: 0.2,
-          maxOutputTokens: 8192
+          maxOutputTokens: 8192,
+          responseMimeType: "application/json" // 👇 이 옵션을 꼭 추가해 주세요!
         }
       })
     });
