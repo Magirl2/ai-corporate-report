@@ -139,8 +139,8 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
     지시사항: 
     ${groupInstructions}
     
-    CRITICAL: 문단을 나눌 때는 실제 줄바꿈(Enter) 대신 반드시 '<br><br>' 태그를 사용하세요!
-    CRITICAL: JSON 문자열 내부에 실제 줄바꿈(Enter) 탭(Tab) 등의 제어문자를 절대 사용하지 마세요.
+    CRITICAL: 문단을 나눌 때는 \n(줄바꿈)을 사용하고, 마크다운 문법(예: **강조**, - 불릿 리스트, ### 소제목 등)을 적극 활용하여 가독성을 높이세요!
+    CRITICAL: JSON 문자열 내부에 줄바꿈은 \n으로 이스케이프 처리하고, 탭(Tab) 등의 제어문자는 절대 사용하지 마세요.
     CRITICAL: JSON의 Value(내용) 텍스트 안에 큰따옴표(")를 절대 사용하지 마세요. 강조가 필요하면 작은따옴표(')를 쓰세요.
     출력은 반드시 다른 텍스트 없이 아래 JSON 구조만 출력하세요. (마크다운 백틱 등 금지)
     출력 포맷:
@@ -224,9 +224,9 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
     const jsonStr = extractJson(text);
     if (!jsonStr) throw new Error(`${task.key} 파트 그룹을 분석할 수 없습니다.`);
 
-    // ✅ [추가] AI가 실수로 넣은 실제 제어 문자(줄바꿈, 탭 등)를 모두 공백으로 치환 (JSON 파싱 에러 방지용)
-    // 문단 구분은 프롬프트에서 지시한 <br><br> 태그로 처리되어 줄바꿈이 유지됩니다.
-    const sanitizedJsonStr = jsonStr.replace(/[\r\n\t\u00A0\u2028\u2029]+/g, ' ');
+    // ✅ [추가] AI가 실수로 넣은 실제 제어 문자(탭 등)를 공백으로 치환 (JSON 파싱 에러 방지용)
+    // 줄바꿈(\n)은 마크다운 렌더링을 위해 보존합니다.
+    const sanitizedJsonStr = jsonStr.replace(/[\r\t\u00A0\u2028\u2029]+/g, ' ');
 
     let parsedGroup;
     try {
