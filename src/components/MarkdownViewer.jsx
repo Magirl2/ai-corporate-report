@@ -1,11 +1,13 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkBreaks from 'remark-breaks';
 
 export default function MarkdownViewer({ text }) {
   if (!text) return null;
   return (
     <div className="whitespace-pre-wrap">
       <ReactMarkdown
+        remarkPlugins={[remarkBreaks]}
         components={{
           ul: ({ node, ...props }) => <ul className="list-disc pl-5 my-2 space-y-1" {...props} />,
           ol: ({ node, ...props }) => <ol className="list-decimal pl-5 my-2 space-y-1" {...props} />,

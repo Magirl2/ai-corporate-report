@@ -1,10 +1,15 @@
 // src/components/SwotMatrix.jsx
 import React from 'react';
 import { Target } from 'lucide-react';
-import FormattedText from './FormattedText';
+import ExpandableText from './ExpandableText';
 
 export default function SwotMatrix({ swot }) {
   if (!swot) return null;
+
+  const renderItem = (item) => {
+    if (typeof item === 'string') return <ExpandableText summary={item} detail={item} />;
+    return <ExpandableText summary={item?.summary || ''} detail={item?.detail || ''} />;
+  };
 
   const boxes = [
     { title: "S (강점: Strengths)", data: swot.strength, color: "bg-blue-50/50 border-blue-200 text-blue-800" },
@@ -22,7 +27,7 @@ export default function SwotMatrix({ swot }) {
         {boxes.map((box, idx) => (
           <div key={idx} className={`p-5 rounded-xl border ${box.color}`}>
             <h4 className="font-black text-sm mb-3 border-b border-current/20 pb-2">{box.title}</h4>
-            <FormattedText text={box.data} /> 
+            {renderItem(box.data)}
           </div>
         ))}
       </div>

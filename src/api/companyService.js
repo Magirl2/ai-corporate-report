@@ -132,6 +132,10 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
     
     위 자료를 바탕으로 보고서의 [${groupName}] 파트들을 분석하여 한국어로 작성해 주세요. 
     
+    ❗분량 및 디테일 강제 준수 (CRITICAL)❗
+    당신은 3~4개 파트를 묶어서 처리하지만, 절대 내용을 대충 요약해서는 안 됩니다. 
+    각 파트의 'detail' 필드는 현업 애널리스트가 쓰듯 최소 3개의 문단, 500자 이상의 매우 깊이 있고 방대한 리포트로 꽉 채워서 작성해야 합니다!! 내용이 부실하거나 빈약하면 보고서 전체가 반려됩니다.
+    
     지시사항: 
     ${groupInstructions}
     
@@ -163,12 +167,17 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
         '비즈니스 & 리스크 전략 (vision, businessModel, swotAnalysis, riskOutlook)',
         `- vision: 기업의 중장기 비전 및 목표, 성장 전략을 구체적으로 서술하세요.
 - businessModel: 기업이 돈을 버는 수익 창출 구조와 주요 제품군을 캐시카우 중심으로 구체적으로 서술하세요.
-- swotAnalysis: 강점, 약점, 기회, 위협을 각각 상세히 서술하세요.
+- swotAnalysis: 강점, 약점, 기회, 위협을 각각 요약본과 엄청난 디테일로 분리하여 상세히 분석하세요.
 - riskOutlook: 단/장기 예상되는 잠재적 리스크와 기업의 대응 전망을 구체적으로 서술하세요.`,
         `{
   "vision": { "summary": "1문장 요약", "detail": "미래 전략 및 향후 행보에 대한 매우 구체적인 내용" },
   "businessModel": { "summary": "1문장 요약", "detail": "수익 모델 및 주요 사업 구조에 대한 매우 구체적인 내용" },
-  "swotAnalysis": { "strength": "강점 상세 설명", "weakness": "약점 상세 설명", "opportunity": "기회 상세 설명", "threat": "위협 상세 설명" },
+  "swotAnalysis": { 
+    "strength": { "summary": "1~2문장 강점 요약", "detail": "매우 깊고 방대한 강점 상세 분석" },
+    "weakness": { "summary": "1~2문장 약점 요약", "detail": "매우 깊고 방대한 약점 상세 분석" },
+    "opportunity": { "summary": "1~2문장 기회 요약", "detail": "매우 깊고 방대한 기회 상세 분석" },
+    "threat": { "summary": "1~2문장 위협 요약", "detail": "매우 깊고 방대한 위협 상세 분석" }
+  },
   "riskOutlook": { "summary": "1문장 요약", "detail": "잠재적 이슈 및 리스크 관리에 대한 매우 구체적인 내용" }
 }`
       )
