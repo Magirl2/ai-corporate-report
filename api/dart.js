@@ -70,14 +70,12 @@ export default async function handler(req, res) {
 
     const data = await response.json();
 
-    // 💡 핵심 수정: DART API가 corp_name 필터링을 제대로 하지 않는 문제 해결
-    // 응답 결과에서 검색한 기업명과 정확히 일치하는 항목만 필터링합니다.
-    // 이를 통해 다른 기업(예: 유안타스팩)의 공시가 섞이는 문제를 방지합니다.
+    // 💡 핵심: 검색한 기업과 정확히 일치하는 공시만 필터링
     if (corpName && data.status === '000' && data.list) {
       data.list = data.list.filter(item => item.corp_name === corpName);
       if (data.list.length === 0) {
         data.status = '013';
-        data.message = `'${corpName}'의 최근 공시를 찾을 수 없습니다.`;
+        data.message = `'${corpName}'의 최근 3개월 내 DART 공시 정보가 없어 출력하지 않았습니다.`;
       }
     }
 

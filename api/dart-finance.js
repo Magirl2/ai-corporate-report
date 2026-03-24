@@ -29,10 +29,7 @@ export default async function handler(req, res) {
     const today = new Date();
 
     if (!corpCode) {
-      // ─── STEP 1: list.json으로 corp_code 우회 조회 (3개월 제한 준수) ──────────
-      const threeMonthsAgo = new Date();
-      threeMonthsAgo.setMonth(today.getMonth() - 3);
-      
+      // ─── STEP 1: list.json으로 corp_code 조회 ──────────
       const formatDate = (date) => {
         const y = date.getFullYear();
         const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -40,28 +37,31 @@ export default async function handler(req, res) {
         return `${y}${m}${d}`;
       };
 
-      let bgnDe = formatDate(threeMonthsAgo);
-      let endDe = formatDate(today);
+      // 💡 DART 규칙: corp_name으로 검색 시 최대 3개월까지만 조회 가능
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(today.getMonth() - 3);
 
-      // 💡 핵심 수정: corp_name 파라미터를 포함하여 DART API 호출
-      let listRes = await fetch(
-        `https://opendart.fss.or.kr/api/list.json?crtfc_key=${DART_API_KEY}&corp_name=${encodeURIComponent(corpName)}&bgn_de=${bgnDe}&end_de=${endDe}`,
+      const bgnDe = formatDate(threeMonthsAgo);
+      const endDe = formatDate(today);
+
+      // 💡 corp_name 파라미터 포함 + page_count를 100으로 늘려 매칭 확률 향상
+      const listRes = await fetch(
+        `https://opendart.fss.or.kr/api/list.json?crtfc_key=${DART_API_KEY}&corp_name=${encodeURIComponent(corpName)}&bgn_de=${bgnDe}&end_de=${endDe}&page_count=100`,
         { headers: { 'User-Agent': 'Mozilla/5.0' } }
       );
-      let listData = await listRes.json();
+      const listData = await listRes.json();
       
-      // 💡 핵심 수정: 응답 목록에서 검색한 기업명과 정확히 일치하는 항목만 사용
-      // DART API가 corp_name을 무시하고 전체 목록을 반환하는 경우를 대비합니다.
       if (listData.status === '000' && listData.list?.length > 0) {
-        const matched = listData.list.find(item => item.corp_name === corpName);
-        if (matched) {
-          corpCode = matched.corp_code;
+        // 정확히 일치하는 기업만 사용 (부분 일치는 가짜 데이터 위험)
+        const exactMatch = listData.list.find(item => item.corp_name === corpName);
+        if (exactMatch) {
+          corpCode = exactMatch.corp_code;
         }
       }
     }
 
     if (!corpCode) {
-      return res.status(404).json({ error: `'${corpName}'에 해당하는 기업을 찾을 수 없거나 최근 6개월 내 공시가 없습니다.` });
+      return res.status(404).json({ error: `'${corpName}'의 최근 3개월 내 DART 공시 정보가 없어 재무 데이터를 출력하지 않았습니다.` });
     }
 
     // ─── STEP 2: 최근 5개 연도 재무제표 병렬 조회 (데이터 있는 연도 동적 선택) ───
