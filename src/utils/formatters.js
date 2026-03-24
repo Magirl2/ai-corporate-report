@@ -45,7 +45,10 @@ export const extractJson = (text) => {
 
   if (start === -1 || end === -1 || start >= end) return null;
   
-  const jsonPart = text.slice(start, end + 1);
+  let jsonPart = text.slice(start, end + 1);
+  // LLM이 흔히 실수하는 후행 쉼표(Trailing comma) 제거
+  jsonPart = jsonPart.replace(/,(?=\s*[}\]])/g, '');
+  
   return repairJson(jsonPart);
 };
 
