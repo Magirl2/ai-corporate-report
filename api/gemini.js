@@ -24,21 +24,26 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Gemini API 키가 서버에 설정되지 않았습니다.' });
     }
 
-    // 3. 구글 Gemini API 엔드포인트 주소 구성 및 재시도 로직 추가
-    let model = 'gemini-2.5-pro'; 
+    // 3. 클라이언트가 요청한 모델명 확인 API 엔드포인트 주소 구성
+    let model = req.body.model || 'gemini-2.5-flash'; 
+    
+    // Google API 페이로드에서 model 필드 제거
+    const payload = { ...req.body };
+    delete payload.model;
+
     let url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const MAX_RETRIES = 3;
     let delay = 1000;
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-      // 4. 프론트엔드에서 받은 데이터(req.body)를 그대로 구글 서버로 전달
+      // 4. 프론트엔드에서 받은 데이터를 구글 서버로 전달
       const response = await fetch(url, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json' 
         },
-        body: JSON.stringify(req.body)
+        body: JSON.stringify(payload)
       });
 
       const data = await response.json();

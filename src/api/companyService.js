@@ -65,11 +65,9 @@ export const fetchCompanyData = async (companyName, onStatusUpdate) => {
   onStatusUpdate?.(`[${companyName}] DART 재무제표 수집 중...`);
   const dartFinance = await fetchDartFinance(companyName);
 
-  onStatusUpdate?.(`[${companyName}] 최신 웹 검색 및 AI 통합 분석 중...`);
-
   const today = new Date().toLocaleDateString('ko-KR');
 
-  // ✅ [추가 3] DART 실수치를 프롬프트 컨텍스트로 주입, keyMetrics 필드 명시
+  // ✅ [추가 3] DART 실수치 주입
   const dartFinanceContext = dartFinance
     ? `
 DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
@@ -87,73 +85,157 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
 `
     : 'DART 재무제표 실수치를 가져오지 못했습니다. 웹 검색으로 추정하여 채워주세요.';
 
-  const prompt = `
-    Today's date is ${today}. You must use the Google Search tool to find the most recent news, stock trends, and current events for '${companyName}'.
-    Combine this real-time web search data with the following Korea DART data:
-    
-    [공시 목록]
+  // --- STAGE 1: Main Search Engine (gemini-2.5-pro) ---
+  onStatusUpdate?.(`[${companyName}] 메인 엔진: 최신 뉴스 및 기업 환경 심층 웹 검색 중...`);
+  
+  const searchPrompt = `
+    Today's date is ${today}. You are a top-tier financial analyst. 
+    Conduct an in-depth web search using the Google Search tool for the most recent news, stock market trends, and industry issues regarding '${companyName}'.
+    IMPORTANT: You must conduct your search in English, and you MUST write your entire research briefing notes completely in English.
+    Combine your web search findings with the provided Korea DART data below to create a highly detailed, comprehensive research briefing.
+    Include specific facts, numbers, and news headlines (in English) so that another AI can use it to write a detailed report.
+    Do not summarize; provide as much detail as possible.
+
+    [Korean DART Disclosure List]
     ${dartInfo}
     
-    [재무 수치]
+    [Korean DART Financial Data]
     ${dartFinanceContext}
-    
-    CRITICAL: You MUST provide a comprehensive business report filling out EVERY SINGLE FIELD in the JSON format below. Do not leave any field empty or use placeholders like "...".
-    
-    Output STRICTLY in this JSON format:
-    {
-      "companyName": "Official Name",
-      "macroTrend": { "summary": "요약 1문장", "detail": "상세 분석 내용" },
-      "report": {
-        "marketSentiment": { "status": "Positive/Neutral/Negative", "analysis": ["이유1", "이유2", "이유3"] },
-        "vision": { "summary": "비전 요약 1문장", "detail": "비전 상세 내용" },
-        "businessModel": { "summary": "비즈니스 모델 요약 1문장", "detail": "비즈니스 모델 상세 내용" },
-        "industryStatus": { "summary": "산업 현황 요약 1문장", "detail": "산업 현황 상세 내용" },
-        "swotAnalysis": { "strength": "강점 설명", "weakness": "약점 설명", "opportunity": "기회 설명", "threat": "위협 설명" },
-        "riskOutlook": { "summary": "리스크 전망 요약 1문장", "detail": "리스크 전망 상세 내용" },
-        "financialAnalysis": {
-          "overview": { "summary": "재무 분석 요약 1문장", "detail": "재무 분석 상세 내용" },
-          "keyMetrics": [
-            {
-              "revenueGrowth": "매출 성장률 (예: +12.3%)",
-              "operatingMargin": "영업이익률 (예: 8.7%)",
-              "roe": "자기자본이익률 (예: 18.5%)",
-              "debtRatio": "부채비율 (예: 142.0%)",
-              "eps": "주당순이익 (예: 4,250원)"
-            }
-          ]
-        },
-        "recentNews": [
-          { "headline": "최신 뉴스 제목 1", "summary": "뉴스 요약", "detail": "뉴스 상세 내용" },
-          { "headline": "최신 뉴스 제목 2", "summary": "뉴스 요약", "detail": "뉴스 상세 내용" }
-        ]
-      }
-    }
-    Translate all content to Korean.
   `;
 
-  const result = await fetchWithRetry(url, {
+  const searchResult = await fetchWithRetry(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
+      model: 'gemini-2.5-pro',
+      contents: [{ parts: [{ text: searchPrompt }] }],
       tools: [{ googleSearch: {} }],
       generationConfig: {
-        maxOutputTokens: 8192,
-        temperature: 0
+        temperature: 0.2
       }
     })
   });
 
-const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-  const jsonStr = extractJson(text);
-  if (!jsonStr) throw new Error("분석 데이터를 읽을 수 없습니다.");
+  const researchBriefing = searchResult.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  if (!researchBriefing) throw new Error("메인 엔진의 검색 데이터를 읽을 수 없습니다.");
+
+  // --- STAGE 2: 10 Small Output Engines (gemini-2.5-flash) in Parallel ---
+  onStatusUpdate?.(`[${companyName}] 서브 엔진(10개 파트) 병렬 상세 분석 전개 중 (0/10)...`);
+
+  const createSubPrompt = (partName, instructions, outputFormat) => `
+    당신은 '${companyName}' 기업 분석 보고서를 작성하는 최고의 전문가입니다.
+    아래는 메인 리서치 AI가 수집한 방대한 최신 자료(영어)입니다.
+    
+    [통합 리서치 브리핑]
+    ${researchBriefing}
+    
+    위 자료를 바탕으로 보고서의 [${partName}] 파트를 분석하여 한국어로 작성해 주세요. 
+    간단한 요약으로 끝내지 말고 매우 상세하고 깊이 있는 전문가 수준의 설명을 제공해야 합니다.
+    
+    지시사항: ${instructions}
+    
+    CRITICAL: 반드시 모든 내용을 완벽하고 일관된 '한국어(Korean)'로 작성해야 합니다!
+    출력은 반드시 다른 텍스트 없이 아래 JSON 구조만 출력하세요. (마크다운 백틱 등 금지)
+    출력 포맷:
+    ${outputFormat}
+  `;
+
+  const subTasks = [
+    {
+      key: 'macroTrend',
+      prompt: createSubPrompt('거시적 트렌드 (macroTrend)', 
+        '기업을 둘러싼 거시 경제적 요인, 시장 트렌드를 구체적으로 서술하세요.', 
+        `{ "summary": "1문장 핵심 요약", "detail": "매우 구체적이고 깊이 있는 분석 내용" }`)
+    },
+    {
+      key: 'marketSentiment',
+      prompt: createSubPrompt('시장 심리 (marketSentiment)', 
+        '현재 주식 시장의 심리와 평가를 3가지 주요 이유를 들어 구체적으로 서술하세요.', 
+        `{ "status": "Positive/Neutral/Negative 중 택 1", "analysis": ["구체적인 이유 1", "구체적인 이유 2", "구체적인 이유 3"] }`)
+    },
+    {
+      key: 'vision',
+      prompt: createSubPrompt('기업 비전 (vision)', 
+        '기업의 중장기 비전 및 목표, 성장 전략을 구체적으로 서술하세요.', 
+        `{ "summary": "1문장 요약", "detail": "미래 전략 및 향후 행보에 대한 매우 구체적인 내용" }`)
+    },
+    {
+      key: 'businessModel',
+      prompt: createSubPrompt('비즈니스 모델 (businessModel)', 
+        '기업이 돈을 버는 수익 창출 구조와 주요 제품군을 캐시카우 중심으로 구체적으로 서술하세요.', 
+        `{ "summary": "1문장 요약", "detail": "수익 모델 및 주요 사업 구조에 대한 매우 구체적인 내용" }`)
+    },
+    {
+      key: 'industryStatus',
+      prompt: createSubPrompt('산업 현황 (industryStatus)', 
+        '기업이 속한 산업의 현황, 경쟁 구도, 점유율, 규제 등을 구체적으로 서술하세요.', 
+        `{ "summary": "1문장 요약", "detail": "업계 동향 및 경쟁사 분석을 포함한 매우 구체적인 내용" }`)
+    },
+    {
+      key: 'swotAnalysis',
+      prompt: createSubPrompt('SWOT 분석 (swotAnalysis)', 
+        '강점, 약점, 기회, 위협을 각각 상세히 서술하세요.', 
+        `{ "strength": "강점 상세 설명", "weakness": "약점 상세 설명", "opportunity": "기회 상세 설명", "threat": "위협 상세 설명" }`)
+    },
+    {
+      key: 'riskOutlook',
+      prompt: createSubPrompt('리스크 및 전망 (riskOutlook)', 
+        '단/장기 예상되는 잠재적 리스크와 기업의 대응 전망을 구체적으로 서술하세요.', 
+        `{ "summary": "1문장 요약", "detail": "잠재적 이슈 및 리스크 관리에 대한 매우 구체적인 내용" }`)
+    },
+    {
+      key: 'financialOverview',
+      prompt: createSubPrompt('재무 분석 개요 (financialAnalysis.overview)', 
+        '제공된 재무 수치를 바탕으로 재무 건전성 및 실적 추이를 평가하세요.', 
+        `{ "summary": "1문장 요약", "detail": "매출, 이익 흐름, 부채 등을 종합한 재무 성과 집중 평가 내용" }`)
+    },
+    {
+      key: 'financialKeyMetrics',
+      prompt: createSubPrompt('재무 핵심 지표 (financialAnalysis.keyMetrics)', 
+        '제공된 DART 재무 지표를 정확히 일치시켜 JSON 배열(길이 1)로 반환하세요. 앞서 제공된 지표가 없다면 웹 검색 기반 추정치를 기재하세요.', 
+        `[ { "revenueGrowth": "매출 성장률 (예: +12.3%)", "operatingMargin": "영업이익률 (예: 8.7%)", "roe": "자기자본이익률 (예: 18.5%)", "debtRatio": "부채비율 (예: 142.0%)", "eps": "주당순이익 (예: 4,250원)" } ]`)
+    },
+    {
+      key: 'recentNews',
+      prompt: createSubPrompt('최근 뉴스 (recentNews)', 
+        '가장 의미 있고 중요한 최신 메이저 뉴스 2~3개를 선정해 상세 내용을 다루세요.', 
+        `[ { "headline": "뉴스 제목", "summary": "1문장 핵심 요약", "detail": "뉴스에서 파생된 영향, 배경 등 상세 내용" }, ... ]`)
+    }
+  ];
+
+  let completedTasks = 0;
   
-  let parsed = JSON.parse(jsonStr);
+  const generatePart = async (task) => {
+    const result = await fetchWithRetry(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'gemini-2.5-flash',
+        contents: [{ parts: [{ text: task.prompt }] }],
+        generationConfig: {
+          temperature: 0.2
+        }
+      })
+    });
+    
+    const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const jsonStr = extractJson(text);
+    if (!jsonStr) throw new Error(`${task.key} 파트를 분석할 수 없습니다.`);
+    
+    const parsedPart = JSON.parse(jsonStr);
+    
+    completedTasks++;
+    onStatusUpdate?.(`[${companyName}] 서브 엔진 생성 완료 (${completedTasks}/10)`);
+    
+    return { key: task.key, data: parsedPart };
+  };
+
+  // Execute the 10 tasks in parallel
+  const partResults = await Promise.all(subTasks.map(generatePart));
 
   // 💡 마법의 청소기: 뉴스, SWOT, 전망 등 모든 데이터에서 [숫자, 숫자] 형태의 각주를 일괄 삭제합니다.
   const cleanFootnotes = (data) => {
     if (typeof data === 'string') {
-      // 텍스트일 경우 각주 패턴과 그 앞의 띄어쓰기를 지웁니다.
       return data.replace(/\s*\[[\d\s,]+\]/g, ''); 
     }
     if (Array.isArray(data)) {
@@ -169,9 +251,33 @@ const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
     return data;
   };
 
-  // 파싱된 데이터 전체를 청소기에 한 번 돌려 화면으로 보냅니다.
-  parsed = cleanFootnotes(parsed);
+  let reportJson = {
+    companyName: companyName,
+    macroTrend: {},
+    report: {
+      marketSentiment: {},
+      vision: {},
+      businessModel: {},
+      industryStatus: {},
+      swotAnalysis: {},
+      riskOutlook: {},
+      financialAnalysis: {
+        overview: {},
+        keyMetrics: []
+      },
+      recentNews: []
+    }
+  };
 
-  if (dartFinance?.yearlyMetrics) parsed.dartFinance = dartFinance;
-  return parsed;
+  partResults.forEach(res => {
+    const cleanedData = cleanFootnotes(res.data);
+    if (res.key === 'macroTrend') reportJson.macroTrend = cleanedData;
+    else if (res.key === 'financialOverview') reportJson.report.financialAnalysis.overview = cleanedData;
+    else if (res.key === 'financialKeyMetrics') reportJson.report.financialAnalysis.keyMetrics = cleanedData;
+    else reportJson.report[res.key] = cleanedData;
+  });
+
+  if (dartFinance?.yearlyMetrics) reportJson.dartFinance = dartFinance;
+  
+  return reportJson;
 };
