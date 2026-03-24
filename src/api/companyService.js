@@ -92,6 +92,12 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
     Conduct an extremely expansive web search using the Google Search tool for the most recent news, macro-economic conditions, stock market trends, product releases, competitor actions, and industry issues regarding '${companyName}'.
     IMPORTANT: You must conduct your search in English, and you MUST write your entire research briefing notes completely in English.
     Combine your extensive web search findings with the provided Korea DART data below to create a remarkably verbose and comprehensive research briefing.
+    
+    CRITICAL FACTUAL INTEGRITY: 
+    - You MUST ground all references to official DART disclosures strictly in the provided [Korean DART Disclosure List]. 
+    - DO NOT invent, assume, or hallucinate any recent disclosures (especially regarding trading suspension, delisting, or bankruptcy) that are not explicitly listed in the DART data.
+    - If you find high-impact negative rumors in web search that are NOT in the DART list, you MUST explicitly label them as "unconfirmed market rumors" and clarify that there is no official DART disclosure to support them as of ${today}.
+    
     Include specific facts, raw numbers, exact statistics, executive quotes, and multiple news headlines (in English) so that another AI can use it to write an exhaustive report.
     CRITICAL INSTRUCTION: DO NOT summarize. Output a remarkably exhaustive and high-volume briefing (Aim for at least 15,000~20,000+ characters or 7,000+ tokens). Break down every aspect of the company, industry, and macroeconomic context in granular detail so that the next AI phase has a massive amount of data to process.
 
@@ -119,6 +125,25 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
   const researchBriefing = searchResult.candidates?.[0]?.content?.parts?.[0]?.text || '';
   if (!researchBriefing) throw new Error("메인 엔진의 검색 데이터를 읽을 수 없습니다.");
 
+  // --- 추출: 검색 출처 (Grounding Metadata) ---
+  const groundingMetadata = searchResult.candidates?.[0]?.groundingMetadata;
+  const sources = [
+    { title: 'DART 전자공시시스템 (Open DART)', uri: 'https://opendart.fss.or.kr/' }
+  ];
+
+  if (groundingMetadata?.groundingChunks) {
+    groundingMetadata.groundingChunks.forEach(chunk => {
+      if (chunk.web && chunk.web.uri) {
+        if (!sources.some(s => s.uri === chunk.web.uri)) {
+          sources.push({
+            title: chunk.web.title || chunk.web.uri,
+            uri: chunk.web.uri
+          });
+        }
+      }
+    });
+  }
+
   // --- STAGE 2: 5 Output Engines (gemini-2.5-flash) in Parallel ---
   // 10개 파트를 5개 그룹으로 분배하여 병렬 분석합니다.
   onStatusUpdate?.(`[${companyName}] 서브 엔진(5개 그룹) 병렬 상세 분석 전개 중 (0/5)...`);
@@ -139,6 +164,11 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
     
     지시사항: 
     ${groupInstructions}
+    
+    CRITICAL FACT-CHECKING:
+    - 보고서의 모든 내용은 위 [통합 리서치 브리핑]에 근거해야 합니다.
+    - 특히 상장폐지 사유 발생, 주권매매거래정지, 부도 등 기업의 존립에 영향을 미치는 치명적인 부정적 공시(DART)는 반드시 브리핑 내의 실제 DART 목록에 존재할 경우에만 구체적인 날짜와 함께 인용하세요.
+    - 브리핑 내용 중 출처가 불분명하거나 루머성 정보인 경우 반드시 '시장 루머' 혹은 '확인되지 않은 정보'임을 명시해야 합니다.
     
     CRITICAL: 문단을 나눌 때는 줄바꿈을 사용하고, 마크다운 문법(예: **강조**, - 불릿 리스트, ### 소제목 등)을 적극 활용하여 가독성을 높이세요!
     CRITICAL: JSON 문자열 내부에 줄바꿈은 \\n으로 이스케이프 처리하고, 탭(Tab) 등의 제어문자는 절대 사용하지 마세요.
@@ -315,6 +345,9 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
   if (mergedGroup.recentNews) reportJson.report.recentNews = mergedGroup.recentNews;
 
   if (dartFinance?.yearlyMetrics) reportJson.dartFinance = dartFinance;
+
+  // 출처 정보 추가
+  reportJson.sources = sources;
 
   return reportJson;
 };

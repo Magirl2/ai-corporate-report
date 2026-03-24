@@ -23,6 +23,7 @@ export default function App() {
   const [compareLoading, setCompareLoading] = useState(false);
   const [compareError, setCompareError] = useState(null);
   const [compareStatus, setCompareStatus] = useState('');
+  const [reportSubTab, setReportSubTab] = useState('analysis'); // 'analysis' | 'sources'
 
   const handleSearch = async (e) => {
     if (e) e.preventDefault();
@@ -112,7 +113,32 @@ export default function App() {
                 <h2 className="text-4xl font-black text-slate-900">{singleData.companyName}</h2>
                 <MarketSentimentBanner sentiment={singleData.report?.marketSentiment} />
                 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* 서비 탭 네비게이션 */}
+                <div className="flex border-b border-slate-200">
+                  <button 
+                    onClick={() => setReportSubTab('analysis')}
+                    className={`px-4 py-2 text-sm font-semibold transition-colors border-b-2 -mb-[2px] ${
+                      reportSubTab === 'analysis' 
+                        ? 'text-blue-600 border-blue-600' 
+                        : 'text-slate-500 border-transparent hover:text-slate-700'
+                    }`}
+                  >
+                    상세 분석
+                  </button>
+                  <button 
+                    onClick={() => setReportSubTab('sources')}
+                    className={`px-4 py-2 text-sm font-semibold transition-colors border-b-2 -mb-[2px] ${
+                      reportSubTab === 'sources' 
+                        ? 'text-blue-600 border-blue-600' 
+                        : 'text-slate-500 border-transparent hover:text-slate-700'
+                    }`}
+                  >
+                    사용 정보 (출처)
+                  </button>
+                </div>
+
+                {reportSubTab === 'analysis' ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* 왼쪽 컬럼: 모든 섹션을 동일한 ExpandableText 구조로 통일 */}
                   <div className="space-y-6">
                     <div className="bg-white p-6 rounded-2xl border shadow-sm">
@@ -206,6 +232,47 @@ export default function App() {
                     {singleData.report?.swotAnalysis && <SwotMatrix swot={singleData.report.swotAnalysis} />}
                   </div>
                 </div>
+                ) : (
+                  <div className="bg-white p-8 rounded-2xl border shadow-sm animate-in fade-in slide-in-from-bottom-2">
+                    <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                      <Newspaper className="text-slate-500" /> 리포트 생성에 사용된 정보 출처
+                    </h3>
+                    <div className="space-y-4">
+                      {singleData.sources && singleData.sources.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {singleData.sources.map((source, idx) => (
+                            <a 
+                              key={idx} 
+                              href={source.uri} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="group p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50 transition-all block"
+                            >
+                              <div className="text-xs text-slate-400 mb-1 group-hover:text-blue-400 transition-colors">
+                                {source.uri.includes('dart') ? '공시 정보' : '웹 검색 뉴스'}
+                              </div>
+                              <div className="font-semibold text-slate-700 group-hover:text-blue-700 transition-colors line-clamp-1">
+                                {source.title}
+                              </div>
+                              <div className="text-xs text-slate-400 mt-2 truncate underline decoration-slate-200 group-hover:decoration-blue-200">
+                                {source.uri}
+                              </div>
+                            </a>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-slate-500">사용된 출처 정보를 불러올 수 없습니다.</p>
+                      )}
+                      
+                      <div className="mt-8 p-4 bg-blue-50/50 rounded-xl border border-blue-100">
+                        <p className="text-xs text-blue-600 leading-relaxed">
+                          * 본 리포트는 AI가 실시간 웹 검색 결과와 DART 전자공시 데이터를 종합하여 작성되었습니다. 
+                          각 출처의 내용이 AI에 의해 요약 및 분석되었으므로, 투자 판단 시 반드시 원문을 직접 확인하시기 바랍니다.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </>
