@@ -30,6 +30,9 @@ export default async function handler(req, res) {
       searchParams.append('end_de', formatDate(today)); 
     }
 
+    // 💡 누락된 API 키 파라미터 강제 주입
+    searchParams.append('crtfc_key', process.env.DART_API_KEY);
+
     const dartUrl = `https://opendart.fss.or.kr/api/list.json?${searchParams.toString()}`;
 
     const response = await fetch(dartUrl, {
