@@ -108,7 +108,7 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'gemini-3.1-pro',
+      model: 'gemini-2.5-pro',
       contents: [{ parts: [{ text: searchPrompt }] }],
       tools: [{ googleSearch: {} }],
       generationConfig: {
@@ -275,7 +275,7 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
   groupResults.forEach(res => {
     mergedGroup = { ...mergedGroup, ...res };
   });
-  
+
   mergedGroup = cleanFootnotes(mergedGroup);
 
   if (mergedGroup.macroTrend) reportJson.macroTrend = mergedGroup.macroTrend;
