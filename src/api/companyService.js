@@ -25,7 +25,7 @@ const fetchDartDisclosures = async (companyName) => {
   }
 };
 
-// ✅ [추가 1] DART 재무제표 수치 가져오기
+// DART 재무제표 수치 가져오기
 const fetchDartFinance = async (companyName) => {
   try {
     const encodedName = encodeURIComponent(companyName);
@@ -62,13 +62,11 @@ export const fetchCompanyData = async (companyName, onStatusUpdate) => {
   onStatusUpdate?.(`[${companyName}] DART 공시 데이터 수집 중...`);
   const dartInfo = await fetchDartDisclosures(companyName);
 
-  // ✅ [추가 2] 재무제표 수치 병렬 수집
   onStatusUpdate?.(`[${companyName}] DART 재무제표 수집 중...`);
   const dartFinance = await fetchDartFinance(companyName);
 
   const today = new Date().toLocaleDateString('ko-KR');
 
-  // ✅ [추가 3] DART 실수치 주입
   const dartFinanceContext = dartFinance
     ? `
 DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
@@ -121,9 +119,9 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
   const researchBriefing = searchResult.candidates?.[0]?.content?.parts?.[0]?.text || '';
   if (!researchBriefing) throw new Error("메인 엔진의 검색 데이터를 읽을 수 없습니다.");
 
-  // --- STAGE 2: 3 Combined Output Engines (gemini-2.5-flash) in Parallel ---
-  // API 비용 절감 및 속도 제한 방지를 위해 10개 파트를 3개 그룹으로 묶어 병렬 분석합니다.
-  onStatusUpdate?.(`[${companyName}] 서브 엔진(3개 그룹) 병렬 상세 분석 전개 중 (0/3)...`);
+  // --- STAGE 2: 5 Output Engines (gemini-2.5-flash) in Parallel ---
+  // 10개 파트를 5개 그룹으로 분배하여 병렬 분석합니다.
+  onStatusUpdate?.(`[${companyName}] 서브 엔진(5개 그룹) 병렬 상세 분석 전개 중 (0/5)...`);
 
   const createGroupPrompt = (groupName, groupInstructions, outputFormat) => `
     당신은 '${companyName}' 기업 분석 보고서를 작성하는 최고의 전문가입니다.
@@ -134,13 +132,16 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
     
     위 자료를 바탕으로 보고서의 [${groupName}] 파트들을 분석하여 한국어로 작성해 주세요. 
     
-    각 파트의 'detail' 필드는 현업 수석 애널리스트가 작성한 심층 리포트 형식으로, 구체적인 수치와 논리적 분석을 쏟아넣어 매우 상세하게 작성해 주세요. (내용이 부실하면 리포트 가치가 없습니다)
+    각 파트의 'detail' 필드는 증권사 리서치센터가 발행하는 전문 심층 리포트 수준으로 작성해야 합니다.
+    - 각 detail 필드는 최소 2,000~3,000자 이상 (약 4~6개 문단)으로, 구체적인 수치/통계, 인과관계 분석, 역사적 맥락, 미래 전망을 모두 포함해야 합니다.
+    - 마크다운의 ### 소제목, **강조**, - 불릿 리스트를 적극 활용하여 구조화된 리포트 형태로 작성하세요.
+    - 짧거나 피상적인 답변은 절대 불가합니다. 보고서의 가치는 깊이와 분량에서 나옵니다.
     
     지시사항: 
     ${groupInstructions}
     
-    CRITICAL: 문단을 나눌 때는 \n(줄바꿈)을 사용하고, 마크다운 문법(예: **강조**, - 불릿 리스트, ### 소제목 등)을 적극 활용하여 가독성을 높이세요!
-    CRITICAL: JSON 문자열 내부에 줄바꿈은 \n으로 이스케이프 처리하고, 탭(Tab) 등의 제어문자는 절대 사용하지 마세요.
+    CRITICAL: 문단을 나눌 때는 줄바꿈을 사용하고, 마크다운 문법(예: **강조**, - 불릿 리스트, ### 소제목 등)을 적극 활용하여 가독성을 높이세요!
+    CRITICAL: JSON 문자열 내부에 줄바꿈은 \\n으로 이스케이프 처리하고, 탭(Tab) 등의 제어문자는 절대 사용하지 마세요.
     CRITICAL: JSON의 Value(내용) 텍스트 안에 큰따옴표(")를 절대 사용하지 마세요. 강조가 필요하면 작은따옴표(')를 쓰세요.
     출력은 반드시 다른 텍스트 없이 아래 JSON 구조만 출력하세요. (마크다운 백틱 등 금지)
     출력 포맷:
@@ -151,40 +152,56 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
     {
       key: 'group1',
       prompt: createGroupPrompt(
-        '시장 및 산업 분석 (macroTrend, industryStatus, marketSentiment)',
+        '시장 환경 분석 (macroTrend, industryStatus)',
         `- macroTrend: 기업을 둘러싼 거시 경제적 요인, 시장 트렌드를 구체적으로 서술하세요.
-- industryStatus: 기업이 속한 산업의 현황, 경쟁 구도, 점유율, 규제 등을 구체적으로 서술하세요.
-- marketSentiment: 현재 주식 시장의 심리와 평가를 3가지 주요 이유를 들어 구체적으로 서술하세요.`,
+- industryStatus: 기업이 속한 산업의 현황, 경쟁 구도, 점유율, 규제 등을 구체적으로 서술하세요.`,
         `{
   "macroTrend": { "summary": "1문장 핵심 요약", "detail": "매우 구체적이고 깊이 있는 분석 내용" },
-  "industryStatus": { "summary": "1문장 요약", "detail": "업계 동향 및 경쟁사 분석을 포함한 매우 구체적인 내용" },
-  "marketSentiment": { "status": "Positive/Neutral/Negative 중 택 1", "analysis": ["구체적인 이유 1", "구체적인 이유 2", "구체적인 이유 3"] }
+  "industryStatus": { "summary": "1문장 요약", "detail": "업계 동향 및 경쟁사 분석을 포함한 매우 구체적인 내용" }
 }`
       )
     },
     {
       key: 'group2',
       prompt: createGroupPrompt(
-        '비즈니스 & 리스크 전략 (vision, businessModel, swotAnalysis, riskOutlook)',
-        `- vision: 기업의 중장기 비전 및 목표, 성장 전략을 구체적으로 서술하세요.
-- businessModel: 기업이 돈을 버는 수익 창출 구조와 주요 제품군을 캐시카우 중심으로 구체적으로 서술하세요.
-- swotAnalysis: 강점, 약점, 기회, 위협을 각각 요약(summary)과 상세 분석(detail)으로 분리하여 구체적으로 서술하세요.
-- riskOutlook: 단/장기 예상되는 잠재적 리스크와 기업의 대응 전망을 구체적으로 서술하세요.`,
+        '투자 심리 & 비전 (marketSentiment, vision)',
+        `- marketSentiment: 현재 주식 시장의 심리와 평가를 3가지 주요 이유를 들어 구체적으로 서술하세요.
+- vision: 기업의 중장기 비전 및 목표, 성장 전략을 구체적으로 서술하세요.`,
         `{
-  "vision": { "summary": "1문장 요약", "detail": "미래 전략 및 향후 행보에 대한 매우 구체적인 내용" },
-  "businessModel": { "summary": "1문장 요약", "detail": "수익 모델 및 주요 사업 구조에 대한 매우 구체적인 내용" },
-  "swotAnalysis": { 
-    "strength": { "summary": "2~3문장 강점 요약", "detail": "구체적인 강점 상세 분석" },
-    "weakness": { "summary": "2~3문장 약점 요약", "detail": "구체적인 약점 상세 분석" },
-    "opportunity": { "summary": "2~3문장 기회 요약", "detail": "구체적인 기회 상세 분석" },
-    "threat": { "summary": "2~3문장 위협 요약", "detail": "구체적인 위협 상세 분석" }
-  },
-  "riskOutlook": { "summary": "1문장 요약", "detail": "잠재적 이슈 및 리스크 관리에 대한 매우 구체적인 내용" }
+  "marketSentiment": { "status": "Positive/Neutral/Negative 중 택 1", "analysis": ["구체적인 이유 1", "구체적인 이유 2", "구체적인 이유 3"] },
+  "vision": { "summary": "1문장 요약", "detail": "미래 전략 및 향후 행보에 대한 매우 구체적인 내용" }
 }`
       )
     },
     {
       key: 'group3',
+      prompt: createGroupPrompt(
+        '비즈니스 & 리스크 전략 (businessModel, riskOutlook)',
+        `- businessModel: 기업이 돈을 버는 수익 창출 구조와 주요 제품군을 캐시카우 중심으로 구체적으로 서술하세요.
+- riskOutlook: 단/장기 예상되는 잠재적 리스크와 기업의 대응 전망을 구체적으로 서술하세요.`,
+        `{
+  "businessModel": { "summary": "1문장 요약", "detail": "수익 모델 및 주요 사업 구조에 대한 매우 구체적인 내용" },
+  "riskOutlook": { "summary": "1문장 요약", "detail": "잠재적 이슈 및 리스크 관리에 대한 매우 구체적인 내용" }
+}`
+      )
+    },
+    {
+      key: 'group4',
+      prompt: createGroupPrompt(
+        'SWOT 전략 분석 (swotAnalysis)',
+        `- swotAnalysis: 강점, 약점, 기회, 위협을 각각 요약(summary)과 상세 분석(detail)으로 분리하여 구체적으로 서술하세요.`,
+        `{
+  "swotAnalysis": { 
+    "strength": { "summary": "2~3문장 강점 요약", "detail": "구체적인 강점 상세 분석" },
+    "weakness": { "summary": "2~3문장 약점 요약", "detail": "구체적인 약점 상세 분석" },
+    "opportunity": { "summary": "2~3문장 기회 요약", "detail": "구체적인 기회 상세 분석" },
+    "threat": { "summary": "2~3문장 위협 요약", "detail": "구체적인 위협 상세 분석" }
+  }
+}`
+      )
+    },
+    {
+      key: 'group5',
       prompt: createGroupPrompt(
         '재무 및 최신 동향 (financialOverview, financialKeyMetrics, recentNews)',
         `- financialAnalysis.overview: 제공된 재무 수치를 바탕으로 재무 건전성 및 실적 추이를 평가하세요.
@@ -215,7 +232,7 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
         generationConfig: {
           temperature: 0.2,
           maxOutputTokens: 65536,
-          responseMimeType: "application/json" // 👇 이 옵션을 꼭 추가해 주세요!
+          responseMimeType: "application/json"
         }
       })
     });
@@ -224,7 +241,7 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
     const jsonStr = extractJson(text);
     if (!jsonStr) throw new Error(`${task.key} 파트 그룹을 분석할 수 없습니다.`);
 
-    // ✅ [추가] AI가 실수로 넣은 실제 제어 문자(탭 등)를 공백으로 치환 (JSON 파싱 에러 방지용)
+    // AI가 실수로 넣은 실제 제어 문자(탭 등)를 공백으로 치환 (JSON 파싱 에러 방지용)
     // 줄바꿈(\n)은 마크다운 렌더링을 위해 보존합니다.
     const sanitizedJsonStr = jsonStr.replace(/[\r\t\u00A0\u2028\u2029]+/g, ' ');
 
@@ -233,19 +250,18 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
       parsedGroup = JSON.parse(sanitizedJsonStr);
     } catch (parseError) {
       console.error("JSON Parsing Error! 문제의 문자열:", sanitizedJsonStr);
-      // 파싱 실패 시 extractJson의 결과물(정화된 버전)로 한 번 더 시도
       parsedGroup = JSON.parse(extractJson(text));
     }
 
     completedTasks++;
-    onStatusUpdate?.(`[${companyName}] 서브 엔진 완료 (${completedTasks}/3)`);
+    onStatusUpdate?.(`[${companyName}] 서브 엔진 완료 (${completedTasks}/5)`);
     return parsedGroup;
   };
 
-  // Execute the 3 groups in parallel
+  // Execute the 5 groups in parallel
   const groupResults = await Promise.all(groupTasks.map(generateGroup));
 
-  // 💡 마법의 청소기: 각주 일괄 삭제
+  // 각주 일괄 삭제
   const cleanFootnotes = (data) => {
     if (typeof data === 'string') {
       return data.replace(/\s*\[[\d\s,]+\]/g, '');
