@@ -26,10 +26,10 @@ export default async function handler(req, res) {
     };
 
     let corpCode = COMMON_CORPS[corpName] || null;
+    const today = new Date();
 
     if (!corpCode) {
       // ─── STEP 1: list.json으로 corp_code 우회 조회 (3개월 제한 준수) ──────────
-      const today = new Date();
       const threeMonthsAgo = new Date();
       threeMonthsAgo.setMonth(today.getMonth() - 3);
       
