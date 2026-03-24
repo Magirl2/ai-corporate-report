@@ -20,36 +20,45 @@ export const repairJson = (jsonString) => {
 };
 
 export const extractJson = (text) => {
-  if (!text) return null;
-  
-  const objStart = text.indexOf('{');
-  const arrStart = text.indexOf('[');
-  let start = -1;
-  let end = -1;
+  try {
+    const firstBrace = text.indexOf('{');
+    const firstBracket = text.indexOf('[');
+    const lastBrace = text.lastIndexOf('}');
+    const lastBracket = text.lastIndexOf(']');
 
-  if (objStart !== -1 && arrStart !== -1) {
-    if (objStart < arrStart) {
-      start = objStart;
-      end = text.lastIndexOf('}');
-    } else {
-      start = arrStart;
-      end = text.lastIndexOf(']');
+    let startIdx = -1;
+    let endIdx = -1;
+
+    // 객체 ({...}) 인지 배열 ([...]) 인지 판단
+    if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
+      startIdx = firstBrace;
+      endIdx = lastBrace;
+    } else if (firstBracket !== -1 && (firstBrace === -1 || firstBracket < firstBrace)) {
+      startIdx = firstBracket;
+      endIdx = lastBracket;
     }
-  } else if (objStart !== -1) {
-    start = objStart;
-    end = text.lastIndexOf('}');
-  } else if (arrStart !== -1) {
-    start = arrStart;
-    end = text.lastIndexOf(']');
-  }
 
-  if (start === -1 || end === -1 || start >= end) return null;
-  
-  let jsonPart = text.slice(start, end + 1);
-  // LLM이 흔히 실수하는 후행 쉼표(Trailing comma) 제거
-  jsonPart = jsonPart.replace(/,(?=\s*[}\]])/g, '');
-  
-  return repairJson(jsonPart);
+    if (startIdx === -1 || endIdx === -1 || startIdx > endIdx) return null;
+
+    let cleanJson = text.slice(startIdx, endIdx + 1);
+    
+    // 💡 방어 로직 1: 불필요한 후행 쉼표 제거
+    cleanJson = cleanJson.replace(/,\s*([\}\]])/g, '$1');
+    
+    // 💡 방어 로직 2: 제어 문자(탭) 무효화
+    cleanJson = cleanJson.replace(/\t/g, '  ');
+
+    // 💡 방어 로직 3: 문자열 값 내부의 실제 줄바꿈(Enter) 문자를 안전한 \n 으로 치환
+    // 쌍따옴표로 묶인 문자열 내부를 정확히 찾아내서 그 안의 \n, \r 만 이스케이프합니다.
+    cleanJson = cleanJson.replace(/"([^"\\]*(?:\\.[^"\\]*)*)"/g, (match) => {
+      return match.replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+    });
+
+    return cleanJson;
+  } catch (error) {
+    console.error("JSON 추출 실패:", error);
+    return null;
+  }
 };
 
 export const safeField = (obj, keys, fallback) => {
