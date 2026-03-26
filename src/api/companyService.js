@@ -117,7 +117,7 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
       tools: [{ googleSearch: {} }],
       generationConfig: {
         temperature: 0.3,
-        maxOutputTokens: 8192
+        maxOutputTokens: 65536
       }
     })
   });
