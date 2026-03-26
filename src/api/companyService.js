@@ -199,10 +199,9 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
       key: 'group2',
       prompt: createGroupPrompt(
         '투자 심리 & 비전 (marketSentiment, vision)',
-        `- marketSentiment: 현재 주식 시장의 심리와 평가를 3가지 주요 이유를 들어 구체적으로 서술하세요.
-- vision: 기업의 중장기 비전 및 목표, 성장 전략을 구체적으로 서술하세요.`,
+        `- marketSentiment: 현재 주식 시장의 심리와 평가를 5가지 주요 이유를 들어 구체적으로 서술하세요. 각 항목은 핵심 한 줄 요약(summary)과 2~3문단 분량의 상세 분석(detail)으로 구성하세요.\n- vision: 기업의 중장기 비전 및 목표, 성장 전략을 구체적으로 서술하세요.`,
         `{
-  "marketSentiment": { "status": "Positive/Neutral/Negative 중 택 1", "analysis": ["구체적인 이유 1", "구체적인 이유 2", "구체적인 이유 3"] },
+  "marketSentiment": { "status": "Positive/Neutral/Negative 중 택 1", "analysis": [{ "summary": "핵심 이유 한 줄 요약", "detail": "2~3문단 분량의 구체적인 상세 분석" }] },
   "vision": { "summary": "1문장 요약", "detail": "미래 전략 및 향후 행보에 대한 매우 구체적인 내용" }
 }`
       )
