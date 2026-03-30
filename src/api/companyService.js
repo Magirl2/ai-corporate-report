@@ -73,7 +73,10 @@ const US_TICKER_MAP = {
   '비자': 'V',
   '마스터카드': 'MA',
   '존슨앤존슨': 'JNJ',
-  '유나이티드헬스': 'UNH'
+  '유나이티드헬스': 'UNH',
+  '쿠팡': 'CPNG',
+  '버크셔해서웨이': 'BRK.B',
+  '암': 'ARM'
 };
 
 const fetchWithRetry = async (url, options, retries = 3) => {
@@ -92,11 +95,10 @@ const fetchWithRetry = async (url, options, retries = 3) => {
 const detectTickerByAI = async (companyName) => {
   const url = `/api/gemini`;
   const prompt = `
-The user entered: "${companyName}".
-If it is a company listed on the Korean stock market (KOSPI/KOSDAQ), reply exactly with "KOREAN".
-If it is a company listed on the US stock market (e.g. NYSE, NASDAQ), reply exactly with its US stock ticker symbol (e.g. AAPL, NVDA, JOBY).
-For example, if the input is "조비 에비에이션" or "Joby Aviation", you reply "JOBY". If the input is "삼성전자", you reply "KOREAN".
-Reply ONLY with the ticker or "KOREAN". Do not include any other text or punctuation.
+Task: Identify the stock exchange of "${companyName}".
+If it is a South Korean company traded on KRX (KOSPI/KOSDAQ, e.g., 삼성전자, 카카오), output EXACTLY the word: KOREAN
+If it is a US or global company traded on US exchanges (e.g., Apple, Nvidia, 조비 에비에이션), output EXACTLY its official US ticker symbol (e.g., AAPL, NVDA, JOBY).
+DO NOT output any markdown, punctuation, or thinking blocks. Output ONLY the uppercase ticker or the word KOREAN.
 `;
   try {
     const result = await fetchWithRetry(url, {
@@ -107,12 +109,23 @@ Reply ONLY with the ticker or "KOREAN". Do not include any other text or punctua
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           temperature: 0.0,
-          maxOutputTokens: 10
+          maxOutputTokens: 100
         }
       })
     });
-    const text = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim().toUpperCase() || '';
-    if (text) return text;
+    
+    let text = result.candidates?.[0]?.content?.parts?.[0]?.text?.toUpperCase() || '';
+    
+    // 1. KOREAN이 명시적으로 포함되어 있으면 무조건 한국 주식
+    if (text.includes('KOREAN')) return 'KOREAN';
+
+    // 2. <thought>와 같은 중간 텍스트가 껴있을 수 있으므로 알파벳 대문자로 된 1~8글자 단어들 중 마지막 것을 추출
+    const words = text.match(/\b[A-Z0-9-]{1,8}\b/g);
+    if (words && words.length > 0) {
+      return words[words.length - 1]; // 생각 과정(Chain of Thought) 이후 가장 마지막에 나온 단어를 결과로 채택
+    }
+
+    return text.trim();
   } catch (error) {
     console.error("AI Ticker detection failed", error);
   }
