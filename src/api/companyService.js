@@ -43,6 +43,39 @@ const fetchDartFinance = async (companyName) => {
   }
 };
 
+const US_TICKER_MAP = {
+  '애플': 'AAPL',
+  '엔비디아': 'NVDA',
+  '테슬라': 'TSLA',
+  '마이크로소프트': 'MSFT',
+  '구글': 'GOOGL',
+  '알파벳': 'GOOGL',
+  '아마존': 'AMZN',
+  '메타': 'META',
+  '페이스북': 'META',
+  '넷플릭스': 'NFLX',
+  '에이엠디': 'AMD',
+  '인텔': 'INTC',
+  '퀄컴': 'QCOM',
+  '브로드컴': 'AVGO',
+  '티에스엠씨': 'TSM',
+  '에이에스엠엘': 'ASML',
+  '코인베이스': 'COIN',
+  '팔란티어': 'PLTR',
+  '마이크론': 'MU',
+  '슈퍼마이크로컴퓨터': 'SMCI',
+  '일라이릴리': 'LLY',
+  '노보노디스크': 'NVO',
+  '월마트': 'WMT',
+  '코스트코': 'COST',
+  '제이피모건': 'JPM',
+  '뱅크오브아메리카': 'BAC',
+  '비자': 'V',
+  '마스터카드': 'MA',
+  '존슨앤존슨': 'JNJ',
+  '유나이티드헬스': 'UNH'
+};
+
 const fetchWithRetry = async (url, options, retries = 3) => {
   for (let i = 0; i < retries; i++) {
     try {
@@ -56,33 +89,206 @@ const fetchWithRetry = async (url, options, retries = 3) => {
   }
 };
 
+const detectTickerByAI = async (companyName) => {
+  const url = `/api/gemini`;
+  const prompt = `
+The user entered: "${companyName}".
+If it is a company listed on the Korean stock market (KOSPI/KOSDAQ), reply exactly with "KOREAN".
+If it is a company listed on the US stock market (e.g. NYSE, NASDAQ), reply exactly with its US stock ticker symbol (e.g. AAPL, NVDA, JOBY).
+For example, if the input is "조비 에비에이션" or "Joby Aviation", you reply "JOBY". If the input is "삼성전자", you reply "KOREAN".
+Reply ONLY with the ticker or "KOREAN". Do not include any other text or punctuation.
+`;
+  try {
+    const result = await fetchWithRetry(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'gemini-2.5-flash',
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.0,
+          maxOutputTokens: 10
+        }
+      })
+    });
+    const text = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim().toUpperCase() || '';
+    if (text) return text;
+  } catch (error) {
+    console.error("AI Ticker detection failed", error);
+  }
+  return null;
+};
+
+const resolveTicker = async (companyName) => {
+  const trimmedName = companyName.trim();
+  const upperName = trimmedName.toUpperCase();
+  
+  // 1. 한국어 매핑 확인 (빠른 캐시)
+  if (US_TICKER_MAP[trimmedName]) return { type: 'US', ticker: US_TICKER_MAP[trimmedName] };
+  if (US_TICKER_MAP[upperName]) return { type: 'US', ticker: US_TICKER_MAP[upperName] };
+
+  // 2. 이미 짧은 영어 티커 형태인 경우 (예: AAPL, NVDA)
+  if (/^[A-Z]{1,6}$/.test(upperName) && !/[가-힣]/.test(trimmedName)) {
+    return { type: 'US', ticker: upperName };
+  }
+
+  // 3. AI(Gemini)를 통해 가장 유사한 티커 조회 (예: '조비 에비에이션' -> 'JOBY')
+  const aiResult = await detectTickerByAI(trimmedName);
+  if (aiResult === 'KOREAN') {
+    return { type: 'KR', ticker: null };
+  } else if (aiResult && /^[A-Z0-9-]{1,8}$/.test(aiResult) && aiResult !== 'UNKNOWN') {
+    return { type: 'US', ticker: aiResult };
+  }
+
+  // 기본값 폴백 (알 수 없는 경우 한글 포함 여부로 판단)
+  if (/[가-힣]/.test(trimmedName)) return { type: 'KR', ticker: null };
+  return { type: 'US', ticker: upperName };
+};
+
+// FMP 재무제표 수치 가져오기 (미국 주식용)
+const fetchFmpFinance = async (ticker) => {
+  try {
+    const apiKey = import.meta.env.VITE_FMP_API_KEY;
+    if (!apiKey) {
+      console.error("FMP API 키가 없습니다.");
+      return null;
+    }
+    
+    // Fetch Income Statement (Annual)
+    const incUrl = `https://financialmodelingprep.com/api/v3/income-statement/${ticker}?limit=2&apikey=${apiKey}`;
+    const balUrl = `https://financialmodelingprep.com/api/v3/balance-sheet-statement/${ticker}?limit=1&apikey=${apiKey}`;
+    
+    const [incRes, balRes] = await Promise.all([
+      fetch(incUrl),
+      fetch(balUrl)
+    ]);
+
+    if (!incRes.ok || !balRes.ok) {
+      console.error('FMP API 오류:', incRes.status, balRes.status);
+      return null;
+    }
+
+    const incData = await incRes.json();
+    const balData = await balRes.json();
+
+    if (!Array.isArray(incData) || !Array.isArray(balData) || incData.length === 0 || balData.length === 0) {
+      if (incData['Error Message']) {
+         console.error('FMP API 에러 메시지:', incData['Error Message']);
+      }
+      return null;
+    }
+
+    const currentYear = incData[0];
+    const prevYear = incData[1] || currentYear;
+    const bal = balData[0];
+
+    const revenue = currentYear.revenue || 0;
+    const prevRevenue = prevYear.revenue || 0;
+    const opIncome = currentYear.operatingIncome || 0;
+    const netIncome = currentYear.netIncome || 0;
+    const equity = bal.totalStockholdersEquity || bal.totalEquity || 0;
+    const liab = bal.totalLiabilities || 0;
+
+    const revGrowth = prevRevenue ? ((revenue - prevRevenue) / prevRevenue) * 100 : 0;
+    const opMargin = revenue ? (opIncome / revenue) * 100 : 0;
+    const roe = equity ? (netIncome / equity) * 100 : 0;
+    const debtRatio = equity ? (liab / equity) * 100 : 0;
+
+    return {
+      bsnsYear: currentYear.calendarYear || new Date().getFullYear().toString(),
+      raw: {
+        revenue: revenue.toLocaleString(),
+        opIncome: opIncome.toLocaleString(),
+        netIncome: netIncome.toLocaleString(),
+        equity: equity.toLocaleString(),
+        liab: liab.toLocaleString(),
+        currency: currentYear.reportedCurrency || 'USD'
+      },
+      keyMetrics: {
+        revenueGrowth: revGrowth ? `${revGrowth > 0 ? '+' : ''}${revGrowth.toFixed(2)}%` : '데이터 없음',
+        operatingMargin: opMargin ? `${opMargin.toFixed(2)}%` : '데이터 없음',
+        roe: roe ? `${roe.toFixed(2)}%` : '데이터 없음',
+        debtRatio: debtRatio ? `${debtRatio.toFixed(2)}%` : '데이터 없음'
+      }
+    };
+  } catch (error) {
+    console.error("FMP Finance 에러:", error);
+    return null;
+  }
+};
+
 export const fetchCompanyData = async (companyName, onStatusUpdate) => {
   const url = `/api/gemini`;
+  
+  onStatusUpdate?.(`[${companyName}] 기업 종류 및 티커 식별 중...`);
+  const stockInfo = await resolveTicker(companyName);
+  const isKoreanStock = stockInfo.type === 'KR';
 
-  onStatusUpdate?.(`[${companyName}] DART 공시 데이터 수집 중...`);
-  const dartInfo = await fetchDartDisclosures(companyName);
+  let disclosureInfo = '';
+  let financeData = null;
+  let financeContext = '';
+  
+  const sources = [];
 
-  onStatusUpdate?.(`[${companyName}] DART 재무제표 수집 중...`);
-  const dartFinance = await fetchDartFinance(companyName);
+  if (isKoreanStock) {
+    onStatusUpdate?.(`[${companyName}] DART 공시 데이터 수집 중...`);
+    disclosureInfo = await fetchDartDisclosures(companyName);
 
-  const today = new Date().toLocaleDateString('ko-KR');
+    onStatusUpdate?.(`[${companyName}] DART 재무제표 수집 중...`);
+    financeData = await fetchDartFinance(companyName);
 
-  const dartFinanceContext = dartFinance
-    ? `
-DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
-- 매출액: ${dartFinance.raw.revenue}
-- 영업이익: ${dartFinance.raw.opIncome}
-- 당기순이익: ${dartFinance.raw.netIncome}
-- 자본총계: ${dartFinance.raw.equity}
-- 부채총계: ${dartFinance.raw.liab}
+    sources.push({ title: 'DART 전자공시시스템 (Open DART)', uri: 'https://opendart.fss.or.kr/' });
+
+    financeContext = financeData
+      ? `
+DART 재무제표 실수치 (${financeData.bsnsYear}년 기준, 단위: 원):
+- 매출액: ${financeData.raw.revenue}
+- 영업이익: ${financeData.raw.opIncome}
+- 당기순이익: ${financeData.raw.netIncome}
+- 자본총계: ${financeData.raw.equity}
+- 부채총계: ${financeData.raw.liab}
 
 계산된 지표 (이 값을 keyMetrics에 그대로 사용하세요):
-- 매출 성장률: ${dartFinance.keyMetrics.revenueGrowth ?? '데이터 없음'}
-- 영업이익률: ${dartFinance.keyMetrics.operatingMargin ?? '데이터 없음'}
-- ROE: ${dartFinance.keyMetrics.roe ?? '데이터 없음'}
-- 부채비율: ${dartFinance.keyMetrics.debtRatio ?? '데이터 없음'}
+- 매출 성장률: ${financeData.keyMetrics.revenueGrowth ?? '데이터 없음'}
+- 영업이익률: ${financeData.keyMetrics.operatingMargin ?? '데이터 없음'}
+- ROE: ${financeData.keyMetrics.roe ?? '데이터 없음'}
+- 부채비율: ${financeData.keyMetrics.debtRatio ?? '데이터 없음'}
 `
-    : 'DART 재무제표 실수치를 가져오지 못했습니다. 웹 검색으로 추정하여 채워주세요.';
+      : 'DART 재무제표 실수치를 가져오지 못했습니다. 웹 검색으로 추정하여 채워주세요.';
+  } else {
+    const ticker = stockInfo.ticker;
+    onStatusUpdate?.(`[${companyName}] 미국 기업(티커: ${ticker}) 정보 수집 중...`);
+    disclosureInfo = `US Stock (${companyName}, Ticker: ${ticker}): Please rely on web search for recent SEC filings and news.`;
+
+    onStatusUpdate?.(`[${companyName}] FMP 재무제표 수집 중...`);
+    financeData = await fetchFmpFinance(ticker);
+    
+    sources.push({ title: 'Financial Modeling Prep (FMP)', uri: 'https://site.financialmodelingprep.com/' });
+
+    financeContext = financeData
+      ? `
+FMP 재무제표 실수치 (${financeData.bsnsYear}년 기준, 단위: ${financeData.raw.currency}):
+- 매출액: ${financeData.raw.revenue}
+- 영업이익: ${financeData.raw.opIncome}
+- 당기순이익: ${financeData.raw.netIncome}
+- 자본총계: ${financeData.raw.equity}
+- 부채총계: ${financeData.raw.liab}
+
+계산된 지표 (이 값을 keyMetrics에 그대로 사용하세요):
+- 매출 성장률: ${financeData.keyMetrics.revenueGrowth ?? '데이터 없음'}
+- 영업이익률: ${financeData.keyMetrics.operatingMargin ?? '데이터 없음'}
+- ROE: ${financeData.keyMetrics.roe ?? '데이터 없음'}
+- 부채비율: ${financeData.keyMetrics.debtRatio ?? '데이터 없음'}
+`
+      : 'FMP 재무제표 실수치를 가져오지 못했습니다. 웹 검색으로 추정하여 채워주세요.';
+  }
+
+  const today = new Date().toLocaleDateString('ko-KR');
+  const contextTitle = isKoreanStock ? '[Korean DART Disclosure List]' : '[US SEC / Company Context]';
+  const financeTitle = isKoreanStock ? '[Korean DART Financial Data]' : '[US FMP Financial Data]';
+  const disclosureInstruction = isKoreanStock 
+    ? 'You MUST ground all references to official DART disclosures strictly in the provided [Korean DART Disclosure List]. DO NOT invent, assume, or hallucinate any recent disclosures (especially regarding trading suspension, delisting, or bankruptcy) that are not explicitly listed in the DART data.'
+    : 'You MUST ground all references to official SEC filings or major announcements strictly in your web search findings. DO NOT invent, assume, or hallucinate any recent events (especially regarding trading suspension, delisting, or bankruptcy).';
 
   // --- STAGE 1: Main Search Engine (gemini-2.5-pro) ---
   onStatusUpdate?.(`[${companyName}] 메인 엔진: 최신 뉴스 및 기업 환경 심층 웹 검색 중...`);
@@ -91,21 +297,20 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
     Today's date is ${today}. You are a top-tier financial analyst. 
     Conduct an extremely expansive web search using the Google Search tool for the most recent news, macro-economic conditions, stock market trends, product releases, competitor actions, and industry issues regarding '${companyName}'.
     IMPORTANT: You must conduct your search in English, and you MUST write your entire research briefing notes completely in English.
-    Combine your extensive web search findings with the provided Korea DART data below to create a remarkably verbose and comprehensive research briefing.
+    Combine your extensive web search findings with the provided data below to create a remarkably verbose and comprehensive research briefing.
     
     CRITICAL FACTUAL INTEGRITY: 
-    - You MUST ground all references to official DART disclosures strictly in the provided [Korean DART Disclosure List]. 
-    - DO NOT invent, assume, or hallucinate any recent disclosures (especially regarding trading suspension, delisting, or bankruptcy) that are not explicitly listed in the DART data.
-    - If you find high-impact negative rumors in web search that are NOT in the DART list, you MUST explicitly label them as "unconfirmed market rumors" and clarify that there is no official DART disclosure to support them as of ${today}.
+    - ${disclosureInstruction}
+    - If you find high-impact negative rumors in web search that are NOT official, you MUST explicitly label them as "unconfirmed market rumors" and clarify that there is no official disclosure to support them as of ${today}.
     
     Include specific facts, raw numbers, exact statistics, executive quotes, and multiple news headlines (in English) so that another AI can use it to write an exhaustive report.
     CRITICAL INSTRUCTION: DO NOT summarize. Output a remarkably exhaustive and high-volume briefing (Aim for at least 15,000~20,000+ characters or 7,000+ tokens). Break down every aspect of the company, industry, and macroeconomic context in granular detail so that the next AI phase has a massive amount of data to process.
 
-    [Korean DART Disclosure List]
-    ${dartInfo}
+    ${contextTitle}
+    ${disclosureInfo}
 
-    [Korean DART Financial Data]
-    ${dartFinanceContext}
+    ${financeTitle}
+    ${financeContext}
   `;
 
   const searchResult = await fetchWithRetry(url, {
@@ -131,9 +336,6 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
 
   // --- 추출: 검색 출처 (Grounding Metadata) ---
   const groundingMetadata = searchResult.candidates?.[0]?.groundingMetadata;
-  const sources = [
-    { title: 'DART 전자공시시스템 (Open DART)', uri: 'https://opendart.fss.or.kr/' }
-  ];
 
   if (groundingMetadata?.groundingChunks) {
     groundingMetadata.groundingChunks.forEach(chunk => {
@@ -347,7 +549,7 @@ DART 재무제표 실수치 (${dartFinance.bsnsYear}년 기준, 단위: 원):
   if (mergedGroup.financialAnalysis) reportJson.report.financialAnalysis = mergedGroup.financialAnalysis;
   if (mergedGroup.recentNews) reportJson.report.recentNews = mergedGroup.recentNews;
 
-  if (dartFinance?.yearlyMetrics) reportJson.dartFinance = dartFinance;
+  if (financeData?.yearlyMetrics || financeData) reportJson.financeData = financeData; // dartFinance -> financeData
 
   // 출처 정보 추가
   reportJson.sources = sources;
