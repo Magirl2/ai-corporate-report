@@ -155,8 +155,8 @@ const fetchFmpFinance = async (ticker) => {
     }
     
     // Fetch Income Statement (Annual)
-    const incUrl = `https://financialmodelingprep.com/api/v3/income-statement/${ticker}?limit=2&apikey=${apiKey}`;
-    const balUrl = `https://financialmodelingprep.com/api/v3/balance-sheet-statement/${ticker}?limit=1&apikey=${apiKey}`;
+    const incUrl = `https://financialmodelingprep.com/api/v3/income-statement/${ticker}?limit=4&apikey=${apiKey}`;
+    const balUrl = `https://financialmodelingprep.com/api/v3/balance-sheet-statement/${ticker}?limit=4&apikey=${apiKey}`;
     
     const [incRes, balRes] = await Promise.all([
       fetch(incUrl),
@@ -178,38 +178,85 @@ const fetchFmpFinance = async (ticker) => {
       return null;
     }
 
-    const currentYear = incData[0];
-    const prevYear = incData[1] || currentYear;
-    const bal = balData[0];
+    const rawByYear = {};
+    for (let i = 0; i < Math.max(incData.length, balData.length); i++) {
+      const inc = incData[i] || {};
+      const bal = balData[i] || {};
+      const year = inc.calendarYear || bal.calendarYear || (new Date().getFullYear() - i).toString();
+      
+      const rev = inc.revenue || 0;
+      const op = inc.operatingIncome || 0;
+      const net = inc.netIncome || 0;
+      const eq = bal.totalStockholdersEquity || bal.totalEquity || 0;
+      const liab = bal.totalLiabilities || 0;
 
-    const revenue = currentYear.revenue || 0;
-    const prevRevenue = prevYear.revenue || 0;
-    const opIncome = currentYear.operatingIncome || 0;
-    const netIncome = currentYear.netIncome || 0;
-    const equity = bal.totalStockholdersEquity || bal.totalEquity || 0;
-    const liab = bal.totalLiabilities || 0;
+      rawByYear[year] = {
+        year,
+        revenue: rev,
+        opIncome: op,
+        netInc: net,
+        equity: eq,
+        liab: liab,
+        revenueRaw: rev.toLocaleString(),
+        opIncomeRaw: op.toLocaleString(),
+        netIncRaw: net.toLocaleString(),
+        equityRaw: eq.toLocaleString(),
+        liabRaw: liab.toLocaleString(),
+      };
+    }
 
-    const revGrowth = prevRevenue ? ((revenue - prevRevenue) / prevRevenue) * 100 : 0;
-    const opMargin = revenue ? (opIncome / revenue) * 100 : 0;
-    const roe = equity ? (netIncome / equity) * 100 : 0;
-    const debtRatio = equity ? (liab / equity) * 100 : 0;
+    const validYears = Object.keys(rawByYear).sort((a, b) => b - a);
+    const displayYears = validYears.slice(0, 3);
+
+    const displayYearData = displayYears.map(year => rawByYear[year]);
+
+    const yearlyMetrics = displayYearData.map((cur) => {
+      const prevYearStr = (parseInt(cur.year) - 1).toString();
+      const prev = rawByYear[prevYearStr] || {};
+
+      const curRev = cur.revenue;
+      const prevRev = prev.revenue;
+
+      const revGrowth = prevRev ? ((curRev - prevRev) / Math.abs(prevRev)) * 100 : 0;
+      const opMargin = curRev ? (cur.opIncome / curRev) * 100 : 0;
+      const roe = cur.equity ? (cur.netInc / cur.equity) * 100 : 0;
+      const debtRatio = cur.equity ? (cur.liab / cur.equity) * 100 : 0;
+
+      return {
+        year: cur.year,
+        revenueGrowth: revGrowth ? `${revGrowth > 0 ? '+' : ''}${revGrowth.toFixed(1)}%` : null,
+        operatingMargin: opMargin ? `${opMargin.toFixed(1)}%` : null,
+        roe: roe ? `${roe.toFixed(1)}%` : null,
+        debtRatio: debtRatio ? `${debtRatio.toFixed(1)}%` : null,
+        raw: {
+          revenue: cur.revenueRaw,
+          opIncome: cur.opIncomeRaw,
+          netIncome: cur.netIncRaw,
+          equity: cur.equityRaw,
+          liab: cur.liabRaw,
+        }
+      };
+    });
+
+    if (yearlyMetrics.length === 0) return null;
+
+    const currentYearStr = yearlyMetrics[0].year;
+    const latestRaw = yearlyMetrics[0].raw;
+    const latestKeyMetrics = {
+      revenueGrowth: yearlyMetrics[0].revenueGrowth || '데이터 없음',
+      operatingMargin: yearlyMetrics[0].operatingMargin || '데이터 없음',
+      roe: yearlyMetrics[0].roe || '데이터 없음',
+      debtRatio: yearlyMetrics[0].debtRatio || '데이터 없음',
+    };
 
     return {
-      bsnsYear: currentYear.calendarYear || new Date().getFullYear().toString(),
+      bsnsYear: currentYearStr,
       raw: {
-        revenue: revenue.toLocaleString(),
-        opIncome: opIncome.toLocaleString(),
-        netIncome: netIncome.toLocaleString(),
-        equity: equity.toLocaleString(),
-        liab: liab.toLocaleString(),
-        currency: currentYear.reportedCurrency || 'USD'
+        ...latestRaw,
+        currency: incData[0]?.reportedCurrency || 'USD'
       },
-      keyMetrics: {
-        revenueGrowth: revGrowth ? `${revGrowth > 0 ? '+' : ''}${revGrowth.toFixed(2)}%` : '데이터 없음',
-        operatingMargin: opMargin ? `${opMargin.toFixed(2)}%` : '데이터 없음',
-        roe: roe ? `${roe.toFixed(2)}%` : '데이터 없음',
-        debtRatio: debtRatio ? `${debtRatio.toFixed(2)}%` : '데이터 없음'
-      }
+      keyMetrics: latestKeyMetrics,
+      yearlyMetrics
     };
   } catch (error) {
     console.error("FMP Finance 에러:", error);

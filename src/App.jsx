@@ -185,7 +185,7 @@ export default function App() {
                       </h3>
                       <ExpandableText summary={safeSummary(singleData.report?.financialAnalysis?.overview)} detail={safeDetail(singleData.report?.financialAnalysis?.overview)} />
                       {(() => {
-                        const yearly = singleData.dartFinance?.yearlyMetrics;
+                        const yearly = singleData.financeData?.yearlyMetrics || singleData.dartFinance?.yearlyMetrics;
                         if (!yearly?.length) return null;
                         const labels = [
                           { key: 'revenueGrowth',   label: '매출 성장률' },
