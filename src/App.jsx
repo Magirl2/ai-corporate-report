@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import { Search, BarChart2, Loader2, TrendingUp, Briefcase, Activity, Newspaper, Target, Building2, AlertTriangle } from 'lucide-react';
 import { fetchCompanyData } from './api/companyService';
-import { safeSummary, safeDetail, tabClass } from './utils/formatters';
-import MarketSentimentBanner from './components/MarketSentimentBanner';
-// 💡 더 이상 사용하지 않는 ExpandableSection import 제거
-import ExpandableText from './components/ExpandableText';
-import ExpandableNewsList from './components/ExpandableNewsList';
-import SwotMatrix from './components/SwotMatrix';
+import TopNavBar from './components/layout/TopNavBar';
+import SideNavBar from './components/layout/SideNavBar';
+import Footer from './components/layout/Footer';
+import SearchDashboard from './pages/SearchDashboard';
+import SingleReportView from './pages/SingleReportView';
+import LoadingScreen from './components/LoadingScreen';
 import CompareFinancials from './components/CompareFinancials';
 
 export default function App() {
@@ -14,8 +13,11 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [statusMessage, setStatusMessage] = useState('');
+  
+  // Tabs: 'search' (dashboard), 'single' (report), 'compare'
+  const [tab, setTab] = useState('search'); 
   const [singleData, setSingleData] = useState(null);
-  const [tab, setTab] = useState('single');
+
   const [inputA, setInputA] = useState('');
   const [inputB, setInputB] = useState('');
   const [compareDataA, setCompareDataA] = useState(null);
@@ -23,12 +25,22 @@ export default function App() {
   const [compareLoading, setCompareLoading] = useState(false);
   const [compareError, setCompareError] = useState(null);
   const [compareStatus, setCompareStatus] = useState('');
-  const [reportSubTab, setReportSubTab] = useState('analysis'); // 'analysis' | 'sources'
+
+  const navigateToSearch = () => {
+    setTab('search');
+    setSingleData(null);
+    setSearchInput('');
+  };
 
   const handleSearch = async (e) => {
     if (e) e.preventDefault();
     if (!searchInput.trim()) return;
-    setLoading(true); setError(null); setSingleData(null); setStatusMessage('');
+    setTab('single');
+    setLoading(true); 
+    setError(null); 
+    setSingleData(null); 
+    setStatusMessage('');
+    
     try {
       const data = await fetchCompanyData(searchInput, setStatusMessage);
       setSingleData(data);
@@ -42,7 +54,12 @@ export default function App() {
   const handleCompareSearch = async (e) => {
     if (e) e.preventDefault();
     if (!inputA.trim() || !inputB.trim()) return;
-    setCompareLoading(true); setCompareError(null); setCompareDataA(null); setCompareDataB(null); setCompareStatus('');
+    setCompareLoading(true); 
+    setCompareError(null); 
+    setCompareDataA(null); 
+    setCompareDataB(null); 
+    setCompareStatus('');
+    
     try {
       const [dataA, dataB] = await Promise.all([
         fetchCompanyData(inputA, (msg) => setCompareStatus(msg)),
@@ -57,261 +74,148 @@ export default function App() {
     }
   };
 
+  // View state logic
+  const isSearchFocus = tab === 'search';
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 pb-20">
-      <header className="bg-white border-b sticky top-0 z-20 pt-4 px-6 shadow-sm">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-blue-600 rounded-lg text-white">
-                <BarChart2 size={20} />
-              </div>
-              <h1 className="text-lg font-bold text-slate-800 tracking-tight">AI 스마트 기업 리포트</h1>
-            </div>
+    <div className="bg-surface text-on-surface min-h-screen flex selection:bg-primary-container selection:text-on-primary-container font-body">
+      {/* Side Nav is hidden in Search Focus view per the design */}
+      {!isSearchFocus && <SideNavBar />}
+
+      <div className={`flex-1 flex flex-col min-h-screen ${!isSearchFocus ? 'md:ml-64' : ''} transition-all duration-300`}>
+        <TopNavBar 
+          tab={tab === 'search' ? 'single' : tab} 
+          setTab={(t) => {
+             // If user clicks a tab while in search focus, just switch tab state. 
+             // If they click 'single' when they have no data, maybe go to search.
+             if (t === 'single' && !singleData) setTab('search');
+             else setTab(t);
+          }} 
+          onSearch={handleSearch}
+          searchInput={searchInput}
+          setSearchInput={setSearchInput}
+          showSearch={tab === 'single'} 
+        />
+
+        {/* Loading Overlay replaces main content entirely when loading */}
+        {(loading || compareLoading) ? (
+           <LoadingScreen message={loading ? statusMessage : compareStatus} />
+        ) : (
+          <main className={`flex-1 flex flex-col pt-24 px-6 md:px-12 pb-20 ${isSearchFocus ? '' : 'max-w-[1400px] mx-auto w-full'}`}>
             
-            <form onSubmit={handleSearch} className="relative w-full max-w-[320px]">
-              <input 
-                type="text" 
-                value={searchInput} 
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="정확한 종목명을 입력하세요 (예: 삼성전자)" 
-                className="w-full pl-9 pr-4 py-1.5 text-sm border border-slate-200 rounded-full outline-none focus:ring-1 focus:ring-blue-500 bg-slate-50/50"
+            {/* Main Search Dashboard */}
+            {tab === 'search' && (
+              <SearchDashboard 
+                searchInput={searchInput} 
+                setSearchInput={setSearchInput} 
+                onSearch={handleSearch} 
+                setTab={setTab}
               />
-              <Search className="absolute left-3 top-2 text-slate-400" size={16} />
-            </form>
-          </div>
-
-          <nav className="flex gap-6">
-            <button onClick={() => setTab('single')} className={tabClass(tab === 'single')}>단일 기업 보고서</button>
-            <button onClick={() => setTab('compare')} className={tabClass(tab === 'compare')}>기업 1:1 비교 (VS)</button>
-          </nav>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 py-8">
-        {tab === 'single' && (
-          <>
-            {loading && (
-              <div className="flex flex-col items-center justify-center py-32">
-                <Loader2 className="animate-spin text-blue-600 mb-4" size={48} />
-                <p className="text-lg font-bold">{statusMessage || '분석 중...'}</p>
-              </div>
             )}
-            {error && <div className="bg-red-50 text-red-600 p-4 rounded-xl border border-red-200 mb-6">{error}</div>}
-            {!loading && !singleData && !error && (
-              <div className="flex flex-col items-center justify-center py-24 text-center text-slate-400">
-                <div className="w-20 h-20 mb-6 rounded-3xl bg-white border border-slate-100 shadow-sm flex items-center justify-center">
-                  <Building2 size={40} className="text-slate-300" />
+
+            {/* Error States */}
+            {(error || compareError) && (
+              <div className="bg-rose-50 border-l-4 border-rose-500 p-6 rounded-r-xl w-full max-w-4xl mx-auto my-8 flex items-start gap-4">
+                <span className="material-symbols-outlined text-rose-500">error</span>
+                <div>
+                  <h3 className="font-bold text-rose-800 mb-1">분석 중 오류 발생</h3>
+                  <p className="text-rose-600 text-sm">{error || compareError}</p>
+                  <button onClick={navigateToSearch} className="mt-4 text-sm font-semibold text-rose-700 hover:text-rose-900 underline">처음으로 돌아가기</button>
                 </div>
-                <h2 className="text-xl font-bold text-slate-600 mb-2">글로벌 기업 인사이트 분석</h2>
-                <p className="text-sm max-w-xs leading-relaxed">미국 기업은 FMP, 한국 기업은 DART 전자공시 기반으로 최신 동향을 빠르게 수집합니다.</p>
               </div>
             )}
 
-            {!loading && singleData && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-                <h2 className="text-4xl font-black text-slate-900">{singleData.companyName}</h2>
-                <MarketSentimentBanner sentiment={singleData.report?.marketSentiment} />
-                
-                {/* 서비 탭 네비게이션 */}
-                <div className="flex border-b border-slate-200">
-                  <button 
-                    onClick={() => setReportSubTab('analysis')}
-                    className={`px-4 py-2 text-sm font-semibold transition-colors border-b-2 -mb-[2px] ${
-                      reportSubTab === 'analysis' 
-                        ? 'text-blue-600 border-blue-600' 
-                        : 'text-slate-500 border-transparent hover:text-slate-700'
-                    }`}
-                  >
-                    상세 분석
-                  </button>
-                  <button 
-                    onClick={() => setReportSubTab('sources')}
-                    className={`px-4 py-2 text-sm font-semibold transition-colors border-b-2 -mb-[2px] ${
-                      reportSubTab === 'sources' 
-                        ? 'text-blue-600 border-blue-600' 
-                        : 'text-slate-500 border-transparent hover:text-slate-700'
-                    }`}
-                  >
-                    사용 정보 (출처)
-                  </button>
-                </div>
+            {/* Single Report View */}
+            {tab === 'single' && !error && singleData && (
+              <SingleReportView singleData={singleData} />
+            )}
 
-                {reportSubTab === 'analysis' ? (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* 왼쪽 컬럼: 모든 섹션을 동일한 ExpandableText 구조로 통일 */}
-                  <div className="space-y-6">
-                    <div className="bg-white p-6 rounded-2xl border shadow-sm">
-                      <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                        <TrendingUp className="text-blue-500" /> 거시적 트렌드
-                      </h3>
-                      <ExpandableText summary={safeSummary(singleData?.macroTrend)} detail={safeDetail(singleData?.macroTrend)} />
-                    </div>
-
-                    <div className="bg-white p-6 rounded-2xl border shadow-sm">
-                      <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                        <Target className="text-purple-500" /> 비전 및 핵심 가치
-                      </h3>
-                      <ExpandableText summary={safeSummary(singleData?.report?.vision)} detail={safeDetail(singleData?.report?.vision)} />
-                    </div>
-
-                    <div className="bg-white p-6 rounded-2xl border shadow-sm">
-                      <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                        <Briefcase className="text-amber-500" /> 비즈니스 모델
-                      </h3>
-                      <ExpandableText summary={safeSummary(singleData?.report?.businessModel)} detail={safeDetail(singleData?.report?.businessModel)} />
-                    </div>
-
-                    <div className="bg-white p-6 rounded-2xl border shadow-sm">
-                      <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                        <Building2 className="text-cyan-500" /> 해당 산업 현황
-                      </h3>
-                      <ExpandableText summary={safeSummary(singleData?.report?.industryStatus)} detail={safeDetail(singleData?.report?.industryStatus)} />
+            {/* Compare View */}
+            {tab === 'compare' && !compareError && (
+              <div className="w-full mx-auto animate-in fade-in slide-in-from-bottom-8">
+                <section className="mb-12">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between mb-8 gap-4">
+                    <div>
+                      <span className="inline-block px-3 py-1 bg-surface-container-high text-primary text-xs font-bold rounded-full mb-3 tracking-wider">COMPARE MODE</span>
+                      <h2 className="text-4xl font-bold tracking-tight text-on-surface font-headline">기업 1:1 비교 분석</h2>
+                      <p className="text-on-surface-variant mt-2">두 기업의 핵심 재무 지표와 성장 잠재력을 한눈에 비교합니다.</p>
                     </div>
                   </div>
 
-                  {/* 오른쪽 컬럼 */}
-                  <div className="space-y-6">
-                    <div className="bg-white p-6 rounded-2xl border shadow-sm">
-                      <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                        <AlertTriangle className="text-rose-500" /> 시장 리스크 & 전망
-                      </h3>
-                      <ExpandableText summary={safeSummary(singleData?.report?.riskOutlook)} detail={safeDetail(singleData?.report?.riskOutlook)} />
+                  <form onSubmit={handleCompareSearch} className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center relative">
+                    <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 w-12 h-12 bg-white rounded-full items-center justify-center shadow-xl border border-slate-100">
+                      <span className="font-headline font-black text-primary italic">VS</span>
                     </div>
 
-                    <div className="bg-white p-6 rounded-2xl border shadow-sm">
-                      <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                        <Activity className="text-emerald-500" /> 재무 분석
-                      </h3>
-                      <ExpandableText summary={safeSummary(singleData.report?.financialAnalysis?.overview)} detail={safeDetail(singleData.report?.financialAnalysis?.overview)} />
-                      {(() => {
-                        const yearly = singleData.financeData?.yearlyMetrics || singleData.dartFinance?.yearlyMetrics;
-                        if (!yearly?.length) return null;
-                        const labels = [
-                          { key: 'revenueGrowth',   label: '매출 성장률' },
-                          { key: 'operatingMargin', label: '영업이익률' },
-                          { key: 'roe',             label: 'ROE' },
-                          { key: 'debtRatio',       label: '부채비율' },
-                        ];
-                        return (
-                          <div className="mt-4 overflow-x-auto">
-                            <table className="w-full text-sm border-collapse">
-                              <thead>
-                                <tr className="bg-emerald-50">
-                                  <th className="text-left px-4 py-2 border border-slate-200 font-semibold text-slate-600">지표</th>
-                                  {yearly.map(y => (
-                                    <th key={y.year} className="text-right px-4 py-2 border border-slate-200 font-semibold text-slate-600">{y.year}년</th>
-                                  ))}
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {labels.map((l, i) => (
-                                  <tr key={l.key} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                                    <td className="px-4 py-2 border border-slate-200 text-slate-700">{l.label}</td>
-                                    {yearly.map(y => (
-                                      <td key={y.year} className="px-4 py-2 border border-slate-200 text-right font-mono font-semibold text-emerald-700">
-                                        {y[l.key] ?? '-'}
-                                      </td>
-                                    ))}
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        );
-                      })()}
+                    <div className="relative group">
+                      <div className="absolute inset-y-0 left-6 flex items-center text-primary">
+                        <span className="material-symbols-outlined">apartment</span>
+                      </div>
+                      <input 
+                        className="w-full pl-14 pr-6 py-5 bg-surface-container-lowest rounded-lg border-none focus:ring-2 focus:ring-primary shadow-sm group-hover:shadow-md transition-all text-lg font-bold" 
+                        placeholder="기준 기업 입력 (예: 삼성전자)" 
+                        type="text" 
+                        value={inputA} 
+                        onChange={(e) => setInputA(e.target.value)} 
+                      />
                     </div>
-
-                    <div className="bg-white p-6 rounded-2xl border shadow-sm">
-                      <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                        <Newspaper className="text-indigo-500" /> 주요 뉴스
-                      </h3>
-                      <ExpandableNewsList newsList={singleData.report?.recentNews} />
-                    </div>
-
-                    {singleData.report?.swotAnalysis && <SwotMatrix swot={singleData.report.swotAnalysis} />}
-                  </div>
-                </div>
-                ) : (
-                  <div className="bg-white p-8 rounded-2xl border shadow-sm animate-in fade-in slide-in-from-bottom-2">
-                    <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-                      <Newspaper className="text-slate-500" /> 리포트 생성에 사용된 정보 출처
-                    </h3>
-                    <div className="space-y-4">
-                      {singleData.sources && singleData.sources.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {singleData.sources.map((source, idx) => (
-                            <a 
-                              key={idx} 
-                              href={source.uri} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="group p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50 transition-all block"
-                            >
-                              <div className="text-xs text-slate-400 mb-1 group-hover:text-blue-400 transition-colors">
-                                {source.uri.includes('dart') ? '공시 정보' : '웹 검색 뉴스'}
-                              </div>
-                              <div className="font-semibold text-slate-700 group-hover:text-blue-700 transition-colors line-clamp-1">
-                                {source.title}
-                              </div>
-                              <div className="text-xs text-slate-400 mt-2 truncate underline decoration-slate-200 group-hover:decoration-blue-200">
-                                {source.uri}
-                              </div>
-                            </a>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-slate-500">사용된 출처 정보를 불러올 수 없습니다.</p>
-                      )}
-                      
-                      <div className="mt-8 p-4 bg-blue-50/50 rounded-xl border border-blue-100">
-                        <p className="text-xs text-blue-600 leading-relaxed">
-                          * 본 리포트는 AI가 실시간 웹 검색 결과와 DART 전자공시 데이터를 종합하여 작성되었습니다. 
-                          각 출처의 내용이 AI에 의해 요약 및 분석되었으므로, 투자 판단 시 반드시 원문을 직접 확인하시기 바랍니다.
-                        </p>
+                    
+                    <div className="relative group">
+                      <div className="absolute inset-y-0 left-6 flex items-center text-rose-500">
+                        <span className="material-symbols-outlined">apartment</span>
+                      </div>
+                      <input 
+                        className="w-full pl-14 pr-32 py-5 bg-surface-container-lowest rounded-lg border-none focus:ring-2 focus:ring-rose-500 shadow-sm group-hover:shadow-md transition-all text-lg font-bold" 
+                        placeholder="비교 기업 입력 (예: SK하이닉스)" 
+                        type="text" 
+                        value={inputB} 
+                        onChange={(e) => setInputB(e.target.value)} 
+                      />
+                      <div className="absolute right-2 inset-y-2 flex items-center">
+                        <button type="submit" className="px-6 h-full bg-slate-800 text-white font-semibold rounded-md shadow-sm hover:bg-slate-900 active:scale-95 transition-all">
+                          비교하기
+                        </button>
                       </div>
                     </div>
-                  </div>
+                  </form>
+                </section>
+
+                {compareDataA && compareDataB && (
+                  <CompareFinancials dataA={compareDataA} dataB={compareDataB} />
                 )}
               </div>
             )}
-          </>
+          </main>
         )}
 
-        {tab === 'compare' && (
-          <>
-            <form onSubmit={handleCompareSearch} className="flex flex-col sm:flex-row gap-3 mb-8">
-              <div className="relative flex-1">
-                <input type="text" value={inputA} onChange={(e) => setInputA(e.target.value)}
-                  placeholder="기업 A" className="w-full pl-10 pr-4 py-2 border rounded-full outline-none focus:ring-2 focus:ring-blue-500" />
-                <Search className="absolute left-3 top-2.5 text-slate-400" size={20} />
-              </div>
-              <div className="relative flex-1">
-                <input type="text" value={inputB} onChange={(e) => setInputB(e.target.value)}
-                  placeholder="기업 B" className="w-full pl-10 pr-4 py-2 border rounded-full outline-none focus:ring-2 focus:ring-rose-400" />
-                <Search className="absolute left-3 top-2.5 text-slate-400" size={20} />
-              </div>
-              <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-full font-semibold hover:bg-blue-700 transition-colors">비교 분석</button>
-            </form>
-            {compareLoading && (
-              <div className="flex flex-col items-center justify-center py-32">
-                <Loader2 className="animate-spin text-blue-600 mb-4" size={48} />
-                <p className="text-lg font-bold">{compareStatus || '분석 중...'}</p>
-              </div>
-            )}
-            {!compareLoading && compareDataA && compareDataB && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-                <div className="flex items-center justify-center gap-6 text-2xl font-black">
-                  <span className="text-blue-700">{compareDataA.companyName}</span>
-                  <span className="text-slate-400">VS</span>
-                  <span className="text-rose-700">{compareDataB.companyName}</span>
-                </div>
-                <CompareFinancials dataA={compareDataA} dataB={compareDataB} />
-              </div>
-            )}
-          </>
-        )}
-      </main>
+        {/* Footer */}
+        <Footer className={isSearchFocus ? "" : "border-t-0 bg-slate-50"} />
+      </div>
+
+      {/* Mobile Bottom Nav Bar Component */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-6 py-3 flex justify-around items-center z-50 pb-safe">
+        <button className={`flex flex-col items-center gap-1 ${isSearchFocus ? 'text-primary' : 'text-slate-400'}`} onClick={navigateToSearch}>
+          <span className="material-symbols-outlined" style={{ fontVariationSettings: isSearchFocus ? "'FILL' 1" : "'FILL' 0" }}>dashboard</span>
+          <span className="text-[10px]">홈</span>
+        </button>
+        <button className={`flex flex-col items-center gap-1 ${tab === 'single' ? 'text-primary' : 'text-slate-400'}`} onClick={() => setTab('single')}>
+          <span className="material-symbols-outlined" style={{ fontVariationSettings: tab === 'single' ? "'FILL' 1" : "'FILL' 0" }}>analytics</span>
+          <span className="text-[10px]">분석</span>
+        </button>
+        <div className="relative -top-6">
+          <button className="bg-primary text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:bg-primary-container active:scale-95 transition-all">
+            <span className="material-symbols-outlined">add</span>
+          </button>
+        </div>
+        <button className={`flex flex-col items-center gap-1 ${tab === 'compare' ? 'text-primary' : 'text-slate-400'}`} onClick={() => setTab('compare')}>
+          <span className="material-symbols-outlined" style={{ fontVariationSettings: tab === 'compare' ? "'FILL' 1" : "'FILL' 0" }}>psychology</span>
+          <span className="text-[10px]">비교</span>
+        </button>
+        <button className="flex flex-col items-center gap-1 text-slate-400">
+          <span className="material-symbols-outlined">person</span>
+          <span className="text-[10px]">프로필</span>
+        </button>
+      </nav>
     </div>
   );
 }

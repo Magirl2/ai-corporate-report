@@ -1,62 +1,66 @@
-import React, { useState } from 'react';
-import MarkdownViewer from './MarkdownViewer';
-import { ChevronDown } from 'lucide-react';
-
-function AnalysisItem({ item, theme }) {
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  // 하위 호환: item이 문자열인 경우도 처리
-  const summary = typeof item === 'string' ? item : item.summary;
-  const detail = typeof item === 'string' ? null : item.detail;
-
-  return (
-    <li className="border-b border-slate-200/50 last:border-0 pb-3 last:pb-0">
-      <button
-        onClick={() => detail && setIsExpanded((prev) => !prev)}
-        className={`flex items-start gap-3 w-full text-left ${detail ? 'cursor-pointer' : 'cursor-default'}`}
-      >
-        <span className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${theme.dot}`} />
-        <span className="text-sm font-semibold text-slate-800 flex-1">{summary}</span>
-        {detail && (
-          <ChevronDown
-            size={15}
-            className={`shrink-0 mt-0.5 text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
-          />
-        )}
-      </button>
-      {isExpanded && detail && (
-        <div className="ml-4 mt-2 pl-3 border-l-2 border-slate-200 text-sm text-slate-600">
-          <MarkdownViewer text={detail} />
-        </div>
-      )}
-    </li>
-  );
-}
+import React from 'react';
 
 export default function MarketSentimentBanner({ sentiment }) {
   if (!sentiment) return null;
   const status = sentiment.status || '중립';
 
-  let theme = { bg: 'bg-slate-100', border: 'border-slate-200', dot: 'bg-slate-400' };
+  let theme = { 
+    bg: 'bg-slate-50', 
+    border: 'border-slate-500', 
+    text: 'text-slate-600', 
+    header: 'text-slate-700',
+    iconBg: 'bg-slate-500',
+    icon: 'horizontal_rule' 
+  };
 
-  if (status.includes('긍정') || status.includes('매수') || status.toLowerCase().includes('positive')) {
-    theme = { bg: 'bg-rose-50', border: 'border-rose-200', dot: 'bg-rose-400' };
-  } else if (status.includes('부정') || status.includes('매도') || status.includes('리스크') || status.toLowerCase().includes('negative')) {
-    theme = { bg: 'bg-blue-50', border: 'border-blue-200', dot: 'bg-blue-400' };
+  const statusLower = status.toLowerCase();
+  const isPositive = statusLower.includes('긍정') || statusLower.includes('매수') || statusLower.includes('positive');
+  const isNegative = statusLower.includes('부정') || statusLower.includes('매도') || statusLower.includes('리스크') || statusLower.includes('negative');
+
+  if (isPositive) {
+    theme = { 
+      bg: 'bg-emerald-50', 
+      border: 'border-emerald-500', 
+      text: 'text-emerald-600', 
+      header: 'text-emerald-700',
+      iconBg: 'bg-emerald-500',
+      icon: 'trending_up' 
+    };
+  } else if (isNegative) {
+    theme = { 
+      bg: 'bg-rose-50', 
+      border: 'border-rose-500', 
+      text: 'text-rose-600', 
+      header: 'text-rose-700',
+      iconBg: 'bg-rose-500',
+      icon: 'trending_down' 
+    };
   }
 
   return (
-    <div className={`p-6 rounded-[2rem] border ${theme.border} ${theme.bg} shadow-sm transition-all`}>
-      <div className="w-full space-y-3">
-        <h4 className="text-sm font-bold text-slate-800 border-b border-slate-200/50 pb-2">
-          핵심 뉴스 요약
-        </h4>
-        <ul className="space-y-3 mt-3">
-          {(sentiment.analysis || []).map((item, i) => (
-            <AnalysisItem key={i} item={item} theme={theme} />
-          ))}
-        </ul>
+    <div className={`flex flex-col gap-3 min-w-[300px]`}>
+      <div className={`${theme.bg} border-l-4 ${theme.border} px-6 py-4 rounded-r-xl flex items-center gap-4 shadow-sm h-full`}>
+        <div className={`w-10 h-10 rounded-full ${theme.iconBg} flex items-center justify-center text-white shrink-0`}>
+          <span className="material-symbols-outlined shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>{theme.icon}</span>
+        </div>
+        <div>
+          <p className={`text-xs ${theme.header} font-bold uppercase tracking-tighter`}>Market Sentiment</p>
+          <p className="text-lg font-bold text-on-surface">투자 심리: <span className={`${theme.text}`}>{status}</span></p>
+        </div>
       </div>
+      
+      {sentiment.analysis && sentiment.analysis.length > 0 && (
+        <div className="bg-surface-container-lowest p-4 rounded-lg shadow-sm border border-slate-100 text-sm">
+          <ul className="space-y-2">
+            {sentiment.analysis.map((item, i) => (
+              <li key={i} className="flex gap-2 text-on-surface-variant">
+                <span className="mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 bg-slate-300" />
+                <span className="leading-snug">{typeof item === 'string' ? item : item.summary}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
