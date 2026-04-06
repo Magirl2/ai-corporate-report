@@ -1,8 +1,9 @@
 import React from 'react';
 
 export default function SearchDashboard({ searchInput, setSearchInput, onSearch, setTab }) {
-  // Use today's date formatted
-  const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\./g, '년', 1).replace(/\./g, '월', 1).replace(/\./g, '일').replace(/\s/g, ' ');
+  // 표준 날짜 포맷팅 로직
+  const d = new Date();
+  const today = `${d.getFullYear()}년 ${String(d.getMonth() + 1).padStart(2, '0')}월 ${String(d.getDate()).padStart(2, '0')}일`;
 
   const handleQuickSearch = (keyword) => {
     setSearchInput(keyword);
@@ -31,8 +32,9 @@ export default function SearchDashboard({ searchInput, setSearchInput, onSearch,
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
           />
-          <div className="absolute right-8 inset-y-2 flex items-center">
-            <button type="submit" className="px-8 h-full bg-gradient-to-r from-primary to-primary-container text-white font-semibold rounded-full shadow-lg hover:shadow-primary/20 active:scale-95 transition-all">
+          <div className="absolute right-4 inset-y-2 flex items-center">
+            <button type="submit" className="px-8 h-full bg-primary text-white font-bold rounded-full shadow hover:bg-on-primary-fixed-variant active:scale-95 transition-all text-base tracking-wide flex items-center gap-2">
+              <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>analytics</span>
               분석하기
             </button>
           </div>
@@ -41,8 +43,8 @@ export default function SearchDashboard({ searchInput, setSearchInput, onSearch,
 
       {/* Empty State / Introduction */}
       <div className="mt-20 text-center">
-        <div className="w-32 h-32 bg-surface-container-low rounded-xl flex items-center justify-center mx-auto mb-8 transition-transform hover:scale-105 duration-500">
-          <span className="material-symbols-outlined text-6xl text-primary/30" style={{ fontVariationSettings: "'wght' 200" }}>corporate_fare</span>
+        <div className="w-32 h-32 bg-surface-container-low rounded-2xl flex items-center justify-center mx-auto mb-8 transition-transform hover:scale-105 duration-500 shadow-sm border border-slate-100">
+          <span className="material-symbols-outlined text-6xl text-primary/40" style={{ fontVariationSettings: "'FILL' 1, 'wght' 300" }}>domain</span>
         </div>
         <h2 className="text-2xl font-semibold text-on-surface mb-3">분석을 원하는 기업명을 검색해 보세요.</h2>
         <p className="text-on-surface-variant max-w-md mx-auto leading-relaxed">

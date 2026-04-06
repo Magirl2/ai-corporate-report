@@ -35,6 +35,7 @@ const BentoCard = ({ icon, title, color, children, className = '' }) => {
 
 export default function SingleReportView({ singleData }) {
   const [reportSubTab, setReportSubTab] = useState('analysis');
+  const [viewMode, setViewMode] = useState('summary');
   if (!singleData) return null;
 
   const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\./g, '년', 1).replace(/\./g, '월', 1).replace(/\./g, '일').replace(/\s/g, ' ');
@@ -57,20 +58,41 @@ export default function SingleReportView({ singleData }) {
         <MarketSentimentBanner sentiment={singleData.report?.marketSentiment} />
       </div>
 
-      {/* Sub-tabs */}
-      <div className="flex gap-8 mb-8 border-b border-slate-200">
-        <button 
-          onClick={() => setReportSubTab('analysis')}
-          className={`pb-4 border-b-4 font-bold text-lg transition-all ${reportSubTab === 'analysis' ? 'border-primary text-primary' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
-        >
-          상세 분석
-        </button>
-        <button 
-          onClick={() => setReportSubTab('sources')}
-          className={`pb-4 border-b-4 font-bold text-lg transition-all ${reportSubTab === 'sources' ? 'border-primary text-primary' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
-        >
-          사용 정보 (출처)
-        </button>
+      {/* Sub-tabs and View Mode Toggle */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 border-b border-slate-200 pb-4">
+        <div className="flex gap-8">
+          <button 
+            onClick={() => setReportSubTab('analysis')}
+            className={`font-bold text-lg transition-all ${reportSubTab === 'analysis' ? 'border-b-4 border-primary text-primary pb-2 -mb-[20px]' : 'text-slate-400 hover:text-slate-600 pb-2'}`}
+          >
+            상세 분석
+          </button>
+          <button 
+            onClick={() => setReportSubTab('sources')}
+            className={`font-bold text-lg transition-all ${reportSubTab === 'sources' ? 'border-b-4 border-primary text-primary pb-2 -mb-[20px]' : 'text-slate-400 hover:text-slate-600 pb-2'}`}
+          >
+            사용 정보 (출처)
+          </button>
+        </div>
+        
+        {reportSubTab === 'analysis' && (
+          <div className="bg-surface-container-high p-1 rounded-full flex items-center shadow-inner">
+            <button
+              onClick={() => setViewMode('summary')}
+              className={`px-5 py-2 rounded-full text-sm font-bold transition-all duration-300 flex items-center gap-2 ${viewMode === 'summary' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>format_h1</span>
+              핵심 요약
+            </button>
+            <button
+              onClick={() => setViewMode('detail')}
+              className={`px-5 py-2 rounded-full text-sm font-bold transition-all duration-300 flex items-center gap-2 ${viewMode === 'detail' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>subject</span>
+              심층 리포트
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Details/Analysis Tab */}
@@ -78,36 +100,52 @@ export default function SingleReportView({ singleData }) {
         <div className="bento-grid">
           <BentoCard icon="public" title="거시적 트렌드 (PESTLE 기반)" color="cyan">
             {singleData.macroTrend?.detail ? (
-              <div className="space-y-2">
-                <p className="font-bold text-primary">{singleData.macroTrend.summary}</p>
-                <p className="whitespace-pre-wrap text-sm">{singleData.macroTrend.detail}</p>
+              <div className="space-y-3 animate-in fade-in duration-500">
+                <p className={`font-bold text-cyan-700 leading-relaxed transition-all ${viewMode === 'summary' ? 'text-2xl mt-2' : 'text-base'}`}>
+                  {singleData.macroTrend.summary}
+                </p>
+                {viewMode === 'detail' && (
+                  <p className="whitespace-pre-wrap text-sm text-cyan-900/80 pt-3 border-t border-cyan-100">{singleData.macroTrend.detail}</p>
+                )}
               </div>
             ) : <p className="text-slate-400 text-sm">데이터 없음</p>}
           </BentoCard>
 
           <BentoCard icon="visibility" title="제품 비전 및 로드맵" color="purple">
             {singleData.report?.vision?.detail ? (
-              <div className="space-y-2">
-                <p className="font-bold text-primary">{singleData.report.vision.summary}</p>
-                <p className="whitespace-pre-wrap text-sm">{singleData.report.vision.detail}</p>
+              <div className="space-y-3 animate-in fade-in duration-500">
+                <p className={`font-bold text-purple-700 leading-relaxed transition-all ${viewMode === 'summary' ? 'text-2xl mt-2' : 'text-base'}`}>
+                  {singleData.report.vision.summary}
+                </p>
+                {viewMode === 'detail' && (
+                  <p className="whitespace-pre-wrap text-sm text-purple-900/80 pt-3 border-t border-purple-100">{singleData.report.vision.detail}</p>
+                )}
               </div>
             ) : <p className="text-slate-400 text-sm">데이터 없음</p>}
           </BentoCard>
 
           <BentoCard icon="account_tree" title="비즈니스 모델 (캔버스 기반)" color="blue">
             {singleData.report?.businessModel?.detail ? (
-              <div className="space-y-2">
-                <p className="font-bold text-primary">{singleData.report.businessModel.summary}</p>
-                <p className="whitespace-pre-wrap text-sm">{singleData.report.businessModel.detail}</p>
+              <div className="space-y-3 animate-in fade-in duration-500">
+                <p className={`font-bold text-blue-700 leading-relaxed transition-all ${viewMode === 'summary' ? 'text-2xl mt-2' : 'text-base'}`}>
+                  {singleData.report.businessModel.summary}
+                </p>
+                {viewMode === 'detail' && (
+                  <p className="whitespace-pre-wrap text-sm text-blue-900/80 pt-3 border-t border-blue-100">{singleData.report.businessModel.detail}</p>
+                )}
               </div>
             ) : <p className="text-slate-400 text-sm">데이터 없음</p>}
           </BentoCard>
 
           <BentoCard icon="factory" title="해당 산업 현황 (5 Forces 기반)" color="amber">
             {singleData.report?.industryStatus?.detail ? (
-              <div className="space-y-2">
-                <p className="font-bold text-primary">{singleData.report.industryStatus.summary}</p>
-                <p className="whitespace-pre-wrap text-sm">{singleData.report.industryStatus.detail}</p>
+              <div className="space-y-3 animate-in fade-in duration-500">
+                <p className={`font-bold text-amber-700 leading-relaxed transition-all ${viewMode === 'summary' ? 'text-2xl mt-2' : 'text-base'}`}>
+                  {singleData.report.industryStatus.summary}
+                </p>
+                {viewMode === 'detail' && (
+                  <p className="whitespace-pre-wrap text-sm text-amber-900/80 pt-3 border-t border-amber-100">{singleData.report.industryStatus.detail}</p>
+                )}
               </div>
             ) : <p className="text-slate-400 text-sm">데이터 없음</p>}
           </BentoCard>
@@ -117,10 +155,16 @@ export default function SingleReportView({ singleData }) {
             <div className="flex flex-col md:flex-row gap-6">
               <div className="flex-1">
                 {singleData.report?.financialAnalysis?.overview?.detail ? (
-                  <div className="p-4 bg-primary-container/5 rounded-xl border-l-4 border-primary mb-6">
+                  <div className="p-4 bg-primary-container/5 rounded-xl border-l-4 border-primary mb-6 animate-in fade-in duration-500">
                     <p className="text-sm leading-relaxed text-on-surface whitespace-pre-wrap">
-                      <span className="font-bold text-primary mr-2 block mb-1">AI Insight: {singleData.report.financialAnalysis.overview.summary}</span>
-                      {singleData.report.financialAnalysis.overview.detail}
+                      <span className={`font-bold text-primary block transition-all ${viewMode === 'summary' ? 'text-lg mb-2' : 'text-base mb-1'}`}>
+                        AI Insight: {singleData.report.financialAnalysis.overview.summary}
+                      </span>
+                      {viewMode === 'detail' && (
+                        <span className="block mt-2 pt-2 border-t border-primary/10 text-slate-700">
+                          {singleData.report.financialAnalysis.overview.detail}
+                        </span>
+                      )}
                     </p>
                   </div>
                 ) : null}
@@ -164,25 +208,49 @@ export default function SingleReportView({ singleData }) {
           {/* SWOT Matrix */}
           <BentoCard icon="grid_view" title="SWOT Matrix" color="slate">
             <div className="grid grid-cols-2 gap-2 flex-1">
-              <div className="p-4 bg-emerald-50/50 rounded-lg border border-emerald-100 flex flex-col justify-center gap-1 group/swot">
-                <p className="text-[10px] font-black text-emerald-700 mb-1">STRENGTHS (강점)</p>
-                <p className="text-xs font-bold text-emerald-900">{singleData.report?.swotAnalysis?.strength?.summary || '내용 없음'}</p>
-                <p className="text-[11px] font-medium text-emerald-800 opacity-80 group-hover/swot:line-clamp-none line-clamp-3 leading-snug">{singleData.report?.swotAnalysis?.strength?.detail}</p>
+              <div className="p-4 bg-emerald-50/50 rounded-xl border border-emerald-100 flex flex-col justify-center gap-2 transition-all">
+                <p className="text-[10px] font-black text-emerald-700 mb-1 tracking-wider uppercase">STRENGTHS (강점)</p>
+                <p className={`font-bold text-emerald-900 transition-all ${viewMode === 'summary' ? 'text-xl' : 'text-xs'}`}>
+                  {singleData.report?.swotAnalysis?.strength?.summary || '내용 없음'}
+                </p>
+                {viewMode === 'detail' && (
+                  <p className="text-xs font-medium text-emerald-800 opacity-90 leading-relaxed pt-2 border-t border-emerald-200/50">
+                    {singleData.report?.swotAnalysis?.strength?.detail}
+                  </p>
+                )}
               </div>
-              <div className="p-4 bg-amber-50/50 rounded-lg border border-amber-100 flex flex-col justify-center gap-1 group/swot">
-                <p className="text-[10px] font-black text-amber-700 mb-1">WEAKNESSES (약점 및 리스크)</p>
-                <p className="text-xs font-bold text-amber-900">{singleData.report?.swotAnalysis?.weakness?.summary || '내용 없음'}</p>
-                <p className="text-[11px] font-medium text-amber-800 opacity-80 group-hover/swot:line-clamp-none line-clamp-3 leading-snug">{singleData.report?.swotAnalysis?.weakness?.detail}</p>
+              <div className="p-4 bg-amber-50/50 rounded-xl border border-amber-100 flex flex-col justify-center gap-2 transition-all">
+                <p className="text-[10px] font-black text-amber-700 mb-1 tracking-wider uppercase">WEAKNESSES (약점 및 리스크)</p>
+                <p className={`font-bold text-amber-900 transition-all ${viewMode === 'summary' ? 'text-xl' : 'text-xs'}`}>
+                  {singleData.report?.swotAnalysis?.weakness?.summary || '내용 없음'}
+                </p>
+                {viewMode === 'detail' && (
+                  <p className="text-xs font-medium text-amber-800 opacity-90 leading-relaxed pt-2 border-t border-amber-200/50">
+                    {singleData.report?.swotAnalysis?.weakness?.detail}
+                  </p>
+                )}
               </div>
-              <div className="p-4 bg-blue-50/50 rounded-lg border border-blue-100 flex flex-col justify-center gap-1 group/swot">
-                <p className="text-[10px] font-black text-blue-700 mb-1">OPPORTUNITIES (기회)</p>
-                <p className="text-xs font-bold text-blue-900">{singleData.report?.swotAnalysis?.opportunity?.summary || '내용 없음'}</p>
-                <p className="text-[11px] font-medium text-blue-800 opacity-80 group-hover/swot:line-clamp-none line-clamp-3 leading-snug">{singleData.report?.swotAnalysis?.opportunity?.detail}</p>
+              <div className="p-4 bg-blue-50/50 rounded-xl border border-blue-100 flex flex-col justify-center gap-2 transition-all">
+                <p className="text-[10px] font-black text-blue-700 mb-1 tracking-wider uppercase">OPPORTUNITIES (기회)</p>
+                <p className={`font-bold text-blue-900 transition-all ${viewMode === 'summary' ? 'text-xl' : 'text-xs'}`}>
+                  {singleData.report?.swotAnalysis?.opportunity?.summary || '내용 없음'}
+                </p>
+                {viewMode === 'detail' && (
+                  <p className="text-xs font-medium text-blue-800 opacity-90 leading-relaxed pt-2 border-t border-blue-200/50">
+                    {singleData.report?.swotAnalysis?.opportunity?.detail}
+                  </p>
+                )}
               </div>
-              <div className="p-4 bg-rose-50/50 rounded-lg border border-rose-100 flex flex-col justify-center gap-1 group/swot">
-                <p className="text-[10px] font-black text-rose-700 mb-1">THREATS (위협 및 파생 위기)</p>
-                <p className="text-xs font-bold text-rose-900">{singleData.report?.swotAnalysis?.threat?.summary || '내용 없음'}</p>
-                <p className="text-[11px] font-medium text-rose-800 opacity-80 group-hover/swot:line-clamp-none line-clamp-3 leading-snug">{singleData.report?.swotAnalysis?.threat?.detail}</p>
+              <div className="p-4 bg-rose-50/50 rounded-xl border border-rose-100 flex flex-col justify-center gap-2 transition-all">
+                <p className="text-[10px] font-black text-rose-700 mb-1 tracking-wider uppercase">THREATS (위협 및 파생 위기)</p>
+                <p className={`font-bold text-rose-900 transition-all ${viewMode === 'summary' ? 'text-xl' : 'text-xs'}`}>
+                  {singleData.report?.swotAnalysis?.threat?.summary || '내용 없음'}
+                </p>
+                {viewMode === 'detail' && (
+                  <p className="text-xs font-medium text-rose-800 opacity-90 leading-relaxed pt-2 border-t border-rose-200/50">
+                    {singleData.report?.swotAnalysis?.threat?.detail}
+                  </p>
+                )}
               </div>
             </div>
           </BentoCard>
