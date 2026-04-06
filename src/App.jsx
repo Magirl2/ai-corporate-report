@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { fetchCompanyData } from './api/companyService';
 import TopNavBar from './components/layout/TopNavBar';
 import SideNavBar from './components/layout/SideNavBar';
@@ -12,16 +12,52 @@ import Signup from './pages/Signup';
 import Pricing from './pages/Pricing';
 import { useAuth } from './contexts/AuthContext';
 
+/* ── 토스트 알림 컴포넌트 ── */
+function Toast({ message, type = 'info', onClose }) {
+  useEffect(() => {
+    const t = setTimeout(onClose, 3500);
+    return () => clearTimeout(t);
+  }, [onClose]);
+
+  const colors = {
+    info: { bg: '#eff4ff', border: '#004ac6', text: '#004ac6', icon: 'info' },
+    error: { bg: '#fff1f2', border: '#f43f5e', text: '#be123c', icon: 'error' },
+    success: { bg: '#f0fdf4', border: '#22c55e', text: '#166534', icon: 'check_circle' },
+    warning: { bg: '#fffbeb', border: '#f59e0b', text: '#92400e', icon: 'warning' },
+  };
+  const c = colors[type] || colors.info;
+
+  return (
+    <div style={{
+      position: 'fixed', bottom: '5rem', left: '50%', transform: 'translateX(-50%)',
+      zIndex: 1000,
+      background: c.bg, borderLeft: `4px solid ${c.border}`,
+      color: c.text, borderRadius: '0.75rem',
+      padding: '0.875rem 1.25rem',
+      display: 'flex', alignItems: 'center', gap: '0.75rem',
+      boxShadow: '0 8px 24px rgba(11,28,48,0.12)',
+      minWidth: '280px', maxWidth: '480px',
+      animation: 'fadeInUp 0.3s ease-out',
+      fontSize: '0.9rem', fontWeight: 600,
+    }}>
+      <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1", flexShrink: 0 }}>{c.icon}</span>
+      <span style={{ flex: 1 }}>{message}</span>
+      <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.6 }}>
+        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
+      </button>
+    </div>
+  );
+}
+
 export default function App() {
   const { currentUser, checkUsageLimit, recordUsage } = useAuth();
   const [searchInput, setSearchInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [statusMessage, setStatusMessage] = useState('');
-  
-  // Tabs: 'search' (dashboard), 'single' (report), 'compare'
-  const [tab, setTab] = useState('search'); 
+  const [tab, setTab] = useState('search');
   const [singleData, setSingleData] = useState(null);
+  const [toast, setToast] = useState(null);
 
   const [inputA, setInputA] = useState('');
   const [inputB, setInputB] = useState('');
@@ -31,36 +67,45 @@ export default function App() {
   const [compareError, setCompareError] = useState(null);
   const [compareStatus, setCompareStatus] = useState('');
 
+  const showToast = (message, type = 'info') => {
+    setToast({ message, type });
+  };
+
   const navigateToSearch = () => {
     setTab('search');
     setSingleData(null);
     setSearchInput('');
+    setError(null);
   };
 
   const handleSearch = async (e, keyword) => {
     if (e) e.preventDefault();
     const query = keyword || searchInput;
-    if (!query.trim()) return;
-    
+    if (!query.trim()) {
+      showToast('기업명을 입력해주세요.', 'warning');
+      return;
+    }
+
     if (!currentUser) {
+      showToast('로그인 후 분석 기능을 이용하실 수 있습니다.', 'info');
       setTab('login');
       return;
     }
-    
+
     if (!checkUsageLimit()) {
+      showToast('오늘의 무료 분석 횟수를 모두 사용했습니다. 프리미엄으로 업그레이드하세요!', 'warning');
       setTab('pricing');
       return;
     }
 
-    // 퀵 검색으로 넘어온 keyword는 searchInput에도 반영
     if (keyword) setSearchInput(keyword);
 
     setTab('single');
-    setLoading(true); 
-    setError(null); 
-    setSingleData(null); 
+    setLoading(true);
+    setError(null);
+    setSingleData(null);
     setStatusMessage('');
-    
+
     try {
       const data = await fetchCompanyData(query, setStatusMessage);
       setSingleData(data);
@@ -74,19 +119,29 @@ export default function App() {
 
   const handleCompareSearch = async (e) => {
     if (e) e.preventDefault();
-    if (!inputA.trim() || !inputB.trim()) return;
-    
-    if (!currentUser || currentUser.plan !== 'premium') {
+    if (!inputA.trim() || !inputB.trim()) {
+      showToast('두 기업명을 모두 입력해주세요.', 'warning');
+      return;
+    }
+
+    if (!currentUser) {
+      showToast('로그인 후 비교 분석 기능을 이용하실 수 있습니다.', 'info');
+      setTab('login');
+      return;
+    }
+
+    if (currentUser.plan !== 'premium') {
+      showToast('기업 비교 분석은 프리미엄 전용 기능입니다.', 'warning');
       setTab('pricing');
       return;
     }
 
-    setCompareLoading(true); 
-    setCompareError(null); 
-    setCompareDataA(null); 
-    setCompareDataB(null); 
+    setCompareLoading(true);
+    setCompareError(null);
+    setCompareDataA(null);
+    setCompareDataB(null);
     setCompareStatus('');
-    
+
     try {
       const [dataA, dataB] = await Promise.all([
         fetchCompanyData(inputA, (msg) => setCompareStatus(msg)),
@@ -101,108 +156,157 @@ export default function App() {
     }
   };
 
-  // View state logic
   const isSearchFocus = tab === 'search';
+  const showSidebar = !isSearchFocus && !['login', 'signup', 'pricing'].includes(tab);
 
   return (
-    <div className="bg-surface text-on-surface min-h-screen flex selection:bg-primary-container selection:text-on-primary-container font-body">
-      {/* Side Nav is hidden in Search Focus view per the design */}
-      {!isSearchFocus && <SideNavBar />}
+    <div style={{ background: 'var(--color-surface)', color: 'var(--color-on-surface)', minHeight: '100vh', display: 'flex' }}>
+      {showSidebar && <SideNavBar setTab={setTab} navigateToSearch={navigateToSearch} />}
 
-      <div className={`flex-1 flex flex-col min-h-screen ${!isSearchFocus ? 'md:ml-64' : ''} transition-all duration-300`}>
-        <TopNavBar 
-          tab={tab === 'search' ? 'single' : tab} 
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: '100vh', marginLeft: showSidebar ? undefined : 0, transition: 'margin 0.3s' }}
+        className={showSidebar ? 'md:ml-64' : ''}
+      >
+        <TopNavBar
+          tab={tab === 'search' ? 'single' : tab}
           setTab={(t) => {
-             // If user clicks a tab while in search focus, just switch tab state. 
-             // If they click 'single' when they have no data, maybe go to search.
-             if (t === 'single' && !singleData) setTab('search');
-             else setTab(t);
-          }} 
+            if (t === 'single' && !singleData) setTab('search');
+            else setTab(t);
+          }}
           onSearch={handleSearch}
           searchInput={searchInput}
           setSearchInput={setSearchInput}
-          showSearch={tab === 'single'} 
+          showSearch={tab === 'single'}
         />
 
-        {/* Loading Overlay replaces main content entirely when loading */}
+        {/* 로딩 화면 */}
         {(loading || compareLoading) ? (
-           <LoadingScreen message={loading ? statusMessage : compareStatus} />
+          <LoadingScreen message={loading ? statusMessage : compareStatus} />
         ) : (
           <main className={`flex-1 flex flex-col pt-24 px-6 md:px-12 pb-20 ${isSearchFocus ? '' : 'max-w-[1400px] mx-auto w-full'}`}>
-            
-            {/* Main Search Dashboard */}
+
+            {/* 검색 대시보드 */}
             {tab === 'search' && (
-              <SearchDashboard 
-                searchInput={searchInput} 
-                setSearchInput={setSearchInput} 
-                onSearch={handleSearch} 
+              <SearchDashboard
+                searchInput={searchInput}
+                setSearchInput={setSearchInput}
+                onSearch={handleSearch}
                 setTab={setTab}
               />
             )}
 
-            {/* Error States */}
+            {/* 에러 배너 */}
             {(error || compareError) && (
-              <div className="bg-rose-50 border-l-4 border-rose-500 p-6 rounded-r-xl w-full max-w-4xl mx-auto my-8 flex items-start gap-4">
-                <span className="material-symbols-outlined text-rose-500">error</span>
+              <div style={{
+                background: '#fff1f2', borderLeft: '4px solid #f43f5e',
+                padding: '1.5rem', borderRadius: '0.75rem',
+                margin: '2rem auto', maxWidth: '800px', width: '100%',
+                display: 'flex', gap: '1rem', alignItems: 'flex-start',
+              }}>
+                <span className="material-symbols-outlined" style={{ color: '#f43f5e', fontVariationSettings: "'FILL' 1" }}>error</span>
                 <div>
-                  <h3 className="font-bold text-rose-800 mb-1">분석 중 오류 발생</h3>
-                  <p className="text-rose-600 text-sm">{error || compareError}</p>
-                  <button onClick={navigateToSearch} className="mt-4 text-sm font-semibold text-rose-700 hover:text-rose-900 underline">처음으로 돌아가기</button>
+                  <h3 style={{ fontWeight: 700, color: '#be123c', marginBottom: '0.25rem' }}>분석 중 오류 발생</h3>
+                  <p style={{ color: '#be123c', fontSize: '0.875rem' }}>{error || compareError}</p>
+                  <button
+                    onClick={navigateToSearch}
+                    style={{
+                      marginTop: '1rem', fontSize: '0.875rem', fontWeight: 600,
+                      color: '#be123c', background: 'none', border: 'none',
+                      cursor: 'pointer', textDecoration: 'underline',
+                    }}
+                  >
+                    처음으로 돌아가기
+                  </button>
                 </div>
               </div>
             )}
 
-            {/* Single Report View */}
+            {/* 단일 보고서 */}
             {tab === 'single' && !error && singleData && (
               <SingleReportView singleData={singleData} />
             )}
 
-            {/* Compare View */}
+            {/* 비교 분석 */}
             {tab === 'compare' && !compareError && (
-              <div className="w-full mx-auto animate-in fade-in slide-in-from-bottom-8">
-                <section className="mb-12">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between mb-8 gap-4">
-                    <div>
-                      <span className="inline-block px-3 py-1 bg-surface-container-high text-primary text-xs font-bold rounded-full mb-3 tracking-wider">COMPARE MODE</span>
-                      <h2 className="text-4xl font-bold tracking-tight text-on-surface font-headline">기업 1:1 비교 분석</h2>
-                      <p className="text-on-surface-variant mt-2">두 기업의 핵심 재무 지표와 성장 잠재력을 한눈에 비교합니다.</p>
-                    </div>
+              <div className="w-full mx-auto animate-in fade-in">
+                <section style={{ marginBottom: '3rem' }}>
+                  <div style={{ marginBottom: '2rem' }}>
+                    <span style={{
+                      display: 'inline-block', padding: '0.25rem 0.75rem',
+                      background: 'var(--color-surface-container-high)',
+                      color: 'var(--color-primary)',
+                      fontSize: '0.75rem', fontWeight: 700, borderRadius: '9999px',
+                      marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.1em',
+                    }}>Compare Mode</span>
+                    <h2 style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--color-on-surface)' }}>기업 1:1 비교 분석</h2>
+                    <p style={{ color: 'var(--color-on-surface-variant)', marginTop: '0.5rem' }}>두 기업의 핵심 재무 지표와 성장 잠재력을 한눈에 비교합니다.</p>
                   </div>
 
-                  <form onSubmit={handleCompareSearch} className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center relative">
-                    <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 w-12 h-12 bg-white rounded-full items-center justify-center shadow-xl border border-slate-100">
-                      <span className="font-headline font-black text-primary italic">VS</span>
+                  <form onSubmit={handleCompareSearch} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', position: 'relative' }}>
+                    {/* VS 뱃지 */}
+                    <div style={{
+                      position: 'absolute', left: '50%', top: '50%',
+                      transform: 'translate(-50%,-50%)', zIndex: 10,
+                      width: '48px', height: '48px',
+                      background: '#fff', borderRadius: '50%',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      boxShadow: '0 4px 16px rgba(11,28,48,0.12)',
+                      border: '1px solid var(--color-outline-variant)',
+                    }}>
+                      <span style={{ fontWeight: 900, color: 'var(--color-primary)', fontStyle: 'italic', fontSize: '0.875rem' }}>VS</span>
                     </div>
 
-                    <div className="relative group">
-                      <div className="absolute inset-y-0 left-6 flex items-center text-primary">
-                        <span className="material-symbols-outlined">apartment</span>
-                      </div>
-                      <input 
-                        className="w-full pl-14 pr-6 py-5 bg-surface-container-lowest rounded-lg border-none focus:ring-2 focus:ring-primary shadow-sm group-hover:shadow-md transition-all text-lg font-bold" 
-                        placeholder="기준 기업 입력 (예: 삼성전자)" 
-                        type="text" 
-                        value={inputA} 
-                        onChange={(e) => setInputA(e.target.value)} 
+                    {/* 기업 A */}
+                    <div style={{ position: 'relative' }}>
+                      <span className="material-symbols-outlined" style={{
+                        position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)',
+                        color: 'var(--color-primary)', fontSize: '20px', pointerEvents: 'none',
+                      }}>apartment</span>
+                      <input
+                        style={{
+                          width: '100%', boxSizing: 'border-box',
+                          paddingLeft: '3rem', paddingRight: '1rem', paddingTop: '1.25rem', paddingBottom: '1.25rem',
+                          background: 'var(--color-surface-container-lowest)',
+                          border: '1.5px solid var(--color-outline-variant)',
+                          borderRadius: '1rem', fontSize: '1rem', fontWeight: 700,
+                          color: 'var(--color-on-surface)', outline: 'none',
+                        }}
+                        placeholder="기준 기업 입력 (예: 삼성전자)"
+                        type="text" value={inputA}
+                        onChange={(e) => setInputA(e.target.value)}
                       />
                     </div>
-                    
-                    <div className="relative group">
-                      <div className="absolute inset-y-0 left-6 flex items-center text-rose-500">
-                        <span className="material-symbols-outlined">apartment</span>
-                      </div>
-                      <input 
-                        className="w-full pl-14 pr-32 py-5 bg-surface-container-lowest rounded-lg border-none focus:ring-2 focus:ring-rose-500 shadow-sm group-hover:shadow-md transition-all text-lg font-bold" 
-                        placeholder="비교 기업 입력 (예: SK하이닉스)" 
-                        type="text" 
-                        value={inputB} 
-                        onChange={(e) => setInputB(e.target.value)} 
+
+                    {/* 기업 B + 비교하기 버튼 */}
+                    <div style={{ position: 'relative' }}>
+                      <span className="material-symbols-outlined" style={{
+                        position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)',
+                        color: '#f43f5e', fontSize: '20px', pointerEvents: 'none',
+                      }}>apartment</span>
+                      <input
+                        style={{
+                          width: '100%', boxSizing: 'border-box',
+                          paddingLeft: '3rem', paddingRight: '8rem', paddingTop: '1.25rem', paddingBottom: '1.25rem',
+                          background: 'var(--color-surface-container-lowest)',
+                          border: '1.5px solid var(--color-outline-variant)',
+                          borderRadius: '1rem', fontSize: '1rem', fontWeight: 700,
+                          color: 'var(--color-on-surface)', outline: 'none',
+                        }}
+                        placeholder="비교 기업 입력 (예: SK하이닉스)"
+                        type="text" value={inputB}
+                        onChange={(e) => setInputB(e.target.value)}
                       />
-                      <div className="absolute right-2 inset-y-2 flex items-center">
-                        <button type="submit" className="px-6 h-full bg-slate-800 text-white font-semibold rounded-md shadow-sm hover:bg-slate-900 active:scale-95 transition-all">
-                          비교하기
-                        </button>
-                      </div>
+                      <button
+                        type="submit"
+                        style={{
+                          position: 'absolute', right: '8px', top: '8px', bottom: '8px',
+                          backgroundColor: '#1e293b', color: '#fff',
+                          border: 'none', borderRadius: '0.625rem',
+                          padding: '0 1.25rem', fontWeight: 700, fontSize: '0.875rem',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        비교하기
+                      </button>
                     </div>
                   </form>
                 </section>
@@ -212,42 +316,74 @@ export default function App() {
                 )}
               </div>
             )}
-        {/* Login & Signup & Pricing Routes */}
-            {tab === 'login' && <Login setTab={setTab} />}
-            {tab === 'signup' && <Signup setTab={setTab} />}
+
+            {/* 인증 / 결제 페이지 */}
+            {tab === 'login'   && <Login setTab={setTab} />}
+            {tab === 'signup'  && <Signup setTab={setTab} />}
             {tab === 'pricing' && <Pricing setTab={setTab} />}
 
           </main>
         )}
 
-        {/* Footer */}
-        <Footer className={isSearchFocus ? "" : "border-t-0 bg-slate-50"} />
+        <Footer />
       </div>
 
-      {/* Mobile Bottom Nav Bar Component */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-6 py-3 flex justify-around items-center z-50 pb-safe">
-        <button className={`flex flex-col items-center gap-1 ${isSearchFocus ? 'text-primary' : 'text-slate-400'}`} onClick={navigateToSearch}>
-          <span className="material-symbols-outlined" style={{ fontVariationSettings: isSearchFocus ? "'FILL' 1" : "'FILL' 0" }}>dashboard</span>
-          <span className="text-[10px]">홈</span>
+      {/* 모바일 하단 네비게이션 */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-4 py-2 flex justify-around items-center z-50"
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0.5rem)' }}
+      >
+        <button
+          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', background: 'none', border: 'none', cursor: 'pointer', color: isSearchFocus ? 'var(--color-primary)' : '#94a3b8' }}
+          onClick={navigateToSearch}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '22px', fontVariationSettings: isSearchFocus ? "'FILL' 1" : "'FILL' 0" }}>dashboard</span>
+          <span style={{ fontSize: '10px', fontWeight: 600 }}>홈</span>
         </button>
-        <button className={`flex flex-col items-center gap-1 ${tab === 'single' ? 'text-primary' : 'text-slate-400'}`} onClick={() => setTab('single')}>
-          <span className="material-symbols-outlined" style={{ fontVariationSettings: tab === 'single' ? "'FILL' 1" : "'FILL' 0" }}>analytics</span>
-          <span className="text-[10px]">분석</span>
+        <button
+          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', background: 'none', border: 'none', cursor: 'pointer', color: tab === 'single' ? 'var(--color-primary)' : '#94a3b8' }}
+          onClick={() => setTab('single')}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '22px', fontVariationSettings: tab === 'single' ? "'FILL' 1" : "'FILL' 0" }}>analytics</span>
+          <span style={{ fontSize: '10px', fontWeight: 600 }}>분석</span>
         </button>
-        <div className="relative -top-6">
-          <button onClick={() => setTab('pricing')} className="bg-primary text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:bg-primary-container active:scale-95 transition-all">
-            <span className="material-symbols-outlined text-2xl">diamond</span>
+        <div style={{ position: 'relative', top: '-20px' }}>
+          <button
+            onClick={() => setTab('pricing')}
+            style={{
+              width: '52px', height: '52px', borderRadius: '50%',
+              backgroundColor: 'var(--color-primary)', color: '#fff',
+              border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 4px 16px rgba(0,74,198,0.4)',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '22px', fontVariationSettings: "'FILL' 1" }}>diamond</span>
           </button>
         </div>
-        <button className={`flex flex-col items-center gap-1 ${tab === 'compare' ? 'text-primary' : 'text-slate-400'}`} onClick={() => setTab('compare')}>
-          <span className="material-symbols-outlined" style={{ fontVariationSettings: tab === 'compare' ? "'FILL' 1" : "'FILL' 0" }}>psychology</span>
-          <span className="text-[10px]">비교</span>
+        <button
+          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', background: 'none', border: 'none', cursor: 'pointer', color: tab === 'compare' ? 'var(--color-primary)' : '#94a3b8' }}
+          onClick={() => setTab('compare')}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '22px', fontVariationSettings: tab === 'compare' ? "'FILL' 1" : "'FILL' 0" }}>psychology</span>
+          <span style={{ fontSize: '10px', fontWeight: 600 }}>비교</span>
         </button>
-        <button className={`flex flex-col items-center gap-1 ${['login', 'signup'].includes(tab) ? 'text-primary' : 'text-slate-400'}`} onClick={() => setTab(currentUser ? 'search' : 'login')}>
-          <span className="material-symbols-outlined">person</span>
-          <span className="text-[10px]">{currentUser ? '내 정보' : '로그인'}</span>
+        <button
+          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', background: 'none', border: 'none', cursor: 'pointer', color: ['login','signup'].includes(tab) ? 'var(--color-primary)' : '#94a3b8' }}
+          onClick={() => setTab(currentUser ? 'search' : 'login')}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>person</span>
+          <span style={{ fontSize: '10px', fontWeight: 600 }}>{currentUser ? '내 정보' : '로그인'}</span>
         </button>
       </nav>
+
+      {/* 토스트 알림 */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 }
