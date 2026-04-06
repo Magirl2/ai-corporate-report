@@ -354,17 +354,27 @@ FMP 재무제표 실수치 (${financeData.bsnsYear}년 기준, 단위: ${finance
   onStatusUpdate?.(`[${companyName}] 메인 엔진: 최신 뉴스 및 기업 환경 심층 웹 검색 중...`);
 
   const searchPrompt = `
-    Today's date is ${today}. You are a top-tier financial analyst. 
-    Conduct an extremely expansive web search using the Google Search tool for the most recent news, macro-economic conditions, stock market trends, product releases, competitor actions, and industry issues regarding '${companyName}'.
-    IMPORTANT: You must conduct your search in English, and you MUST write your entire research briefing notes completely in English.
-    Combine your extensive web search findings with the provided data below to create a remarkably verbose and comprehensive research briefing.
-    
-    CRITICAL FACTUAL INTEGRITY: 
-    - ${disclosureInstruction}
-    - If you find high-impact negative rumors in web search that are NOT official, you MUST explicitly label them as "unconfirmed market rumors" and clarify that there is no official disclosure to support them as of ${today}.
-    
-    Include specific facts, raw numbers, exact statistics, executive quotes, and multiple news headlines (in English) so that another AI can use it to write an exhaustive report.
-    CRITICAL INSTRUCTION: DO NOT summarize. Output a remarkably exhaustive and high-volume briefing (Aim for at least 15,000~20,000+ characters or 7,000+ tokens). Break down every aspect of the company, industry, and macroeconomic context in granular detail so that the next AI phase has a massive amount of data to process.
+    Today's date is ${today}. You are a Senior Equity Research Analyst & Corporate Strategy Consultant at a top-tier global firm.
+    Your mission is to conduct an **EXPRESS INVESTIGATIVE RESEARCH** for '${companyName}' using the **Product Strategy Canvas (9 Sections)** and **Value Proposition (JTBD)** frameworks.
+
+    **REQUIRED RESEARCH VERTICALS (BASED ON STRATEGY SKILLS):**
+    1. **Vision & Mission**: What is their North Star? Long-term aspirational goals and core values.
+    2. **Target Segments**: Who are their high-value customers? Precise market demographics and personas.
+    3. **Value Proposition (Jobs-to-be-Done)**: What specific pain points do they solve? "What are they hired to do?" for customers.
+    4. **Product Infrastructure**: Core features, UX/UI, and product distribution channels (Omni-channel strategy).
+    5. **Trade-offs (Focus)**: What have they explicitly decided NOT to do? Strategic sacrifices for efficiency.
+    6. **Key Metrics (KPIs)**: Revenue, ARR, Retention, Churn, or industry-specific metrics (e.g., Load factor, DAU/MAU).
+    7. **Growth & Monetization Loops**: Viral loops, content loops, and precise pricing/revenue models.
+    8. **Capabilities**: Internal proprietary technology, data assets, and operational excellence.
+    9. **Defensibility (Moats)**: Why can't competitors easily copy them? (Network effects, Brand, Switching costs).
+
+    **CRITICAL RESEARCH INSTRUCTIONS:**
+    - Conduct your search in English.
+    - Write the entire briefing in English using Professional Analyst terminology.
+    - FACT CHECK: ${disclosureInstruction}
+    - Label rumors as "unconfirmed market rumors" with no official support as of ${today}.
+    - OUTPUT VOLUME: Provide a **remarkably exhaustive** briefing. Aim for 25,000+ characters or 8,000+ tokens. Provide raw data, exact statistics, executive quotes, and historical context.
+    - SOURCE ATTRIBUTION: Include multiple news headlines and direct citations from earnings calls or CEO interviews.
 
     ${contextTitle}
     ${disclosureInfo}
@@ -448,49 +458,54 @@ FMP 재무제표 실수치 (${financeData.bsnsYear}년 기준, 단위: ${finance
     {
       key: 'group1',
       prompt: createGroupPrompt(
-        '시장 환경 분석 (macroTrend, industryStatus)',
-        `- macroTrend: 기업을 둘러싼 거시 경제적 요인, 시장 트렌드를 구체적으로 서술하세요.
-- industryStatus: 기업이 속한 산업의 현황, 경쟁 구도, 점유율, 규제 등을 구체적으로 서술하세요.`,
+        '거시 경제 및 산업 전문가 (PESTLE & 5 Forces Analyst)',
+        `[에이전트 역할: 외부 시황과 거시 경제 트렌드를 'PESTLE 분석'과 'Porter의 5 Forces' 프레임워크로 완벽히 해부합니다.]
+- macroTrend: PESTLE (Political, Economic, Social, Technological, Legal, Environmental) 관점에서 이 기업이 처한 외부 비즈니스 환경의 거시적 흐름을 구체적으로 서술하세요. 각 요소를 명확히 분리하여 텍스트로 기술하되 전체 문단으로 엮어 detail에 넣습니다. (개별 기업 내부 전략은 절대 언급 금지)
+- industryStatus: Porter's Five Forces (경쟁 강도, 공급자 교섭력, 구매자 교섭력, 대체재 위협, 신규 진입 위협) 기반으로 이 기업이 속한 섹터의 경쟁 구도와 매력도를 철저히 분석하세요.
+[MECE 경계 조항]: 개별 기업의 "비전, 수익 모델, 리스크"에 대해서는 다음 에이전트들이 담당하므로 여기서는 절대로 서술하지 마세요.`,
         `{
-  "macroTrend": { "summary": "1문장 핵심 요약", "detail": "매우 구체적이고 깊이 있는 분석 내용" },
-  "industryStatus": { "summary": "1문장 요약", "detail": "업계 동향 및 경쟁사 분석을 포함한 매우 구체적인 내용" }
+  "macroTrend": { "summary": "PESTLE 핵심 1문장 요약", "detail": "PESTLE 구조에 기반한 매우 구체적이고 깊이 있는 거시 지표 중심 분석 내용" },
+  "industryStatus": { "summary": "5 Forces 1문장 요약", "detail": "Porter의 5 Forces 프레임워크를 기반으로 한 산업 경쟁 매력도 및 현황 서술" }
 }`
       )
     },
     {
       key: 'group2',
       prompt: createGroupPrompt(
-        '투자 심리 & 비전 (marketSentiment, vision)',
-        `- marketSentiment: 현재 주식 시장의 심리와 평가를 5가지 주요 이유를 들어 구체적으로 서술하세요. 각 항목은 핵심 한 줄 요약(summary)과 2~3문단 분량의 상세 분석(detail)으로 구성하세요.\n- vision: 기업의 중장기 비전 및 목표, 성장 전략을 구체적으로 서술하세요.`,
+        '제품 전략 & 비전 파트너 (Product Vision & Strategy)',
+        `[에이전트 역할: 기업의 제품 전략(Product Strategy) 및 장기적 비전에만 집중합니다.]
+- vision: 이 기업이 발표한 경영진의 미래 비전, 장기 로드맵, 그리고 목표하는 시장 점유율 전략을 분석. "어떤 솔루션(제품/서비스)으로 미래를 준비하는가?"에만 집중하세요.
+[MECE 경계 조항]: 단기적인 "자금수익 구조(비즈니스 모델)"나 "재무 수치, 단기 리스크"에 대한 내용은 절대 포함하지 마세요. 오직 회사의 제품 중심 미래 지향성에만 초점을 맞추세요.`,
         `{
-  "marketSentiment": { "status": "Positive/Neutral/Negative 중 택 1", "analysis": [{ "summary": "핵심 이유 한 줄 요약", "detail": "2~3문단 분량의 구체적인 상세 분석" }] },
-  "vision": { "summary": "1문장 요약", "detail": "미래 전략 및 향후 행보에 대한 매우 구체적인 내용" }
+  "vision": { "summary": "장기 제품/시장 비전 1문장 요약", "detail": "가치 제안(Value Proposition)과 미래 로드맵을 기반으로 한 제품 중심의 비전 세부 전개 내용" }
 }`
       )
     },
     {
       key: 'group3',
       prompt: createGroupPrompt(
-        '비즈니스 & 리스크 전략 (businessModel, riskOutlook)',
-        `- businessModel: 기업이 돈을 버는 수익 창출 구조와 주요 제품군을 캐시카우 중심으로 구체적으로 서술하세요.
-- riskOutlook: 단/장기 예상되는 잠재적 리스크와 기업의 대응 전망을 구체적으로 서술하세요.`,
+        '비즈니스 솔루션 파트너 (Business Model Canvas Analyst)',
+        `[에이전트 역할: 기업의 세부 수익 구조를 'Business Model Canvas' 기반으로 해부합니다.]
+- businessModel: 이 기업 구체적으로 어떤 구조로 돈을 벌고 있는지 분석하세요. 핵심 파트너, 가치 제안, 수익원(캐시카우), 비용 구조, 고객 세그먼트를 묶어서 구체적으로 서술하세요. 
+[MECE 경계 조항]: "광범위한 거시 트렌드"나 "미래 청사진(비전)", 그리고 "위협(Threat)/리스크"는 절대 적지 마세요. 위협은 다음 SWOT 파트에서 다룹니다. 오직 현행 돈을 버는 구조 그 자체에만 국한하여 서술하세요.`,
         `{
-  "businessModel": { "summary": "1문장 요약", "detail": "수익 모델 및 주요 사업 구조에 대한 매우 구체적인 내용" },
-  "riskOutlook": { "summary": "1문장 요약", "detail": "잠재적 이슈 및 리스크 관리에 대한 매우 구체적인 내용" }
+  "businessModel": { "summary": "수익 구조 1문장 요약", "detail": "Business Model Canvas 핵심 요소 중심의 부문별 매출 기여 및 구조 분석" }
 }`
       )
     },
     {
       key: 'group4',
       prompt: createGroupPrompt(
-        'SWOT 전략 분석 (swotAnalysis)',
-        `- swotAnalysis: 강점, 약점, 기회, 위협을 각각 요약(summary)과 상세 분석(detail)으로 분리하여 구체적으로 서술하세요.`,
+        'SWOT 전문 분석가 (SWOT Strategy Master)',
+        `[에이전트 역할: 모든 브리핑 데이터에서 요소를 추출하여 완벽히 구분된 SWOT 프레임워크로 재구성합니다.]
+- swotAnalysis: 강점(Strength, 내부), 약점(Weakness, 내부 역량 부족), 기회(Opportunity, 외부 환경 유리함), 위협(Threat, 리스크/외부 견제/단기운영위기)의 매트릭스 형태로 상세히 도출하세요.
+[MECE 경계 조항]: 이전 단계에서 리스크가 제거되었으므로, **모든 리스크와 법적 제재, 자금 압박, 경쟁 위협 등의 악재는 여기 SWOT의 Weakness와 Threat**에 철저히 흡수시켜 작성하세요. 반드시 S,W,O,T 4가지 구분에 맞는지 논리성을 엄격히 따지며 중복되는 항목이 없도록 철저히 통제하세요.`,
         `{
   "swotAnalysis": { 
-    "strength": { "summary": "2~3문장 강점 요약", "detail": "구체적인 강점 상세 분석" },
-    "weakness": { "summary": "2~3문장 약점 요약", "detail": "구체적인 약점 상세 분석" },
-    "opportunity": { "summary": "2~3문장 기회 요약", "detail": "구체적인 기회 상세 분석" },
-    "threat": { "summary": "2~3문장 위협 요약", "detail": "구체적인 위협 상세 분석" }
+    "strength": { "summary": "강점 요약", "detail": "내부적 핵심 역량 상세" },
+    "weakness": { "summary": "약점 및 리스크 요약", "detail": "내부적 한계와 재무적/구조적 결함 리스크 상세" },
+    "opportunity": { "summary": "기회 요약", "detail": "시장 상황 변화에 의한 돌파구 상세" },
+    "threat": { "summary": "위협 및 리스크 요약", "detail": "경쟁/규제 및 모든 형태의 파생 외부 리스크, 운영 위협 상세" }
   }
 }`
       )
@@ -498,17 +513,21 @@ FMP 재무제표 실수치 (${financeData.bsnsYear}년 기준, 단위: ${finance
     {
       key: 'group5',
       prompt: createGroupPrompt(
-        '재무 및 최신 동향 (financialOverview, financialKeyMetrics, recentNews)',
-        `- financialAnalysis.overview: 제공된 재무 수치를 바탕으로 재무 건전성 및 실적 추이를 평가하세요.
-- financialAnalysis.keyMetrics: 제공된 DART 재무 지표를 정확히 일치시켜 JSON 배열(길이 1)로 반환하세요. 앞서 제공된 지표가 없다면 웹 검색 기반 추정치를 기재하세요.
-- recentNews: 가장 의미 있고 중요한 최신 메이저 뉴스 2~3개를 선정해 상세 내용을 다루세요.`,
+        '객관적 재무 감사관 & 투자 심리 (Financial Auditor & Sentiment)',
+        `[에이전트 역할: 사실과 숫자를 기반으로 한 객관적 팩트 구성 및 시장 심리를 판단합니다.]
+- financialAnalysis.overview: 숫자에 의한 재무 상태 안정성 및 건전성을 과거/현재 대비 평가합니다.
+- financialAnalysis.keyMetrics: 주어진 재무 테이블 지표를 변형 없이 JSON으로 추출합니다.
+- marketSentiment: 주가 및 실적에 반응하는 투자자들의 동향, 애널리스트들의 매수/매도 심리를 5가지 기조로 분석하세요.
+- recentNews: 브리핑에서 가장 영향력 있는 뉴스 기사 헤드라인 2~3개를 축약합니다.
+[MECE 경계 조항]: 추상적인 비전이나 제품 확장에 대해 떠들지 마세요. 재무 통계, 기사 팩트 점검, 그리고 철저히 주가를 둘러싼 투자자의 냉정한 심리만 다루세요.`,
         `{
   "financialAnalysis": {
-    "overview": { "summary": "1문장 요약", "detail": "매출, 이익 흐름, 부채 등을 종합한 재무 성과 집중 평가 내용" },
-    "keyMetrics": [ { "revenueGrowth": "매출 성장률 (예: +12.3%)", "operatingMargin": "영업이익률 (예: 8.7%)", "roe": "자기자본이익률 (예: 18.5%)", "debtRatio": "부채비율 (예: 142.0%)", "eps": "주당순이익 (예: 4,250원)" } ]
+    "overview": { "summary": "1문장 요약", "detail": "수익, 부채비용 관점에서의 철저한 재무 분해" },
+    "keyMetrics": [ { "revenueGrowth": "수치", "operatingMargin": "수치", "roe": "수치", "debtRatio": "수치", "eps": "수치" } ]
   },
+  "marketSentiment": { "status": "Positive/Neutral/Negative 중 택 1", "analysis": [{ "summary": "주요 심리 한 줄 요약", "detail": "상세 팩트/시장 반응" }] },
   "recentNews": [
-    { "headline": "뉴스 제목", "summary": "1문장 핵심 요약", "detail": "뉴스에서 파생된 영향, 배경 등 상세 내용" }
+    { "headline": "뉴스 제목", "summary": "핵심 1문장 요약", "detail": "뉴스 본문 및 객관적인 팩트 체크 내용" }
   ]
 }`
       )
@@ -583,7 +602,6 @@ FMP 재무제표 실수치 (${financeData.bsnsYear}년 기준, 단위: ${finance
       businessModel: {},
       industryStatus: {},
       swotAnalysis: {},
-      riskOutlook: {},
       financialAnalysis: {
         overview: {},
         keyMetrics: []
@@ -605,7 +623,6 @@ FMP 재무제표 실수치 (${financeData.bsnsYear}년 기준, 단위: ${finance
   if (mergedGroup.vision) reportJson.report.vision = mergedGroup.vision;
   if (mergedGroup.businessModel) reportJson.report.businessModel = mergedGroup.businessModel;
   if (mergedGroup.swotAnalysis) reportJson.report.swotAnalysis = mergedGroup.swotAnalysis;
-  if (mergedGroup.riskOutlook) reportJson.report.riskOutlook = mergedGroup.riskOutlook;
   if (mergedGroup.financialAnalysis) reportJson.report.financialAnalysis = mergedGroup.financialAnalysis;
   if (mergedGroup.recentNews) reportJson.report.recentNews = mergedGroup.recentNews;
 

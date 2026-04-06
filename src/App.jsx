@@ -7,8 +7,13 @@ import SearchDashboard from './pages/SearchDashboard';
 import SingleReportView from './pages/SingleReportView';
 import LoadingScreen from './components/LoadingScreen';
 import CompareFinancials from './components/CompareFinancials';
+import Login from './pages/Login';
+import Signup from './pages/Signup';
+import Pricing from './pages/Pricing';
+import { useAuth } from './contexts/AuthContext';
 
 export default function App() {
+  const { currentUser, checkUsageLimit, recordUsage } = useAuth();
   const [searchInput, setSearchInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -35,6 +40,17 @@ export default function App() {
   const handleSearch = async (e) => {
     if (e) e.preventDefault();
     if (!searchInput.trim()) return;
+    
+    if (!currentUser) {
+      setTab('login');
+      return;
+    }
+    
+    if (!checkUsageLimit()) {
+      setTab('pricing');
+      return;
+    }
+
     setTab('single');
     setLoading(true); 
     setError(null); 
@@ -44,6 +60,7 @@ export default function App() {
     try {
       const data = await fetchCompanyData(searchInput, setStatusMessage);
       setSingleData(data);
+      recordUsage();
     } catch (err) {
       setError(`분석 중 오류 발생: ${err.message}`);
     } finally {
@@ -54,6 +71,12 @@ export default function App() {
   const handleCompareSearch = async (e) => {
     if (e) e.preventDefault();
     if (!inputA.trim() || !inputB.trim()) return;
+    
+    if (!currentUser || currentUser.plan !== 'premium') {
+      setTab('pricing');
+      return;
+    }
+
     setCompareLoading(true); 
     setCompareError(null); 
     setCompareDataA(null); 
@@ -185,6 +208,11 @@ export default function App() {
                 )}
               </div>
             )}
+        {/* Login & Signup & Pricing Routes */}
+            {tab === 'login' && <Login setTab={setTab} />}
+            {tab === 'signup' && <Signup setTab={setTab} />}
+            {tab === 'pricing' && <Pricing setTab={setTab} />}
+
           </main>
         )}
 
@@ -203,17 +231,17 @@ export default function App() {
           <span className="text-[10px]">분석</span>
         </button>
         <div className="relative -top-6">
-          <button className="bg-primary text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:bg-primary-container active:scale-95 transition-all">
-            <span className="material-symbols-outlined">add</span>
+          <button onClick={() => setTab('pricing')} className="bg-primary text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:bg-primary-container active:scale-95 transition-all">
+            <span className="material-symbols-outlined text-2xl">diamond</span>
           </button>
         </div>
         <button className={`flex flex-col items-center gap-1 ${tab === 'compare' ? 'text-primary' : 'text-slate-400'}`} onClick={() => setTab('compare')}>
           <span className="material-symbols-outlined" style={{ fontVariationSettings: tab === 'compare' ? "'FILL' 1" : "'FILL' 0" }}>psychology</span>
           <span className="text-[10px]">비교</span>
         </button>
-        <button className="flex flex-col items-center gap-1 text-slate-400">
+        <button className={`flex flex-col items-center gap-1 ${['login', 'signup'].includes(tab) ? 'text-primary' : 'text-slate-400'}`} onClick={() => setTab(currentUser ? 'search' : 'login')}>
           <span className="material-symbols-outlined">person</span>
-          <span className="text-[10px]">프로필</span>
+          <span className="text-[10px]">{currentUser ? '내 정보' : '로그인'}</span>
         </button>
       </nav>
     </div>

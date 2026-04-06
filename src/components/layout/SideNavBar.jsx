@@ -1,6 +1,9 @@
 import React from 'react';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function SideNavBar() {
+  const { currentUser, logout } = useAuth();
+  
   return (
     <aside className="fixed left-0 h-full w-64 bg-slate-50 flex flex-col p-6 gap-2 z-40 hidden md:flex border-r border-slate-100">
       <div className="mb-10">
@@ -35,10 +38,12 @@ export default function SideNavBar() {
           <span className="material-symbols-outlined text-sm group-hover:text-slate-800">help</span>
           <span>고객지원</span>
         </a>
-        <a href="#" className="flex items-center gap-3 px-4 py-2 text-slate-500 hover:text-slate-900 transition-colors rounded-lg text-sm group">
-          <span className="material-symbols-outlined text-sm group-hover:text-slate-800">logout</span>
-          <span>로그아웃</span>
-        </a>
+        {currentUser && (
+          <button onClick={logout} className="w-full flex items-center gap-3 px-4 py-2 text-slate-500 hover:text-slate-900 transition-colors rounded-lg text-sm group">
+            <span className="material-symbols-outlined text-sm group-hover:text-slate-800">logout</span>
+            <span>로그아웃</span>
+          </button>
+        )}
       </div>
     </aside>
   );
