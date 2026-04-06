@@ -116,11 +116,11 @@ export default function SingleReportView({ singleData }) {
           <BentoCard icon="finance" title="재무 분석 (Financial Analysis)" color="emerald" className="col-span-1 lg:col-span-2">
             <div className="flex flex-col md:flex-row gap-6">
               <div className="flex-1">
-                {singleData.report?.financialAnalysis?.overview ? (
+                {singleData.report?.financialAnalysis?.overview?.detail ? (
                   <div className="p-4 bg-primary-container/5 rounded-xl border-l-4 border-primary mb-6">
-                    <p className="text-sm leading-relaxed text-on-surface">
-                      <span className="font-bold text-primary mr-2">AI Insight:</span>
-                      {singleData.report.financialAnalysis.overview}
+                    <p className="text-sm leading-relaxed text-on-surface whitespace-pre-wrap">
+                      <span className="font-bold text-primary mr-2 block mb-1">AI Insight: {singleData.report.financialAnalysis.overview.summary}</span>
+                      {singleData.report.financialAnalysis.overview.detail}
                     </p>
                   </div>
                 ) : null}
