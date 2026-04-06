@@ -37,9 +37,10 @@ export default function App() {
     setSearchInput('');
   };
 
-  const handleSearch = async (e) => {
+  const handleSearch = async (e, keyword) => {
     if (e) e.preventDefault();
-    if (!searchInput.trim()) return;
+    const query = keyword || searchInput;
+    if (!query.trim()) return;
     
     if (!currentUser) {
       setTab('login');
@@ -51,6 +52,9 @@ export default function App() {
       return;
     }
 
+    // 퀵 검색으로 넘어온 keyword는 searchInput에도 반영
+    if (keyword) setSearchInput(keyword);
+
     setTab('single');
     setLoading(true); 
     setError(null); 
@@ -58,7 +62,7 @@ export default function App() {
     setStatusMessage('');
     
     try {
-      const data = await fetchCompanyData(searchInput, setStatusMessage);
+      const data = await fetchCompanyData(query, setStatusMessage);
       setSingleData(data);
       recordUsage();
     } catch (err) {

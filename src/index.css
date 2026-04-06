@@ -1,47 +1,119 @@
 @import "tailwindcss";
 
-body {
-  font-family: 'Pretendard', sans-serif;
+/* ===================================================
+   CSS Custom Properties — Tailwind v4 호환 색상 토큰
+   bg-primary 등의 커스텀 유틸리티가 빌드 환경에서
+   누락되는 것을 방지하기 위해 직접 클래스 정의
+=================================================== */
+:root {
+  --color-primary: #004ac6;
+  --color-primary-container: #2563eb;
+  --color-on-primary: #ffffff;
+  --color-on-primary-fixed-variant: #003ea8;
+  --color-surface: #f8f9ff;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #eff4ff;
+  --color-surface-container: #e5eeff;
+  --color-surface-container-high: #dce9ff;
+  --color-surface-container-highest: #d3e4fe;
+  --color-on-surface: #0b1c30;
+  --color-on-surface-variant: #434655;
+  --color-outline: #737686;
+  --color-outline-variant: #c3c6d7;
+  --color-secondary: #006c49;
+  --color-tertiary: #ad0033;
+  --color-tertiary-container: #d22348;
+  --color-error: #ba1a1a;
 }
 
+body {
+  font-family: 'Pretendard', 'Plus Jakarta Sans', sans-serif;
+  background-color: var(--color-surface);
+  color: var(--color-on-surface);
+}
+
+/* ── Material Symbols 기본값 ── */
 .material-symbols-outlined {
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
 
-.bg-mesh {
-  background-color: #f8f9ff;
-  background-image: 
-      radial-gradient(at 0% 0%, rgba(0, 74, 198, 0.05) 0px, transparent 50%),
-      radial-gradient(at 100% 100%, rgba(37, 99, 235, 0.05) 0px, transparent 50%);
+/* ── 버튼 색상 강제 정의 (빌드 환경에서 Tailwind 유틸리티 누락 대비) ── */
+.btn-primary {
+  background-color: var(--color-primary) !important;
+  color: var(--color-on-primary) !important;
+  border: none;
+  border-radius: 9999px;
+  padding: 0 2rem;
+  font-weight: 700;
+  font-size: 0.9375rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: background-color 0.2s, transform 0.1s, box-shadow 0.2s;
+  box-shadow: 0 4px 16px rgba(0, 74, 198, 0.25);
+}
+.btn-primary:hover {
+  background-color: var(--color-on-primary-fixed-variant) !important;
+  box-shadow: 0 6px 20px rgba(0, 74, 198, 0.35);
+}
+.btn-primary:active {
+  transform: scale(0.97);
 }
 
+/* ── 배경 메시 그라데이션 ── */
+.bg-mesh {
+  background-color: var(--color-surface);
+  background-image:
+    radial-gradient(at 0% 0%, rgba(0, 74, 198, 0.05) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(37, 99, 235, 0.05) 0px, transparent 50%);
+}
+
+/* ── 로딩 Progress Bar ── */
 @keyframes progress-loading {
-  0% { width: 0%; }
-  50% { width: 65%; }
+  0%   { width: 0%; }
+  50%  { width: 65%; }
   100% { width: 100%; }
 }
-
 .animate-loading-bar {
   animation: progress-loading 30s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
+/* ── Shimmer 효과 ── */
 .shimmer {
   background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
   background-size: 200% 100%;
   animation: shimmer 2s infinite linear;
 }
-
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
 }
 
+/* ── Bento Grid ── */
 .bento-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 24px;
+  gap: 20px;
 }
-
-@media (max-width: 1024px) {
+@media (min-width: 1600px) {
+  .bento-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 1023px) {
   .bento-grid { grid-template-columns: 1fr; }
 }
+
+/* ── 애니메이션 유틸리티 (Tailwind animate-in 보완) ── */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-in {
+  animation: fadeInUp 0.4s ease-out both;
+}
+.fade-in { animation-name: fadeInUp; }
+.slide-in-from-bottom-2 { animation-name: fadeInUp; }
+.slide-in-from-bottom-8 { animation-name: fadeInUp; }
+.duration-300 { animation-duration: 0.3s; }
+.duration-500 { animation-duration: 0.5s; }
