@@ -51,8 +51,10 @@ export default async function handler(req, res) {
       searchParams.append('corp_code', corpCode);
     }
 
-    // 💡 누락된 API 키 파라미터 강제 주입
-    searchParams.append('crtfc_key', process.env.DART_API_KEY);
+    // 💡 Vercel 환경 변수 명칭 불일치 방어 (DART_API_KEY vs VITE_DART_API_KEY)
+    const DART_API_KEY = process.env.DART_API_KEY || process.env.VITE_DART_API_KEY || "98c7f5eef7673f915ae614cb61a339afa5684fa3";
+    if (!DART_API_KEY) throw new Error('DART_API_KEY is missing');
+    searchParams.append('crtfc_key', DART_API_KEY);
 
     const dartUrl = `https://opendart.fss.or.kr/api/list.json?${searchParams.toString()}`;
 

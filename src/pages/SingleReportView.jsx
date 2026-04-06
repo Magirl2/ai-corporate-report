@@ -372,9 +372,9 @@ export default function SingleReportView({ singleData }) {
             )}
           </BentoCard>
 
-          {/* SWOT */}
-          <BentoCard icon="grid_view" title="SWOT Matrix" color="slate">
-            <div className="grid grid-cols-2 gap-3">
+          {/* SWOT Matrix — 레이아웃 강제 확장 */}
+          <BentoCard icon="grid_view" title="SWOT Matrix" color="slate" className="col-span-full w-full">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
               <SwotQuadrant
                 label="STRENGTHS (강점)"
                 bgColor="bg-emerald-50/60" borderColor="border-emerald-100" textColor="text-emerald-700" detailColor="text-emerald-800"
@@ -402,8 +402,8 @@ export default function SingleReportView({ singleData }) {
             </div>
           </BentoCard>
 
-          {/* 주요 뉴스 — 개별 상세보기 토글 */}
-          <BentoCard icon="newspaper" title="주요 뉴스" color="slate">
+          {/* 주요 뉴스 — 레이아웃 강제 확장 */}
+          <BentoCard icon="newspaper" title="주요 뉴스" color="slate" className="col-span-full w-full">
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {r?.recentNews?.length > 0 ? (
                 r.recentNews.slice(0, 5).map((news, idx) => (

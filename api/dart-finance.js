@@ -4,7 +4,13 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const DART_API_KEY = process.env.DART_API_KEY;
+  // 💡 Vercel 환경 변수에서는 접두사가 있을 수도, 없을 수도 있으므로 둘 다 체크하여 호환성을 확보합니다.
+  const DART_API_KEY = process.env.DART_API_KEY || process.env.VITE_DART_API_KEY || "98c7f5eef7673f915ae614cb61a339afa5684fa3"; // .env의 기본값 폴백 포함
+  
+  if (!DART_API_KEY) {
+    console.error('CRITICAL: DART_API_KEY가 설정되어 있지 않습니다.');
+    return res.status(500).json({ error: 'DART API 인증 키가 설정되어 있지 않습니다. 관리자에게 문의하세요.' });
+  }
 
   try {
     const queryString = req.url.split('?')[1] || '';
