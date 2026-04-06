@@ -1,5 +1,110 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import MarketSentimentBanner from '../components/MarketSentimentBanner';
+
+/**
+ * 마크다운 텍스트를 전문적인 리포트 스타일로 렌더링
+ */
+const renderMarkdown = (text) => {
+  if (!text) return null;
+  const str = String(text);
+
+  // 불릿 포인트와 줄바꿈을 포함한 복합적인 렌더링
+  const lines = str.split('\n');
+  const elements = [];
+  let inList = false;
+  let listItems = [];
+
+  const flushList = (key) => {
+    if (listItems.length > 0) {
+      elements.push(
+        <ul key={`list-${key}`} className="list-disc ml-5 my-2 space-y-1 text-slate-700">
+          {listItems.map((item, i) => <li key={i}>{item}</li>)}
+        </ul>
+      );
+      listItems = [];
+    }
+    inList = false;
+  };
+
+  lines.forEach((line, idx) => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('###')) {
+      flushList(idx);
+      elements.push(<h4 key={idx} className="text-sm font-bold text-slate-800 mt-4 mb-2">{trimmed.replace(/^###\s+/, '')}</h4>);
+    } else if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
+      inList = true;
+      listItems.push(trimmed.replace(/^[-•]\s+/, ''));
+    } else if (trimmed === '') {
+      flushList(idx);
+    } else {
+      flushList(idx);
+      // **강조** 처리
+      const parts = trimmed.split(/(\*\*.+?\*\*)/g);
+      const content = parts.map((part, i) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+          return <strong key={i} className="font-bold text-slate-900">{part.slice(2, -2)}</strong>;
+        }
+        return part;
+      });
+      elements.push(<p key={idx} className="mb-2 leading-relaxed">{content}</p>);
+    }
+  });
+  flushList('final');
+
+  return <div className="markdown-body text-[13.5px] text-slate-600">{elements}</div>;
+};
+
+
+/**
+ * NewsItem 컴포넌트 — 개별 뉴스 토글 및 심층 분석 지원
+ */
+const NewsItem = ({ news }) => {
+  const [open, setOpen] = useState(false);
+  const hasDetail = !!(news.summary || news.detail || news.impactAnalysis);
+
+  return (
+    <div className={`p-4 rounded-xl border border-slate-100 transition-all ${open ? 'bg-slate-50/80 shadow-sm border-primary/20' : 'bg-white hover:bg-slate-50'}`}>
+      <div className="flex items-start justify-between gap-4 cursor-pointer" onClick={() => hasDetail && setOpen(!open)}>
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1.5 py-0.5 bg-slate-100 rounded">RECENT NEWS</span>
+            {news.sourceDate && <span className="text-[10px] text-slate-400">{news.sourceDate}</span>}
+          </div>
+          <h4 className={`text-sm font-bold leading-snug transition-colors ${open ? 'text-primary' : 'text-slate-800'}`}>
+            {news.headline || news.title}
+          </h4>
+        </div>
+        {hasDetail && (
+          <span className={`material-symbols-outlined text-slate-300 transition-transform duration-300 ${open ? 'rotate-180 text-primary' : ''}`}>
+            expand_more
+          </span>
+        )}
+      </div>
+
+      {open && hasDetail && (
+        <div className="mt-4 pt-4 border-t border-slate-200/60 animate-in fade-in slide-in-from-top-1 duration-300">
+          <div className="space-y-4">
+            {news.summary && (
+              <div>
+                <p className="text-xs font-black text-slate-500 uppercase tracking-tighter mb-1">핵심 요약</p>
+                <p className="text-[13px] text-slate-600 leading-relaxed font-medium">{news.summary}</p>
+              </div>
+            )}
+            {(news.detail || news.impactAnalysis) && (
+              <div className="p-3 bg-white rounded-lg border border-slate-100 shadow-sm">
+                <p className="text-xs font-black text-primary/70 uppercase tracking-tighter mb-1.5">심층 분석 및 기업 영향</p>
+                <div className="text-[13px] text-slate-700 leading-relaxed">
+                  {renderMarkdown(news.detail || news.impactAnalysis)}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 
 const COLOR_MAP = {
   cyan:    { bg: 'bg-cyan-50',    text: 'text-cyan-600',    fill: 'bg-cyan-50',    detail: 'text-cyan-900/80',    border: 'border-cyan-100',    badge: 'bg-cyan-100 text-cyan-700' },
@@ -61,10 +166,12 @@ const BentoCard = ({ icon, title, color, summary, detail, className = '', childr
                 <p className="text-slate-400 text-sm">데이터 없음</p>
               )}
 
-              {/* 상세 영역 — 토글 시 페이드인 */}
+              {/* 상세 영역 — 토글 시 페이드인 + 마크다운 렌더링 */}
               {open && detail && (
                 <div className={`mt-4 pt-4 border-t ${theme.border} animate-in fade-in slide-in-from-top-2 duration-300`}>
-                  <p className={`text-sm leading-7 whitespace-pre-wrap ${theme.detail}`}>{detail}</p>
+                  <div className="text-[0.8125rem] leading-7 text-slate-700">
+                    {renderMarkdown(detail)}
+                  </div>
                 </div>
               )}
             </>
@@ -75,30 +182,43 @@ const BentoCard = ({ icon, title, color, summary, detail, className = '', childr
   );
 };
 
-/* ─── SWOT 카드 내부의 각 사분면 ─── */
-const SwotQuadrant = ({ label, bgColor, borderColor, textColor, detailColor, summary, detail }) => {
+/* ─── SWOT 사분면 (가독성 및 디자인 고도화) ─── */
+const SwotQuadrant = ({ label, bgColor, borderColor, textColor, summary, detail }) => {
   const [open, setOpen] = useState(false);
   return (
-    <div className={`p-4 ${bgColor} rounded-xl border ${borderColor} flex flex-col gap-2 transition-all`}>
-      <p className={`text-[10px] font-black ${textColor} tracking-wider uppercase`}>{label}</p>
-      <p className="text-sm font-semibold text-on-surface leading-snug">{summary || '내용 없음'}</p>
-      {detail && (
-        <>
+    <div className={`p-6 rounded-2xl border transition-all duration-300 ease-in-out flex flex-col gap-3 ${open ? 'col-span-full md:col-span-2' : 'col-span-1'} ${bgColor} ${borderColor} ${open ? 'shadow-lg bg-white' : 'hover:shadow-md'}`}>
+      <div className="flex items-center justify-between">
+        <div className="flex flex-col">
+          <p className={`text-[10px] font-black tracking-widest uppercase ${textColor} opacity-80 mb-1`}>{label}</p>
+          <p className={`text-[15px] font-extrabold leading-snug tracking-tight text-slate-900 ${open ? 'text-lg' : ''}`}>
+            {summary || '내용 분석 중...'}
+          </p>
+        </div>
+        {detail && (
           <button
-            onClick={() => setOpen(v => !v)}
-            className={`self-start flex items-center gap-1 text-[11px] font-bold ${textColor} opacity-70 hover:opacity-100 transition-opacity`}
+            onClick={() => setOpen(!open)}
+            className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold transition-all border ${open ? 'bg-primary/5 border-primary/20 text-primary' : 'bg-white/50 border-slate-200 text-slate-500 hover:bg-white'}`}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>{open ? 'expand_less' : 'expand_more'}</span>
-            {open ? '접기' : '상세보기'}
+            <span className={`material-symbols-outlined text-[16px] transition-transform duration-300 ${open ? 'rotate-180' : ''}`}>
+              {open ? 'unfold_less' : 'unfold_more'}
+            </span>
+            {open ? '접기' : '더보기'}
           </button>
-          {open && (
-            <p className={`text-xs leading-relaxed ${detailColor} border-t ${borderColor} pt-2 animate-in fade-in duration-200`}>{detail}</p>
-          )}
-        </>
+        )}
+      </div>
+
+      {open && detail && (
+        <div className="mt-2 pt-5 border-t border-slate-100 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="p-5 bg-slate-50/50 rounded-2xl border border-slate-200/50 shadow-inner">
+            {renderMarkdown(detail)}
+          </div>
+        </div>
       )}
     </div>
   );
 };
+
+
 
 /* ─── 재무 인사이트 내부 개별 토글 ─── */
 const FinancialInsight = ({ summary, detail }) => {
@@ -122,7 +242,9 @@ const FinancialInsight = ({ summary, detail }) => {
         )}
       </div>
       {open && detail && (
-        <p className="text-sm text-slate-600 leading-7 mt-3 pt-3 border-t border-primary/10 whitespace-pre-wrap animate-in fade-in duration-200">{detail}</p>
+        <div className="text-[0.8125rem] text-slate-600 leading-7 mt-3 pt-3 border-t border-primary/10 animate-in fade-in duration-200">
+          {renderMarkdown(detail)}
+        </div>
       )}
     </div>
   );
@@ -280,17 +402,14 @@ export default function SingleReportView({ singleData }) {
             </div>
           </BentoCard>
 
-          {/* 주요 뉴스 */}
+          {/* 주요 뉴스 — 개별 상세보기 토글 */}
           <BentoCard icon="newspaper" title="주요 뉴스" color="slate">
-            <div className="space-y-3">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {r?.recentNews?.length > 0 ? (
-                r.recentNews.slice(0, 4).map((news, idx) => (
-                  <div key={idx} className="border-b border-slate-50 last:border-0 pb-3 last:pb-0 group/news cursor-pointer">
-                    <p className="text-xs text-slate-400 mb-1">최근 뉴스</p>
-                    <p className="text-sm font-semibold text-on-surface group-hover/news:text-primary transition-colors line-clamp-2">{news.headline || news.title}</p>
-                  </div>
+                r.recentNews.slice(0, 5).map((news, idx) => (
+                  <NewsItem key={idx} news={news} idx={idx} />
                 ))
-              ) : <p className="text-slate-400 text-sm">뉴스 정보가 없습니다.</p>}
+              ) : <p style={{ color: '#94a3b8', fontSize: '0.875rem' }}>뉴스 정보가 없습니다.</p>}
             </div>
           </BentoCard>
 

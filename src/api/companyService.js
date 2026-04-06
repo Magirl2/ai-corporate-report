@@ -518,7 +518,9 @@ FMP 재무제표 실수치 (${financeData.bsnsYear}년 기준, 단위: ${finance
 - financialAnalysis.overview: 숫자에 의한 재무 상태 안정성 및 건전성을 과거/현재 대비 평가합니다.
 - financialAnalysis.keyMetrics: 주어진 재무 테이블 지표를 변형 없이 JSON으로 추출합니다.
 - marketSentiment: 주가 및 실적에 반응하는 투자자들의 동향, 애널리스트들의 매수/매도 심리를 5가지 기조로 분석하세요.
-- recentNews: 브리핑에서 가장 영향력 있는 뉴스 기사 헤드라인 2~3개를 축약합니다.
+- recentNews: 브리핑에서 가장 영향력 있는 뉴스 기사 헤드라인 3~5개를 선정합니다. 
+  * 각 뉴스는 단순 중계가 아닌 '투자자 관점의 영향 분석'이 포함되어야 합니다.
+  * detail 필드에는 (1) 사건의 배경, (2) 기업 가치/운영에 미치는 구체적 영향, (3) 향후 관전 포인트를 포함하여 전문 리포트 수준으로 작성하세요.
 [MECE 경계 조항]: 추상적인 비전이나 제품 확장에 대해 떠들지 마세요. 재무 통계, 기사 팩트 점검, 그리고 철저히 주가를 둘러싼 투자자의 냉정한 심리만 다루세요.`,
         `{
   "financialAnalysis": {
@@ -527,7 +529,12 @@ FMP 재무제표 실수치 (${financeData.bsnsYear}년 기준, 단위: ${finance
   },
   "marketSentiment": { "status": "Positive/Neutral/Negative 중 택 1", "analysis": [{ "summary": "주요 심리 한 줄 요약", "detail": "상세 팩트/시장 반응" }] },
   "recentNews": [
-    { "headline": "뉴스 제목", "summary": "핵심 1문장 요약", "detail": "뉴스 본문 및 객관적인 팩트 체크 내용" }
+    { 
+      "headline": "뉴스 제목", 
+      "sourceDate": "YYYY-MM-DD (알 수 없으면 최근)", 
+      "summary": "핵심 1문장 요약", 
+      "detail": "배경/영향/전망을 포함한 심층 분석 (마크다운 활용)" 
+    }
   ]
 }`
       )
