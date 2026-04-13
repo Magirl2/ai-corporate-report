@@ -10,6 +10,16 @@ import {
 
 const GEMINI_API_URL = '/api/gemini';
 
+// Vite 기능을 활용해 빌드 타임에 모든 에이전트 마크다운 프롬프트를 미리 로드합니다.
+const rawAgentPrompts = import.meta.glob('../../.agent/agents/*.md', { query: '?raw', import: 'default', eager: true });
+
+// 경로가 복잡하므로 파일명(agentName) 만으로 값을 찾을 수 있게 매핑
+const agentPromptsMap = {};
+for (const path in rawAgentPrompts) {
+  const agentName = path.split('/').pop().replace('.md', '');
+  agentPromptsMap[agentName] = rawAgentPrompts[path];
+}
+
 /**
  * Multi-Agent Sisyphus Loop Orchestrator
  * FLOW: Resolver → Collector → Normalizer → Financial → Disclosure → News → Strategy → Composer → Validator → Critic
@@ -51,34 +61,33 @@ export class SisyphusOrchestrator {
     // 2. Collector (Native Tools + Search)
     await this.collectData();
 
-    // Loop Start
+    // 3. Normalizer (Flash) - 데이터 표준화 (루프 밖에서 1회만 실행)
+    this.onStatusUpdate?.(`[데이터 정제] 수집된 원시 데이터 표준화 중...`);
+    this.state.normalized = await this.executeAgent('normalizer', 'gemini-2.5-flash', { 
+      raw: this.state.raw,
+      resolver: this.state.resolve
+    });
+
+    // 4~7. Batch Analysis (Flash/Pro) - 503 방어와 속도 개선을 위해 2개씩 짝지어서 병렬 처리 (루프 밖에서 1회만 실행)
+    this.onStatusUpdate?.(`[분석] 4개 전문 분야 분석 중 (그룹 1/2)...`);
+    const [financial, disclosure] = await Promise.all([
+      this.executeAgent('financial-analyst', 'gemini-2.5-flash', { normalized: this.state.normalized }),
+      this.executeAgent('disclosure-analyst', 'gemini-2.5-flash', { rawDisclosures: this.state.raw.disclosures })
+    ]);
+
+    this.onStatusUpdate?.(`[분석] 4개 전문 분야 분석 중 (그룹 2/2)...`);
+    const [news, strategy] = await Promise.all([
+      this.executeAgent('news-analyst', 'gemini-2.5-flash', { searchBriefing: this.state.raw.searchBriefing }),
+      this.executeAgent('strategy-analyst', 'gemini-2.5-pro', { normalized: this.state.normalized, briefing: this.state.raw.searchBriefing })
+    ]);
+    
+    this.state.analysis = { financial, disclosure, news, strategy };
+
+    // Loop Start - 보고서 합성, 팩트 체크, 품질 평가만 루프를 돕니다.
     while (this.iterationCount < this.maxIterations) {
       this.iterationCount++;
       const isLastLoop = this.iterationCount === this.maxIterations;
-      this.onStatusUpdate?.(`[루프 ${this.iterationCount}/${this.maxIterations}] 분석 및 정제 시작`);
-
-      // 3. Normalizer (Flash) - 데이터 표준화
-      this.state.normalized = await this.executeAgent('normalizer', 'gemini-2.5-flash', { 
-        raw: this.state.raw,
-        resolver: this.state.resolve
-      });
-
-      // 4~7. Sequential Analysis (Flash/Pro) - 503 방어를 위해 순차 실행으로 변경
-      this.onStatusUpdate?.(`[분석] 4개 전문 분야 순차 분석 중 (서버 과부하 방지)...`);
-      
-      const financial = await this.executeAgent('financial-analyst', 'gemini-2.5-flash', { normalized: this.state.normalized });
-      this.onStatusUpdate?.(`[분석] 재무 분석 완료 (1/4)`);
-      
-      const disclosure = await this.executeAgent('disclosure-analyst', 'gemini-2.5-flash', { rawDisclosures: this.state.raw.disclosures });
-      this.onStatusUpdate?.(`[분석] 공시 분석 완료 (2/4)`);
-      
-      const news = await this.executeAgent('news-analyst', 'gemini-2.5-flash', { searchBriefing: this.state.raw.searchBriefing });
-      this.onStatusUpdate?.(`[분석] 뉴스/심리 분석 완료 (3/4)`);
-      
-      const strategy = await this.executeAgent('strategy-analyst', 'gemini-2.5-pro', { normalized: this.state.normalized, briefing: this.state.raw.searchBriefing });
-      this.onStatusUpdate?.(`[분석] 전략 프레임워크 분석 완료 (4/4)`);
-      
-      this.state.analysis = { financial, disclosure, news, strategy };
+      this.onStatusUpdate?.(`[루프 ${this.iterationCount}/${this.maxIterations}] 보고서 합성 및 검증 시작...`);
 
       // 8. Composer (Pro) - 보고서 합성
       this.state.composition = await this.executeAgent('composer', 'gemini-2.5-pro', { 
@@ -136,6 +145,9 @@ export class SisyphusOrchestrator {
     // [Step A] Financial & Disclosure APIs
     let disclosures = '';
     let finance = null;
+    let financeContext = '';
+
+    const today = new Date().toLocaleDateString('ko-KR');
 
     if (type === 'KR') {
       [disclosures, finance] = await Promise.all([
@@ -143,15 +155,74 @@ export class SisyphusOrchestrator {
         fetchDartFinance(this.companyName)
       ]);
       sources.push({ title: 'DART 전자공시시스템', uri: 'https://opendart.fss.or.kr/' });
+
+      financeContext = finance
+        ? `
+[DART 재무제표 실수치 (${finance.bsnsYear}년 기준, 단위: 원)]
+- 매출액: ${finance.raw.revenue}
+- 영업이익: ${finance.raw.opIncome}
+- 당기순이익: ${finance.raw.netIncome}
+- 자본총계: ${finance.raw.equity}
+- 부채총계: ${finance.raw.liab}
+
+[계산된 지표]
+- 매출 성장률: ${finance.keyMetrics.revenueGrowth ?? '데이터 없음'}
+- 영업이익률: ${finance.keyMetrics.operatingMargin ?? '데이터 없음'}
+- ROE: ${finance.keyMetrics.roe ?? '데이터 없음'}
+- 부채비율: ${finance.keyMetrics.debtRatio ?? '데이터 없음'}
+` : 'DART 재무제표 수집 실패. 검색을 참조하세요.';
     } else {
       finance = await fetchFmpFinance(ticker);
       disclosures = `US SEC Filings for ${ticker} (Refer to web search for details)`;
       sources.push({ title: 'Financial Modeling Prep (FMP)', uri: 'https://financialmodelingprep.com/' });
+
+      financeContext = finance
+        ? `
+[FMP 재무제표 실수치 (${finance.bsnsYear}년 기준, 단위: ${finance.raw.currency})]
+- 매출액: ${finance.raw.revenue}
+- 영업이익: ${finance.raw.opIncome}
+- 당기순이익: ${finance.raw.netIncome}
+- 자본총계: ${finance.raw.equity}
+- 부채총계: ${finance.raw.liab}
+
+[계산된 지표]
+- 매출 성장률: ${finance.keyMetrics.revenueGrowth ?? '데이터 없음'}
+- 영업이익률: ${finance.keyMetrics.operatingMargin ?? '데이터 없음'}
+- ROE: ${finance.keyMetrics.roe ?? '데이터 없음'}
+- 부채비율: ${finance.keyMetrics.debtRatio ?? '데이터 없음'}
+` : 'FMP 재무제표 수집 실패. 검색을 참조하세요.';
     }
 
     // [Step B] Deep Search Briefing (Uses gemini-2.5-pro with tools)
-    this.onStatusUpdate?.(`[Collector] 메인 엔진 심층 웹 검색 중...`);
-    const searchPrompt = `Evaluate '${this.companyName}' (${type}: ${ticker || 'KRX'}). Search for recent news, earnings calls, and strategic pivots. Output a detailed exhaustive briefing in English.`;
+    this.onStatusUpdate?.(`[Collector] 메인 엔진 심층 웹 검색 중 (약 15초 소요)...`);
+    
+    // 이전에 사용된 강력한 9대 전략 기조 프롬프트를 부활시키고, DART 재무 데이터를 검색 엔진에 직접 주입합니다.
+    const searchPrompt = `
+      Today's date is ${today}. You are a Senior Equity Research Analyst & Corporate Strategy Consultant at a top-tier global firm.
+      Your mission is to conduct an **EXPRESS INVESTIGATIVE RESEARCH** for '${this.companyName}' (${type}: ${ticker || 'KRX'}) using the **Product Strategy Canvas (9 Sections)** and **Value Proposition (JTBD)** frameworks.
+
+      **REQUIRED RESEARCH VERTICALS (BASED ON STRATEGY SKILLS):**
+      1. **Vision & Mission**: What is their North Star? Long-term aspirational goals and core values.
+      2. **Target Segments**: Who are their high-value customers? Precise market demographics and personas.
+      3. **Value Proposition (Jobs-to-be-Done)**: What specific pain points do they solve? "What are they hired to do?"
+      4. **Product Infrastructure**: Core features, UX/UI, and product distribution channels (Omni-channel strategy).
+      5. **Trade-offs (Focus)**: What have they explicitly decided NOT to do? Strategic sacrifices for efficiency.
+      6. **Key Metrics (KPIs)**: Revenue, ARR, Retention, Churn, or industry-specific metrics.
+      7. **Growth & Monetization Loops**: Viral loops, content loops, and precise pricing/revenue models.
+      8. **Capabilities**: Internal proprietary technology, data assets, and operational excellence.
+      9. **Defensibility (Moats)**: Why can't competitors easily copy them? (Network effects, Brand, Switching costs).
+
+      **CRITICAL FACT-CHECKING & HALLUCINATION PREVENTION:**
+      - You MUST ground all references to official corporate actions, financials, and recent events strictly in the provided context below.
+      - DO NOT invent, assume, or hallucinate any recent events (especially regarding trading suspension, delisting, bankruptcy, or revenue) that contradict the provided data.
+      - Output a remarkably exhaustive briefing in English (Aim for 25,000+ characters).
+
+      [OFFICIAL DISCLOSURES & CONTEXT]
+      ${disclosures}
+
+      [OFFICIAL FINANCIAL DATA]
+      ${financeContext}
+    `;
     
     const searchResult = await fetchWithRetry(GEMINI_API_URL, {
       method: 'POST',
@@ -160,7 +231,7 @@ export class SisyphusOrchestrator {
         model: 'gemini-2.5-pro',
         contents: [{ parts: [{ text: searchPrompt }] }],
         tools: [{ googleSearch: {} }],
-        generationConfig: { temperature: 0.2, maxOutputTokens: 10000 }
+        generationConfig: { temperature: 0.2, maxOutputTokens: 25000 }
       })
     });
 
@@ -180,10 +251,19 @@ export class SisyphusOrchestrator {
   }
 
   async executeAgent(agentName, model, context = {}) {
-    const agentPrompt = `You are the specialized '${agentName}' agent for corporate analysis.
-      Current Context: ${JSON.stringify(context)}
-      Instructions: Provide high-quality analysis. Output MUST be in JSON format matching the schema for ${agentName}.
-      Language: Respond in Korean (unless it's the Collector briefing).`;
+    // 💡 Vite로 번들링된 .md 파일 시스템 프롬프트를 매핑해서 가져옵니다.
+    const systemInstruction = agentPromptsMap[agentName] 
+      ? `## SYSTEM DOMAIN EXPERTISE & RULES:\n${agentPromptsMap[agentName]}` 
+      : `You are the specialized '${agentName}' agent for corporate analysis. Output MUST be in JSON format matching the schema for ${agentName}.`;
+
+    const agentPrompt = `${systemInstruction}
+    
+## CURRENT TASK CONTEXT:
+${JSON.stringify(context, null, 2)}
+
+## INSTRUCTION:
+Provide high-quality analysis exactly matching your designated JSON schema output.
+Language: Respond in Korean (except for raw data fields that require English).`;
 
     try {
       const result = await fetchWithRetry(GEMINI_API_URL, {
