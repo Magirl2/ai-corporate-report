@@ -78,15 +78,26 @@ const US_TICKER_MAP = {
   '암': 'ARM'
 };
 
-export const fetchWithRetry = async (url, options, retries = 3) => {
+export const fetchWithRetry = async (url, options, retries = 5) => {
+  let delay = 1500;
   for (let i = 0; i < retries; i++) {
     try {
       const response = await fetch(url, options);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+         throw new Error(`Invalid content type: JSON expected, got ${contentType}`);
+      }
+      
       return await response.json();
     } catch (err) {
+      console.warn(`[Frontend Fetch] Retry ${i + 1}/${retries} failed for ${url}:`, err.message);
       if (i === retries - 1) throw err;
-      await new Promise(res => setTimeout(res, 1500));
+      await new Promise(res => setTimeout(res, delay));
+      delay *= 1.5; // 지수 백오프 적용
     }
   }
 };

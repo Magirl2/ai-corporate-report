@@ -36,50 +36,68 @@ export default async function handler(req, res) {
 
     let url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-    const MAX_RETRIES = 3;
+    const MAX_RETRIES = 5;
     let delay = 1000;
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-      // 4. 프론트엔드에서 받은 데이터를 구글 서버로 전달
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
 
-      const data = await response.json();
-
-      // 성공 시 즉시 반환 (5. 성공적으로 받은 결과를 프론트엔드로 다시 전달)
-      if (response.ok) {
-        return res.status(200).json(data);
-      }
-
-      // 구글 API에서 에러를 반환했을 경우의 처리
-      // 503(Service Unavailable) 또는 429(Too Many Requests) 에러 발생 시 재시도 수행
-      if (response.status === 503 || response.status === 429) {
-        console.warn(`Gemini API Error ${response.status} (attempt ${attempt}/${MAX_RETRIES}):`, data.error?.message);
-
-        if (attempt < MAX_RETRIES) {
-          // 마지막 재시도 시에는 수요가 적은 flash 모델로 폴백 시도
-          if (attempt === MAX_RETRIES - 1) {
-            console.warn('Retrying with gemini-2.5-flash as fallback...');
-            model = 'gemini-2.5-flash';
-            url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-          }
-
-          await new Promise(resolve => setTimeout(resolve, delay));
-          delay *= 2; // 지수 백오프 대기 시간 증가
-          continue; // 다음 시도로 이동
+        // HTML 에러 페이지 방어 (응답이 JSON인지 확인)
+        const contentType = response.headers.get('content-type') || '';
+        let data = {};
+        
+        if (contentType.includes('application/json')) {
+          data = await response.json();
+        } else {
+          const text = await response.text();
+          console.warn(`[Gemini Proxy] 응답이 JSON이 아닙니다. (상태: ${response.status}) 내용 중략:`, text.substring(0, 100));
+          data = { error: { message: `비정상적인 응답 (HTML/텍스트). 상태 코드: ${response.status}` } };
         }
-      }
 
-      // 재시도 대상 에러가 아니거나 최대 재시도 횟수를 초과한 경우 에러 반환
-      console.error('Gemini API Error:', data);
-      return res.status(response.status).json({
-        error: data.error?.message || 'Gemini API 호출에 실패했습니다.'
-      });
+        // 성공 시 즉시 반환
+        if (response.ok) {
+          return res.status(200).json(data);
+        }
+
+        // 503(Service Unavailable), 429(Too Many Requests), 500 등 서버측 에러 시 재시도 수행
+        if ([500, 502, 503, 504, 429].includes(response.status)) {
+          console.warn(`[Gemini Proxy] API Error ${response.status} (attempt ${attempt}/${MAX_RETRIES}):`, data.error?.message);
+
+          if (attempt < MAX_RETRIES) {
+            // 마지막 2번의 재시도 시에는 수요가 적은 flash 모델로 자동 폴백 시도
+            if (attempt >= MAX_RETRIES - 2) {
+              console.warn(`[Gemini Proxy] 모델 부하 의심. gemini-2.5-flash로 강제 폴백(Fallback) 시도...`);
+              model = 'gemini-2.5-flash';
+              url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+            }
+
+            await new Promise(resolve => setTimeout(resolve, delay));
+            delay *= 1.5; // 너무 길게 기다리지 않도록 1.5배수로 조절
+            continue;
+          }
+        }
+
+        // 재시도 대상 에러가 아니거나 최대 재시도 횟수를 초과한 경우 에러 반환
+        console.error('[Gemini Proxy] 최종 에러 반환:', data);
+        return res.status(response.status).json({
+          error: data.error?.message || 'Gemini API 호출에 실패했습니다.'
+        });
+      } catch (fetchErr) {
+        console.warn(`[Gemini Proxy] 네트워크/Fetch 레벨 에러 (attempt ${attempt}/${MAX_RETRIES}):`, fetchErr.message);
+        if (attempt < MAX_RETRIES) {
+          await new Promise(resolve => setTimeout(resolve, delay));
+          delay *= 1.5;
+          continue;
+        }
+        throw fetchErr;
+      }
     }
 
   } catch (error) {

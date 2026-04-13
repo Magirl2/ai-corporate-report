@@ -173,7 +173,7 @@ export class SisyphusOrchestrator {
       Language: Respond in Korean (unless it's the Collector briefing).`;
 
     try {
-      const response = await fetch(GEMINI_API_URL, {
+      const result = await fetchWithRetry(GEMINI_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -183,7 +183,6 @@ export class SisyphusOrchestrator {
         })
       });
 
-      const result = await response.json();
       const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
       return JSON.parse(extractJson(text) || '{}');
     } catch (err) {
