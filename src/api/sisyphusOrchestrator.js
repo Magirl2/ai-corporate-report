@@ -63,14 +63,20 @@ export class SisyphusOrchestrator {
         resolver: this.state.resolve
       });
 
-      // 4~7. Parallel Analysis (Flash/Pro)
-      this.onStatusUpdate?.(`[분석] 4개 전문 분야 동시 분석 중...`);
-      const [financial, disclosure, news, strategy] = await Promise.all([
-        this.executeAgent('financial-analyst', 'gemini-2.5-flash', { normalized: this.state.normalized }),
-        this.executeAgent('disclosure-analyst', 'gemini-2.5-flash', { rawDisclosures: this.state.raw.disclosures }),
-        this.executeAgent('news-analyst', 'gemini-2.5-flash', { searchBriefing: this.state.raw.searchBriefing }),
-        this.executeAgent('strategy-analyst', 'gemini-2.5-pro', { normalized: this.state.normalized, briefing: this.state.raw.searchBriefing })
-      ]);
+      // 4~7. Sequential Analysis (Flash/Pro) - 503 방어를 위해 순차 실행으로 변경
+      this.onStatusUpdate?.(`[분석] 4개 전문 분야 순차 분석 중 (서버 과부하 방지)...`);
+      
+      const financial = await this.executeAgent('financial-analyst', 'gemini-2.5-flash', { normalized: this.state.normalized });
+      this.onStatusUpdate?.(`[분석] 재무 분석 완료 (1/4)`);
+      
+      const disclosure = await this.executeAgent('disclosure-analyst', 'gemini-2.5-flash', { rawDisclosures: this.state.raw.disclosures });
+      this.onStatusUpdate?.(`[분석] 공시 분석 완료 (2/4)`);
+      
+      const news = await this.executeAgent('news-analyst', 'gemini-2.5-flash', { searchBriefing: this.state.raw.searchBriefing });
+      this.onStatusUpdate?.(`[분석] 뉴스/심리 분석 완료 (3/4)`);
+      
+      const strategy = await this.executeAgent('strategy-analyst', 'gemini-2.5-pro', { normalized: this.state.normalized, briefing: this.state.raw.searchBriefing });
+      this.onStatusUpdate?.(`[분석] 전략 프레임워크 분석 완료 (4/4)`);
       
       this.state.analysis = { financial, disclosure, news, strategy };
 
@@ -88,8 +94,15 @@ export class SisyphusOrchestrator {
         sourceData: this.state.raw 
       });
 
+      // 강제 에러 방어: validation 객체가 정상적이지 않을 경우 기본값 주입
+      if (!this.state.validation || typeof this.state.validation.isValid !== 'boolean') {
+        this.state.validation = { isValid: false, errors: [{ issue: 'API 응답 오류로 인한 검증 실패(데이터 누락)' }] };
+      }
+
       if (!this.state.validation.isValid) {
-        this.onStatusUpdate?.(`⚠️ 유효성 경고: ${this.state.validation.errors.map(e => e.issue).join(', ')}`);
+        const errors = Array.isArray(this.state.validation.errors) ? this.state.validation.errors : [];
+        const issueMsg = errors.length > 0 ? errors.map(e => e.issue).join(', ') : '알 수 없는 검증 오류';
+        this.onStatusUpdate?.(`⚠️ 유효성 경고: ${issueMsg}`);
       }
 
       // 10. Critic (Pro) - 품질 평가
