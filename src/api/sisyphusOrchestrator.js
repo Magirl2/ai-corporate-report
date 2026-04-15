@@ -21,7 +21,7 @@ for (const path in rawAgentPrompts) {
 }
 
 // ─── 디버그 헬퍼 ─────────────────────────────────────────────────────────────
-const DEBUG = true; // 프로덕션에서는 false로 설정
+const DEBUG = false; // 개발 시 true로 변경
 function dbg(label, data) {
   if (!DEBUG) return;
   const preview = typeof data === 'string'
