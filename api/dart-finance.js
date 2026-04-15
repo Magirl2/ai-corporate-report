@@ -43,14 +43,13 @@ export default async function handler(req, res) {
         return `${y}${m}${d}`;
       };
 
-      // 💡 DART 규칙: corp_name으로 검색 시 최대 3개월까지만 조회 가능
-      const threeMonthsAgo = new Date();
-      threeMonthsAgo.setMonth(today.getMonth() - 3);
+      // 💡 수정: 3개월 → 12개월로 확장해 최근 공시가 없는 기업도 조회 가능하도록
+      const twelveMonthsAgo = new Date();
+      twelveMonthsAgo.setFullYear(today.getFullYear() - 1);
 
-      const bgnDe = formatDate(threeMonthsAgo);
+      const bgnDe = formatDate(twelveMonthsAgo);
       const endDe = formatDate(today);
 
-      // 💡 corp_name 파라미터 포함 + page_count를 100으로 늘려 매칭 확률 향상
       const listRes = await fetch(
         `https://opendart.fss.or.kr/api/list.json?crtfc_key=${DART_API_KEY}&corp_name=${encodeURIComponent(corpName)}&bgn_de=${bgnDe}&end_de=${endDe}&page_count=100`,
         { headers: { 'User-Agent': 'Mozilla/5.0' } }
@@ -58,16 +57,20 @@ export default async function handler(req, res) {
       const listData = await listRes.json();
       
       if (listData.status === '000' && listData.list?.length > 0) {
-        // 정확히 일치하는 기업만 사용 (부분 일치는 가짜 데이터 위험)
+        // 💡 수정: 완전 일치 → "시작 일치" 또는 포함 관계로 완화 (예: "삼성전자주식회사" → "삼성전자")
         const exactMatch = listData.list.find(item => item.corp_name === corpName);
-        if (exactMatch) {
-          corpCode = exactMatch.corp_code;
+        const startMatch = listData.list.find(item =>
+          item.corp_name?.startsWith(corpName) || corpName.startsWith(item.corp_name)
+        );
+        const matched = exactMatch || startMatch;
+        if (matched) {
+          corpCode = matched.corp_code;
         }
       }
     }
 
     if (!corpCode) {
-      return res.status(404).json({ error: `'${corpName}'의 최근 3개월 내 DART 공시 정보가 없어 재무 데이터를 출력하지 않았습니다.` });
+      return res.status(404).json({ error: `'${corpName}'의 DART 공시 정보가 없어 재무 데이터를 출력하지 않았습니다.` });
     }
 
     // ─── STEP 2: 최근 5개 연도 재무제표 병렬 조회 (데이터 있는 연도 동적 선택) ───

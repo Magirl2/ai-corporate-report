@@ -78,8 +78,8 @@ const US_TICKER_MAP = {
   '암': 'ARM'
 };
 
-export const fetchWithRetry = async (url, options, retries = 5) => {
-  let delay = 1500;
+export const fetchWithRetry = async (url, options, retries = 2) => {
+  let delay = 800;
   for (let i = 0; i < retries; i++) {
     try {
       const response = await fetch(url, options);
@@ -97,7 +97,7 @@ export const fetchWithRetry = async (url, options, retries = 5) => {
       console.warn(`[Frontend Fetch] Retry ${i + 1}/${retries} failed for ${url}:`, err.message);
       if (i === retries - 1) throw err;
       await new Promise(res => setTimeout(res, delay));
-      delay *= 1.5; // 지수 백오프 적용
+      delay *= 1.5;
     }
   }
 };
