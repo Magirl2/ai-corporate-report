@@ -59,16 +59,14 @@ function normalizeAgentJson(parsed, wantedTopKeys) {
 }
 
 /**
- * Multi-Agent Sisyphus Loop Orchestrator
- * FLOW: Resolver → Collector → Normalizer → Financial → Disclosure → News → Strategy → Composer → Validator → Critic
+ * Multi-Agent Orchestrator
+ * FLOW: Resolver → Collector → Normalizer → [Financial+Disclosure] → [News+Strategy] → Composer → Validator
  */
 export class SisyphusOrchestrator {
   constructor(companyName, onStatusUpdate) {
     this.companyName = companyName;
     this.onStatusUpdate = onStatusUpdate;
-    this.iterationCount = 0;
-    this.maxIterations = 3;
-    this._agentErrors = []; // 에이전트별 에러 수집
+    this._agentErrors = [];
     this.state = {
       resolve: null,
       raw: {
@@ -84,9 +82,8 @@ export class SisyphusOrchestrator {
         news: null,
         strategy: null,
       },
-      composerMarkdown: '',  // composer는 텍스트로 저장
+      composerMarkdown: '',
       validation: { isValid: true, errors: [] },
-      critic: { score: 0, feedback: '', weakAgents: [] },
     };
   }
 
@@ -143,56 +140,22 @@ export class SisyphusOrchestrator {
     dbg('analysis.financial keys', Object.keys(financialRaw || {}));
     dbg('analysis.news keys', Object.keys(newsRaw || {}));
 
-    // Loop Start - 보고서 합성, 팩트 체크, 품질 평가만 루프를 돕니다.
-    while (this.iterationCount < this.maxIterations) {
-      this.iterationCount++;
-      const isLastLoop = this.iterationCount === this.maxIterations;
-      this.onStatusUpdate?.(`[루프 ${this.iterationCount}/${this.maxIterations}] 보고서 합성 및 검증 시작...`);
+    // 8. Composer (Pro) - 단일 실행 (루프 폐지)
+    this.onStatusUpdate?.(`[보고서 합성] AI 종합 보고서 작성 중...`);
+    this.state.composerMarkdown = await this.executeTextAgent('composer', 'gemini-2.5-pro', {
+      ...this.state.analysis,
+      companyName: this.companyName,
+    });
 
-      // 8. Composer (Pro) - Markdown 텍스트 반환 (JSON 아님!)
-      this.state.composerMarkdown = await this.executeTextAgent('composer', 'gemini-2.5-pro', { 
-        ...this.state.analysis,
-        companyName: this.companyName,
-        iteration: this.iterationCount,
-        prevFeedback: this.state.critic.feedback
-      });
-      dbg('composer markdown preview', this.state.composerMarkdown);
+    // 9. Validator (Flash) - 팩트 체크 1회
+    this.onStatusUpdate?.(`[검증] 팩트 체크 중...`);
+    this.state.validation = await this.executeJsonAgent('validator', 'gemini-2.5-flash', {
+      report: this.state.composerMarkdown,
+      sourceData: this.state.raw
+    }, ['isValid', 'errors']);
 
-      // 9. Validator (Flash) - 팩트 체크
-      this.state.validation = await this.executeJsonAgent('validator', 'gemini-2.5-flash', { 
-        report: this.state.composerMarkdown, 
-        sourceData: this.state.raw 
-      }, ['isValid', 'errors']);
-
-      // 강제 에러 방어: validation 객체가 정상적이지 않을 경우 기본값 주입
-      if (!this.state.validation || typeof this.state.validation.isValid !== 'boolean') {
-        this.state.validation = { isValid: false, errors: [{ issue: 'API 응답 오류로 인한 검증 실패(데이터 누락)' }] };
-      }
-
-      if (!this.state.validation.isValid) {
-        const errors = Array.isArray(this.state.validation.errors) ? this.state.validation.errors : [];
-        const issueMsg = errors.length > 0 ? errors.map(e => e.issue).join(', ') : '알 수 없는 검증 오류';
-        this.onStatusUpdate?.(`⚠️ 유효성 경고: ${issueMsg}`);
-      }
-
-      // 10. Critic (Pro) - 품질 평가
-      this.state.critic = await this.executeJsonAgent('critic', 'gemini-2.5-pro', { 
-        report: this.state.composerMarkdown,
-        validation: this.state.validation
-      }, ['score', 'feedback']);
-
-      this.onStatusUpdate?.(`📊 품질 점수: ${this.state.critic.score}/100`);
-
-      if (this.state.critic.score >= 85) {
-        this.onStatusUpdate?.(`✅ 목표 점수 달성. 프로세스를 종료합니다.`);
-        break;
-      }
-
-      if (!isLastLoop) {
-        this.onStatusUpdate?.(`🔄 품질 보강을 위해 재분석을 진행합니다. (사유: ${this.state.critic.feedback})`);
-      } else {
-        this.onStatusUpdate?.(`최대 반복 횟수에 도달하여 현재 결과물을 확정합니다.`);
-      }
+    if (!this.state.validation || typeof this.state.validation.isValid !== 'boolean') {
+      this.state.validation = { isValid: true, errors: [] };
     }
 
     const finalReport = this.assembleFinalReport();
@@ -412,54 +375,30 @@ Language: Korean`;
   }
 
   assembleFinalReport() {
-    const { analysis, raw, critic } = this.state;
-
-    // 각 섹션별 데이터 안전하게 추출
+    const { analysis, raw } = this.state;
     const strategy = analysis.strategy || {};
     const financial = analysis.financial || {};
-    const news = analysis.news || {};
-
-    // 조립 직전 최종 상태 로그
-    dbg('assembleFinalReport — strategy', strategy);
-    dbg('assembleFinalReport — financial', financial);
-    dbg('assembleFinalReport — news', news);
-    dbg('assembleFinalReport — agentErrors', this._agentErrors);
+    const news      = analysis.news      || {};
 
     return {
       companyName: this.companyName,
       report: {
-        // strategy-analyst 에이전트 결과
         macroTrend:     strategy.macroTrend     || null,
         industryStatus: strategy.industryStatus || null,
         vision:         strategy.vision         || null,
         businessModel:  strategy.businessModel  || null,
         swotAnalysis:   strategy.swotAnalysis   || null,
-
-        // news-analyst 에이전트 결과
-        marketSentiment: news.marketSentiment || null,
-        recentNews:      news.recentNews      || [],
-
-        // financial-analyst 에이전트 결과
+        marketSentiment: news.marketSentiment   || null,
+        recentNews:      news.recentNews        || [],
         financialAnalysis: {
-          overview:   financial.overview    || null,
-          keyMetrics: financial.keyMetrics  || []
+          overview:   financial.overview   || null,
+          keyMetrics: financial.keyMetrics || []
         },
-
-        // composer 마크다운 보고서 (별도 필드)
         markdown: this.state.composerMarkdown || '',
       },
-      sources:    raw.sources,
-      score:      critic.score,
-      iteration:  this.iterationCount,
+      sources:     raw.sources,
       financeData: raw.finance,
-
-      // 디버그 정보 — 개발 모드에서 에이전트 오류 진단용
-      debug: {
-        agentErrors: this._agentErrors,
-        strategyKeys: Object.keys(strategy),
-        financialKeys: Object.keys(financial),
-        newsKeys: Object.keys(news),
-      }
+      debug: { agentErrors: this._agentErrors },
     };
   }
 }
