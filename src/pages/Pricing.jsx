@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import PaymentModal from '../components/PaymentModal';
 
@@ -7,6 +7,16 @@ export default function Pricing({ setTab }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState('premium');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [successPlan, setSuccessPlan] = useState(null);
+  const [countdown, setCountdown] = useState(3);
+
+  // 성공 후 카운트다운 → 자동 홈 이동
+  useEffect(() => {
+    if (!successPlan) return;
+    if (countdown <= 0) { setTab('search'); return; }
+    const t = setTimeout(() => setCountdown(c => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [successPlan, countdown, setTab]);
 
   const handleSubscribe = (plan) => {
     if (!currentUser) {
@@ -22,14 +32,67 @@ export default function Pricing({ setTab }) {
     try {
       await upgradePlan(plan);
       setIsModalOpen(false);
-      setTab('search'); // Go back to dashboard on success
-      alert('성공적으로 프리미엄 플랜으로 업그레이드 되었습니다!');
+      setSuccessPlan(plan);
+      setCountdown(3);
     } catch (err) {
-      alert('결제 처리 중 오류가 발생했습니다.');
+      // 실패 시 모달 닫고 에러는 조용히 처리 (향후 toast 연동 가능)
+      setIsModalOpen(false);
+      console.error('결제 처리 오류:', err);
     } finally {
       setIsProcessing(false);
     }
   };
+
+  // 결제 성공 화면
+  if (successPlan) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[70vh] px-4 animate-in fade-in duration-500">
+        <div style={{
+          maxWidth: '480px', width: '100%',
+          background: 'var(--color-surface-container-lowest)',
+          borderRadius: '1.5rem', padding: '3rem 2.5rem',
+          boxShadow: '0 8px 40px rgba(11,28,48,0.10)',
+          border: '1px solid var(--color-outline-variant)',
+          textAlign: 'center',
+        }}>
+          <div style={{
+            width: '72px', height: '72px', borderRadius: '50%',
+            background: 'linear-gradient(135deg, #10b981, #059669)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 1.5rem', boxShadow: '0 8px 24px rgba(16,185,129,0.3)',
+          }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '36px', color: '#fff', fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+          </div>
+          <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--color-on-surface)', marginBottom: '0.5rem' }}>
+            업그레이드 완료!
+          </h2>
+          <p style={{ color: 'var(--color-on-surface-variant)', marginBottom: '2rem', lineHeight: 1.6 }}>
+            <strong style={{ color: 'var(--color-primary)' }}>Premium</strong> 플랜이 활성화되었습니다.<br />
+            이제 무제한으로 AI 분석을 이용할 수 있습니다.
+          </p>
+          <div style={{
+            padding: '1rem', background: '#f0fdf4',
+            borderRadius: '0.75rem', border: '1px solid #86efac',
+            marginBottom: '1.5rem', fontSize: '0.875rem', color: '#166534',
+          }}>
+            {countdown}초 후 홈으로 이동합니다...
+          </div>
+          <button
+            onClick={() => setTab('search')}
+            style={{
+              width: '100%', padding: '0.875rem',
+              backgroundColor: 'var(--color-primary)', color: '#fff',
+              border: 'none', borderRadius: '0.75rem',
+              fontSize: '1rem', fontWeight: 700, cursor: 'pointer',
+              boxShadow: '0 4px 16px rgba(0,74,198,0.3)',
+            }}
+          >
+            지금 바로 분석하기
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center py-12 px-4 max-w-6xl mx-auto w-full animate-in fade-in slide-in-from-bottom-8">

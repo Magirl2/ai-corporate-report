@@ -110,6 +110,16 @@ export default function App() {
       const data = await fetchCompanyData(query, setStatusMessage);
       setSingleData(data);
       recordUsage();
+
+      // 최근 검색 기록 localStorage에 저장 (최대 5건, 중복 제거)
+      try {
+        const prev = JSON.parse(localStorage.getItem('ei_recent_searches') || '[]');
+        const updated = [
+          { name: query, date: new Date().toISOString() },
+          ...prev.filter(r => r.name !== query)
+        ].slice(0, 5);
+        localStorage.setItem('ei_recent_searches', JSON.stringify(updated));
+      } catch (_) {}
     } catch (err) {
       setError(`분석 중 오류 발생: ${err.message}`);
     } finally {
@@ -161,7 +171,7 @@ export default function App() {
 
   return (
     <div style={{ background: 'var(--color-surface)', color: 'var(--color-on-surface)', minHeight: '100vh', display: 'flex' }}>
-      {showSidebar && <SideNavBar setTab={setTab} navigateToSearch={navigateToSearch} />}
+      {showSidebar && <SideNavBar tab={tab} setTab={setTab} navigateToSearch={navigateToSearch} />}
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: '100vh', marginLeft: showSidebar ? undefined : 0, transition: 'margin 0.3s' }}
         className={showSidebar ? 'md:ml-64' : ''}

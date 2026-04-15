@@ -1,13 +1,48 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+
+// 상대 시간 포맷터
+function timeAgo(isoString) {
+  const diff = Date.now() - new Date(isoString).getTime();
+  const mins = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+  if (mins < 1) return '방금 전';
+  if (mins < 60) return `${mins}분 전`;
+  if (hours < 24) return `${hours}시간 전`;
+  return `${days}일 전`;
+}
+
+// 기업명 → 일관된 액센트 색상
+const COLOR_SEEDS = ['#004ac6', '#10b981', '#f59e0b', '#f43f5e', '#8b5cf6'];
+function nameToColor(name) {
+  let hash = 0;
+  for (const c of name) hash = (hash * 31 + c.charCodeAt(0)) & 0xffffffff;
+  return COLOR_SEEDS[Math.abs(hash) % COLOR_SEEDS.length];
+}
+
+const FALLBACK_COMPANIES = [
+  { name: '삼성전자' },
+  { name: 'Apple' },
+  { name: '카카오' },
+];
 
 export default function SearchDashboard({ searchInput, setSearchInput, onSearch, setTab }) {
   const d = new Date();
   const today = `${d.getFullYear()}년 ${String(d.getMonth() + 1).padStart(2, '0')}월 ${String(d.getDate()).padStart(2, '0')}일`;
 
-  // 퀵 검색 태그 클릭 시 입력값 설정 + 즉시 검색 실행
+  // LocalStorage에서 최근 검색 기록 로드
+  const recentSearches = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem('ei_recent_searches') || '[]');
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const hasHistory = recentSearches.length > 0;
+
   const handleQuickSearch = (keyword) => {
     setSearchInput(keyword);
-    // 폼 submit 이벤트처럼 직접 onSearch를 호출 (합성 이벤트 없이)
     setTimeout(() => {
       const fakeEvent = { preventDefault: () => {} };
       onSearch(fakeEvent, keyword);
@@ -51,7 +86,6 @@ export default function SearchDashboard({ searchInput, setSearchInput, onSearch,
               border: '1px solid var(--color-outline-variant)',
             }}
           >
-            {/* 검색 아이콘 */}
             <span
               className="material-symbols-outlined absolute left-5 pointer-events-none"
               style={{ color: 'var(--color-primary)', fontSize: '22px' }}
@@ -73,10 +107,8 @@ export default function SearchDashboard({ searchInput, setSearchInput, onSearch,
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
             />
-            {/* 분석하기 버튼 — 인라인 스타일로 강제 적용 */}
             <button
               type="submit"
-              className="btn-primary"
               style={{
                 position: 'absolute',
                 right: '6px',
@@ -107,7 +139,7 @@ export default function SearchDashboard({ searchInput, setSearchInput, onSearch,
         </form>
       </div>
 
-      {/* 빈 상태 / 소개 */}
+      {/* 소개 영역 */}
       <div className="mt-16 text-center">
         <div
           className="w-24 h-24 rounded-2xl flex items-center justify-center mx-auto mb-6 transition-transform hover:scale-105 duration-500"
@@ -170,89 +202,90 @@ export default function SearchDashboard({ searchInput, setSearchInput, onSearch,
         </div>
       </div>
 
-      {/* 최근 분석 기록 */}
+      {/* 최근 검색 기록 / 추천 기업 */}
       <div className="max-w-4xl mx-auto w-full mt-20 px-4 pb-16">
         <h3
           className="text-xs font-bold uppercase tracking-widest mb-5 flex items-center gap-2"
           style={{ color: 'var(--color-on-surface-variant)' }}
         >
-          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>history</span>
-          인기 분석 기업
+          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+            {hasHistory ? 'history' : 'star'}
+          </span>
+          {hasHistory ? '최근 검색 기업' : '추천 기업'}
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[
-            { ticker: 'KOSPI 005930', name: '삼성전자', trend: 'up', score: 78 },
-            { ticker: 'NASDAQ AAPL',  name: 'Apple Inc.', trend: 'down', score: 52 },
-            { ticker: 'KOSPI 035720', name: '카카오',  trend: 'neutral', score: 65 },
-          ].map(({ ticker, name, trend, score }) => (
-            <button
-              key={name}
-              onClick={() => handleQuickSearch(name)}
-              style={{
-                background: 'var(--color-surface-container-lowest)',
-                borderRadius: '1rem',
-                border: '1px solid var(--color-outline-variant)',
-                padding: '1.25rem 1.5rem',
-                textAlign: 'left',
-                cursor: 'pointer',
-                transition: 'box-shadow 0.2s, border-color 0.2s',
-                boxShadow: '0 2px 8px rgba(11,28,48,0.04)',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,74,198,0.12)';
-                e.currentTarget.style.borderColor = 'var(--color-primary)';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.boxShadow = '0 2px 8px rgba(11,28,48,0.04)';
-                e.currentTarget.style.borderColor = 'var(--color-outline-variant)';
-              }}
-            >
-              <div className="flex justify-between items-start mb-3">
-                <div>
-                  <p className="text-xs font-semibold mb-1" style={{ color: 'var(--color-outline)' }}>{ticker}</p>
-                  <h4 className="text-base font-bold" style={{ color: 'var(--color-on-surface)' }}>{name}</h4>
-                </div>
-                <span
-                  className="material-symbols-outlined"
-                  style={{
-                    fontSize: '20px',
-                    fontVariationSettings: "'FILL' 1",
-                    color: trend === 'up' ? '#10b981' : trend === 'down' ? '#f43f5e' : '#94a3b8',
-                  }}
-                >
-                  {trend === 'up' ? 'trending_up' : trend === 'down' ? 'trending_down' : 'trending_flat'}
-                </span>
-              </div>
-              <div className="mt-3">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs" style={{ color: 'var(--color-outline)' }}>AI 신뢰도</span>
-                  <span className="text-xs font-bold" style={{ color: trend === 'up' ? '#10b981' : trend === 'down' ? '#f43f5e' : '#94a3b8' }}>
-                    {score}%
+          {(hasHistory ? recentSearches : FALLBACK_COMPANIES).map((item) => {
+            const accentColor = nameToColor(item.name);
+            return (
+              <button
+                key={item.name}
+                onClick={() => handleQuickSearch(item.name)}
+                style={{
+                  background: 'var(--color-surface-container-lowest)',
+                  borderRadius: '1rem',
+                  border: '1px solid var(--color-outline-variant)',
+                  padding: '1.25rem 1.5rem',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  transition: 'box-shadow 0.2s, border-color 0.2s',
+                  boxShadow: '0 2px 8px rgba(11,28,48,0.04)',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,74,198,0.12)';
+                  e.currentTarget.style.borderColor = 'var(--color-primary)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(11,28,48,0.04)';
+                  e.currentTarget.style.borderColor = 'var(--color-outline-variant)';
+                }}
+              >
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex items-center gap-3">
+                    {/* 기업명 이니셜 아바타 */}
+                    <div style={{
+                      width: '36px', height: '36px', borderRadius: '10px',
+                      background: accentColor + '18',
+                      border: `1px solid ${accentColor}30`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0,
+                    }}>
+                      <span style={{ fontSize: '16px', fontWeight: 800, color: accentColor }}>
+                        {item.name[0].toUpperCase()}
+                      </span>
+                    </div>
+                    <div>
+                      <h4 className="text-base font-bold" style={{ color: 'var(--color-on-surface)' }}>{item.name}</h4>
+                      {item.date && (
+                        <p className="text-xs font-medium mt-0.5" style={{ color: 'var(--color-outline)' }}>
+                          {timeAgo(item.date)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <span
+                    className="material-symbols-outlined"
+                    style={{ fontSize: '18px', color: 'var(--color-outline-variant)', fontVariationSettings: "'FILL' 0" }}
+                  >
+                    {hasHistory ? 'history' : 'arrow_forward'}
                   </span>
                 </div>
-                <div
-                  style={{
-                    height: '4px',
-                    background: 'var(--color-surface-container)',
-                    borderRadius: '9999px',
-                    overflow: 'hidden',
-                  }}
-                >
-                  <div
-                    style={{
-                      height: '100%',
-                      width: `${score}%`,
-                      background: trend === 'up' ? '#10b981' : trend === 'down' ? '#f43f5e' : '#94a3b8',
-                      borderRadius: '9999px',
-                    }}
-                  />
+                <div style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '4px',
+                  padding: '2px 8px', borderRadius: '9999px',
+                  background: accentColor + '14',
+                  fontSize: '0.7rem', fontWeight: 700, color: accentColor,
+                }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '11px', fontVariationSettings: "'FILL' 1" }}>
+                    analytics
+                  </span>
+                  {hasHistory ? 'AI 분석 완료' : '분석 가능'}
                 </div>
-              </div>
-            </button>
-          ))}
+              </button>
+            );
+          })}
 
-          {/* AI 신규 기능 카드 */}
+          {/* 비교 기능 프로모 카드 */}
           <button
             onClick={() => setTab('compare')}
             style={{

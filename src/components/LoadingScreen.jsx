@@ -74,19 +74,19 @@ export default function LoadingScreen({ message }) {
               <span className={`material-symbols-outlined ${step >= 1 ? 'text-emerald-500' : 'text-outline'}`} style={{ fontVariationSettings: step >= 1 ? "'FILL' 1" : "'FILL' 0" }}>
                 {step >= 1 ? 'check_circle' : 'radio_button_unchecked'}
               </span>
-              <span className={`text-sm font-medium ${step >= 1 ? 'text-on-surface' : 'text-outline'}`}>기업 재무제표 3개년 분석 완료</span>
+              <span className={`text-sm font-medium ${step >= 1 ? 'text-on-surface' : 'text-outline'}`}>재무제표 · 공시 · 뉴스 데이터 수집 완료</span>
             </div>
             <div className={`flex items-center gap-3 transition-opacity duration-500 ${step >= 2 ? 'opacity-100' : 'opacity-40'}`}>
               <span className={`material-symbols-outlined ${step >= 2 ? 'text-emerald-500' : 'text-outline'}`} style={{ fontVariationSettings: step >= 2 ? "'FILL' 1" : "'FILL' 0" }}>
                 {step >= 2 ? 'check_circle' : 'radio_button_unchecked'}
               </span>
-              <span className={`text-sm font-medium ${step >= 2 ? 'text-on-surface' : 'text-outline'}`}>시장 점유율 데이터 통합 완료</span>
+              <span className={`text-sm font-medium ${step >= 2 ? 'text-on-surface' : 'text-outline'}`}>4개 분야 AI 전문 분석 완료</span>
             </div>
             <div className={`flex items-center gap-3 transition-opacity duration-500 ${step >= 3 ? 'opacity-100' : (step === 2 ? 'opacity-100' : 'opacity-40')}`}>
               <span className={`material-symbols-outlined ${step >= 3 ? 'text-emerald-500' : (step === 2 ? 'text-primary animate-pulse' : 'text-outline')}`} style={{ fontVariationSettings: step >= 3 ? "'FILL' 1" : "'FILL' 0" }}>
                 {step >= 3 ? 'check_circle' : (step === 2 ? 'radio_button_checked' : 'radio_button_unchecked')}
               </span>
-              <span className={`text-sm font-medium ${step >= 3 ? 'text-on-surface' : (step === 2 ? 'text-primary' : 'text-outline')}`}>AI 리스크 모델 시뮬레이션 중</span>
+              <span className={`text-sm font-medium ${step >= 3 ? 'text-on-surface' : (step === 2 ? 'text-primary' : 'text-outline')}`}>보고서 합성 · 팩트체크 · 품질 평가 중</span>
             </div>
           </div>
         </div>

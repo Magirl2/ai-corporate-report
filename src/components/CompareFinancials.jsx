@@ -1,6 +1,53 @@
 import React from 'react';
 import { parseNumber, safeString } from '../utils/formatters';
 
+// 두 기업의 재무 수치를 비교해 동적 요약 문장을 생성합니다
+function buildDynamicSummary(nameA, nameB, metricA, metricB) {
+  const numRevA = parseNumber(metricA.revenueGrowth);
+  const numRevB = parseNumber(metricB.revenueGrowth);
+  const numMarginA = parseNumber(metricA.operatingMargin);
+  const numMarginB = parseNumber(metricB.operatingMargin);
+  const numRoeA = parseNumber(metricA.roe);
+  const numRoeB = parseNumber(metricB.roe);
+  const numDebtA = parseNumber(metricA.debtRatio);
+  const numDebtB = parseNumber(metricB.debtRatio);
+
+  const points = [];
+
+  if (numRevA !== null && numRevB !== null) {
+    if (numRevA > numRevB)
+      points.push(`매출 성장률에서 ${nameA}(${metricA.revenueGrowth})이 ${nameB}(${metricB.revenueGrowth})보다 앞서 있습니다.`);
+    else if (numRevB > numRevA)
+      points.push(`매출 성장률에서 ${nameB}(${metricB.revenueGrowth})이 ${nameA}(${metricA.revenueGrowth})보다 앞서 있습니다.`);
+    else
+      points.push(`두 기업의 매출 성장률이 유사한 수준입니다.`);
+  }
+
+  if (numMarginA !== null && numMarginB !== null) {
+    if (numMarginA > numMarginB)
+      points.push(`수익성 측면에서 ${nameA}의 영업이익률(${metricA.operatingMargin})이 더 높아 비용 효율성이 우수합니다.`);
+    else if (numMarginB > numMarginA)
+      points.push(`수익성 측면에서 ${nameB}의 영업이익률(${metricB.operatingMargin})이 더 높아 비용 효율성이 우수합니다.`);
+  }
+
+  if (numRoeA !== null && numRoeB !== null) {
+    const winner = numRoeA > numRoeB ? nameA : nameB;
+    const winnerRoe = numRoeA > numRoeB ? metricA.roe : metricB.roe;
+    points.push(`자기자본이익률(ROE)은 ${winner}(${winnerRoe})이 더 높아 주주 가치 창출 능력이 상대적으로 뛰어납니다.`);
+  }
+
+  if (numDebtA !== null && numDebtB !== null) {
+    const safer = numDebtA < numDebtB ? nameA : nameB;
+    points.push(`부채비율은 ${safer}이 더 낮아 재무 안정성 측면에서 유리한 구조입니다.`);
+  }
+
+  if (points.length === 0) {
+    return '비교 지표 데이터를 충분히 확보하지 못했습니다. 상세 수치는 아래 표를 참고하세요.';
+  }
+
+  return points.join(' ');
+}
+
 export default function CompareFinancials({ dataA, dataB }) {
   const metricA = dataA.report?.financialAnalysis?.keyMetrics?.[0] || {};
   const metricB = dataB.report?.financialAnalysis?.keyMetrics?.[0] || {};
@@ -16,10 +63,12 @@ export default function CompareFinancials({ dataA, dataB }) {
   const numEpsA = parseNumber(metricA.eps);
   const numEpsB = parseNumber(metricB.eps);
 
+  const dynamicSummary = buildDynamicSummary(dataA.companyName, dataB.companyName, metricA, metricB);
+
   const getWinnerClass = (valSelf, valOther, higherIsBetter = true) => {
-    if (valSelf === null || valOther === null || valSelf === valOther) return "text-slate-600";
+    if (valSelf === null || valOther === null || valSelf === valOther) return 'text-slate-600';
     const isWinner = higherIsBetter ? valSelf > valOther : valSelf < valOther;
-    return isWinner ? "text-tertiary font-bold bg-tertiary-fixed" : "text-slate-600";
+    return isWinner ? 'text-emerald-700 font-bold' : 'text-slate-600';
   };
 
   return (
@@ -63,7 +112,7 @@ export default function CompareFinancials({ dataA, dataB }) {
         </table>
       </section>
 
-      {/* Insights Grid (Bento Style) */}
+      {/* Insights Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
         <div className="md:col-span-2 bg-gradient-to-br from-primary/5 to-transparent p-8 rounded-lg border border-primary/10">
           <div className="flex items-start gap-4">
@@ -72,10 +121,7 @@ export default function CompareFinancials({ dataA, dataB }) {
             </div>
             <div>
               <h3 className="text-xl font-bold mb-3">AI 요약 분석</h3>
-              <p className="text-on-surface leading-relaxed text-lg">
-                수익성 및 안정성 측면 등 전반적인 재무 건전성은 두 기업의 세부 수치에 따라 다르게 평가될 수 있습니다. 
-                현재 지표를 기반으로 비교 우위를 직접 확인하시기 바랍니다. AI 리포트는 참고용입니다.
-              </p>
+              <p className="text-on-surface leading-relaxed text-base">{dynamicSummary}</p>
             </div>
           </div>
         </div>

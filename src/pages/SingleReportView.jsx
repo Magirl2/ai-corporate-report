@@ -121,7 +121,7 @@ const COLOR_MAP = {
  * summary: 항상 노출되는 핵심 한 줄 요약
  * detail:  토글 클릭 시 펼쳐지는 상세 분석
  */
-const BentoCard = ({ icon, title, color, summary, detail, className = '', children }) => {
+const BentoCard = ({ icon, title, color, summary, detail, className = '', children, emptyMessage }) => {
   const theme = COLOR_MAP[color] || COLOR_MAP.slate;
   const [open, setOpen] = useState(false);
   const hasDetail = !!detail;
@@ -163,7 +163,10 @@ const BentoCard = ({ icon, title, color, summary, detail, className = '', childr
               {summary ? (
                 <p className="text-sm font-semibold text-on-surface leading-relaxed">{summary}</p>
               ) : (
-                <p className="text-slate-400 text-sm">데이터 없음</p>
+                <div className="flex items-center gap-2 py-2">
+                  <span className="material-symbols-outlined text-slate-300" style={{ fontSize: '18px' }}>info</span>
+                  <p className="text-slate-400 text-sm">{emptyMessage || 'AI 분석 데이터를 가져오지 못했습니다.'}</p>
+                </div>
               )}
 
               {/* 상세 영역 — 토글 시 페이드인 + 마크다운 렌더링 */}
@@ -182,36 +185,25 @@ const BentoCard = ({ icon, title, color, summary, detail, className = '', childr
   );
 };
 
-/* ─── SWOT 사분면 (가독성 및 디자인 고도화) ─── */
-const SwotQuadrant = ({ label, bgColor, borderColor, textColor, summary, detail }) => {
-  const [open, setOpen] = useState(false);
+/* ─── SWOT 사분면 — 배열 데이터 기반 렌더링 ─── */
+const SwotQuadrant = ({ label, bgColor, borderColor, textColor, items }) => {
+  const safeItems = Array.isArray(items) ? items : (typeof items === 'string' ? [items] : []);
   return (
-    <div className={`p-6 rounded-2xl border transition-all duration-300 ease-in-out flex flex-col gap-3 ${open ? 'col-span-full md:col-span-2' : 'col-span-1'} ${bgColor} ${borderColor} ${open ? 'shadow-lg bg-white' : 'hover:shadow-md'}`}>
-      <div className="flex items-center justify-between">
-        <div className="flex flex-col">
-          <p className={`text-[10px] font-black tracking-widest uppercase ${textColor} opacity-80 mb-1`}>{label}</p>
-          <p className={`text-[15px] font-extrabold leading-snug tracking-tight text-slate-900 ${open ? 'text-lg' : ''}`}>
-            {summary || '내용 분석 중...'}
-          </p>
-        </div>
-        {detail && (
-          <button
-            onClick={() => setOpen(!open)}
-            className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold transition-all border ${open ? 'bg-primary/5 border-primary/20 text-primary' : 'bg-white/50 border-slate-200 text-slate-500 hover:bg-white'}`}
-          >
-            <span className={`material-symbols-outlined text-[16px] transition-transform duration-300 ${open ? 'rotate-180' : ''}`}>
-              {open ? 'unfold_less' : 'unfold_more'}
-            </span>
-            {open ? '접기' : '더보기'}
-          </button>
-        )}
-      </div>
-
-      {open && detail && (
-        <div className="mt-2 pt-5 border-t border-slate-100 animate-in fade-in slide-in-from-top-2 duration-300">
-          <div className="p-5 bg-slate-50/50 rounded-2xl border border-slate-200/50 shadow-inner">
-            {renderMarkdown(detail)}
-          </div>
+    <div className={`p-6 rounded-2xl border flex flex-col gap-3 ${bgColor} ${borderColor}`}>
+      <p className={`text-[10px] font-black tracking-widest uppercase ${textColor} opacity-80`}>{label}</p>
+      {safeItems.length > 0 ? (
+        <ul className="space-y-2">
+          {safeItems.map((item, i) => (
+            <li key={i} className="flex items-start gap-2 text-sm text-slate-800 leading-snug">
+              <span className={`mt-1 w-1.5 h-1.5 rounded-full shrink-0 ${textColor.replace('text-', 'bg-')}`} />
+              {item}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="flex items-center gap-2 py-2">
+          <span className="material-symbols-outlined text-slate-300" style={{ fontSize: '16px' }}>info</span>
+          <p className="text-slate-400 text-sm">데이터 분석 중입니다.</p>
         </div>
       )}
     </div>
@@ -263,34 +255,66 @@ export default function SingleReportView({ singleData }) {
 
   const r = singleData.report;
 
+  // 데이터 소스 뱃지 동적 결정
+  const sourceBadge = singleData.financeData
+    ? (singleData.financeData.raw?.currency && singleData.financeData.raw.currency !== 'KRW' ? 'FMP · US' : 'DART · KR')
+    : 'AI REPORT';
+
+  // AI 품질 점수
+  const aiScore = singleData.score;
+  const aiIteration = singleData.iteration;
+
+  // MarketSentimentBanner가 null이면 헤더 우측 공간 보정
+  const hasSentiment = !!(r?.marketSentiment?.status);
+
   return (
     <div className="mt-8 mx-auto w-full flex-1 animate-in fade-in slide-in-from-bottom-8">
 
       {/* 리포트 헤더 */}
-      <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <div className="mb-8 flex flex-col md:flex-row md:items-start justify-between gap-6">
         <div>
-          <div className="flex items-center gap-3 mb-2">
+          <div className="flex items-center gap-3 mb-2 flex-wrap">
             <span className="px-3 py-1 bg-primary/10 text-primary text-xs font-bold rounded-full uppercase tracking-wider">
-              {singleData.ticker || 'REPORT'}
+              {sourceBadge}
             </span>
             <span className="text-on-surface-variant text-sm font-medium">{today}</span>
+            {aiScore != null && (
+              <span
+                title={`Sisyphus Loop ${aiIteration}회 반복 후 확정`}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '4px',
+                  padding: '2px 10px', borderRadius: '9999px',
+                  background: aiScore >= 85 ? '#f0fdf4' : aiScore >= 70 ? '#fffbeb' : '#fff1f2',
+                  border: `1px solid ${aiScore >= 85 ? '#86efac' : aiScore >= 70 ? '#fcd34d' : '#fca5a5'}`,
+                  fontSize: '0.7rem', fontWeight: 700,
+                  color: aiScore >= 85 ? '#166534' : aiScore >= 70 ? '#92400e' : '#be123c',
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '12px', fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
+                AI 품질 {aiScore}점
+              </span>
+            )}
           </div>
           <h2 className="text-3xl font-extrabold text-on-surface tracking-tight font-headline">
             {singleData.companyName} 분석 보고서
           </h2>
         </div>
-        <MarketSentimentBanner sentiment={r?.marketSentiment} />
+        {hasSentiment && <MarketSentimentBanner sentiment={r?.marketSentiment} />}
       </div>
 
       {/* 서브탭 */}
       <div className="flex gap-8 mb-8 border-b border-slate-200">
-        {['analysis', 'sources'].map(tab => (
+        {[
+          { key: 'analysis', label: '상세 분석' },
+          { key: 'report',   label: 'AI 종합 보고서' },
+          { key: 'sources',  label: '사용 정보 (출처)' },
+        ].map(({ key, label }) => (
           <button
-            key={tab}
-            onClick={() => setReportSubTab(tab)}
-            className={`pb-3 font-bold text-base transition-all ${reportSubTab === tab ? 'border-b-[3px] border-primary text-primary -mb-px' : 'text-slate-400 hover:text-slate-600'}`}
+            key={key}
+            onClick={() => setReportSubTab(key)}
+            className={`pb-3 font-bold text-base transition-all ${reportSubTab === key ? 'border-b-[3px] border-primary text-primary -mb-px' : 'text-slate-400 hover:text-slate-600'}`}
           >
-            {tab === 'analysis' ? '상세 분석' : '사용 정보 (출처)'}
+            {label}
           </button>
         ))}
       </div>
@@ -304,8 +328,9 @@ export default function SingleReportView({ singleData }) {
             icon="public"
             title="거시적 트렌드 (PESTLE 기반)"
             color="cyan"
-            summary={singleData.macroTrend?.summary}
-            detail={singleData.macroTrend?.detail}
+            summary={r?.macroTrend?.summary}
+            detail={r?.macroTrend?.detail}
+            emptyMessage="거시 환경(정치·경제·사회·기술) 분석 데이터를 가져오지 못했습니다."
           />
 
           {/* 제품 비전 */}
@@ -315,6 +340,7 @@ export default function SingleReportView({ singleData }) {
             color="purple"
             summary={r?.vision?.summary}
             detail={r?.vision?.detail}
+            emptyMessage="기업의 제품 비전 및 중장기 로드맵 정보를 분석 중입니다."
           />
 
           {/* 비즈니스 모델 */}
@@ -324,6 +350,7 @@ export default function SingleReportView({ singleData }) {
             color="blue"
             summary={r?.businessModel?.summary}
             detail={r?.businessModel?.detail}
+            emptyMessage="수익 구조 및 핵심 비즈니스 모델 분석 데이터를 가져오지 못했습니다."
           />
 
           {/* 5 Forces */}
@@ -333,6 +360,7 @@ export default function SingleReportView({ singleData }) {
             color="amber"
             summary={r?.industryStatus?.summary}
             detail={r?.industryStatus?.detail}
+            emptyMessage="산업 경쟁 구도(Porter's 5 Forces) 분석 데이터를 가져오지 못했습니다."
           />
 
           {/* 재무 분석 */}
@@ -341,63 +369,63 @@ export default function SingleReportView({ singleData }) {
               summary={r?.financialAnalysis?.overview?.summary}
               detail={r?.financialAnalysis?.overview?.detail}
             />
-            {yearly?.length > 0 ? (
-              <div className="overflow-x-auto rounded-xl border border-slate-100">
-                <table className="w-full text-left border-collapse text-sm">
-                  <thead>
-                    <tr className="bg-surface-container-low">
-                      <th className="p-3 font-bold text-slate-500 text-xs uppercase tracking-wide w-32">구분</th>
-                      {yearly.map((y, i) => (
-                        <th key={y.year} className={`p-3 font-bold text-xs ${i === yearly.length - 1 ? 'text-primary' : 'text-slate-500'}`}>{y.year}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {[
-                      { label: '매출 성장률', key: 'revenueGrowth' },
-                      { label: '영업이익률',  key: 'operatingMargin' },
-                      { label: '부채비율',     key: 'debtRatio' },
-                      { label: 'ROE',          key: 'roe' },
-                    ].map(({ label, key }) => (
-                      <tr key={key} className="hover:bg-slate-50 transition-colors">
-                        <td className="p-3 font-medium text-slate-500 text-xs">{label}</td>
-                        {yearly.map(y => <td key={y.year} className="p-3 text-sm text-on-surface">{y[key] ?? '-'}</td>)}
+            {(() => {
+              const rows = (yearly?.length > 0)
+                ? yearly
+                : (r?.financialAnalysis?.keyMetrics?.length > 0 ? r.financialAnalysis.keyMetrics : null);
+              if (!rows) return <p className="text-slate-400 text-sm">재무 지표 데이터 없음</p>;
+              return (
+                <div className="overflow-x-auto rounded-xl border border-slate-100">
+                  <table className="w-full text-left border-collapse text-sm">
+                    <thead>
+                      <tr className="bg-surface-container-low">
+                        <th className="p-3 font-bold text-slate-500 text-xs uppercase tracking-wide w-32">구분</th>
+                        {rows.map((y, i) => (
+                          <th key={y.year ?? i} className={`p-3 font-bold text-xs ${i === rows.length - 1 ? 'text-primary' : 'text-slate-500'}`}>{y.year ?? '-'}</th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p className="text-slate-400 text-sm">재무 지표 데이터 없음</p>
-            )}
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {[
+                        { label: '매출 성장률', key: 'revenueGrowth' },
+                        { label: '영업이익률',  key: 'operatingMargin' },
+                        { label: '부채비율',    key: 'debtRatio' },
+                        { label: 'ROE',         key: 'roe' },
+                      ].map(({ label, key }) => (
+                        <tr key={key} className="hover:bg-slate-50 transition-colors">
+                          <td className="p-3 font-medium text-slate-500 text-xs">{label}</td>
+                          {rows.map((y, i) => <td key={i} className="p-3 text-sm text-on-surface">{y[key] ?? '-'}</td>)}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
           </BentoCard>
 
-          {/* SWOT Matrix — 레이아웃 강제 확장 */}
+          {/* SWOT Matrix */}
           <BentoCard icon="grid_view" title="SWOT Matrix" color="slate" className="col-span-full w-full">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
               <SwotQuadrant
                 label="STRENGTHS (강점)"
-                bgColor="bg-emerald-50/60" borderColor="border-emerald-100" textColor="text-emerald-700" detailColor="text-emerald-800"
-                summary={r?.swotAnalysis?.strength?.summary}
-                detail={r?.swotAnalysis?.strength?.detail}
+                bgColor="bg-emerald-50/60" borderColor="border-emerald-100" textColor="text-emerald-700"
+                items={r?.swotAnalysis?.strengths}
               />
               <SwotQuadrant
                 label="WEAKNESSES (약점)"
-                bgColor="bg-amber-50/60" borderColor="border-amber-100" textColor="text-amber-700" detailColor="text-amber-800"
-                summary={r?.swotAnalysis?.weakness?.summary}
-                detail={r?.swotAnalysis?.weakness?.detail}
+                bgColor="bg-amber-50/60" borderColor="border-amber-100" textColor="text-amber-700"
+                items={r?.swotAnalysis?.weaknesses}
               />
               <SwotQuadrant
                 label="OPPORTUNITIES (기회)"
-                bgColor="bg-blue-50/60" borderColor="border-blue-100" textColor="text-blue-700" detailColor="text-blue-800"
-                summary={r?.swotAnalysis?.opportunity?.summary}
-                detail={r?.swotAnalysis?.opportunity?.detail}
+                bgColor="bg-blue-50/60" borderColor="border-blue-100" textColor="text-blue-700"
+                items={r?.swotAnalysis?.opportunities}
               />
               <SwotQuadrant
                 label="THREATS (위협)"
-                bgColor="bg-rose-50/60" borderColor="border-rose-100" textColor="text-rose-700" detailColor="text-rose-800"
-                summary={r?.swotAnalysis?.threat?.summary}
-                detail={r?.swotAnalysis?.threat?.detail}
+                bgColor="bg-rose-50/60" borderColor="border-rose-100" textColor="text-rose-700"
+                items={r?.swotAnalysis?.threats}
               />
             </div>
           </BentoCard>
@@ -413,6 +441,27 @@ export default function SingleReportView({ singleData }) {
             </div>
           </BentoCard>
 
+        </div>
+      )}
+
+      {/* ── AI 종합 보고서 탭 (composer markdown) ── */}
+      {reportSubTab === 'report' && (
+        <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 animate-in fade-in slide-in-from-bottom-2">
+          {r?.markdown ? (
+            <>
+              <div className="flex items-center gap-2 mb-6 pb-4 border-b border-slate-100">
+                <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
+                <h3 className="text-lg font-bold">AI 종합 분석 보고서</h3>
+                <span className="ml-auto text-xs text-slate-400">Composed by Gemini 2.5 Pro</span>
+              </div>
+              <div>{renderMarkdown(r.markdown)}</div>
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-16 gap-4">
+              <span className="material-symbols-outlined text-slate-300" style={{ fontSize: '48px' }}>auto_awesome</span>
+              <p className="text-slate-400 text-sm">종합 보고서를 생성하지 못했습니다. 상세 분석 탭에서 개별 섹션을 확인하세요.</p>
+            </div>
+          )}
         </div>
       )}
 

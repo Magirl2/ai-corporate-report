@@ -41,8 +41,18 @@ export default function TopNavBar({ tab, setTab, searchInput, setSearchInput, on
             </div>
           )}
           
-          <button className="flex items-center justify-center p-2 text-slate-500 hover:text-primary transition-colors">
+          <button
+            className="flex items-center justify-center p-2 text-slate-300 cursor-not-allowed relative"
+            title="알림 기능은 준비 중입니다"
+            aria-label="알림 (준비 중)"
+            onClick={() => {}}
+          >
             <span className="material-symbols-outlined">notifications</span>
+            <span style={{
+              position: 'absolute', top: '6px', right: '6px',
+              width: '6px', height: '6px', borderRadius: '50%',
+              background: '#94a3b8',
+            }} />
           </button>
           
           {currentUser ? (
