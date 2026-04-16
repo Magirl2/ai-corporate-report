@@ -23,7 +23,8 @@ export function normalizeSearchBriefing(parsed) {
     newsFindings: Array.isArray(parsed.newsFindings) ? parsed.newsFindings : [],
     sentiment: typeof parsed.sentiment === 'string' ? parsed.sentiment : 'Neutral',
     risks: Array.isArray(parsed.risks) ? parsed.risks : [],
-    opportunities: Array.isArray(parsed.opportunities) ? parsed.opportunities : []
+    opportunities: Array.isArray(parsed.opportunities) ? parsed.opportunities : [],
+    rawContent: typeof parsed.rawContent === 'string' ? parsed.rawContent : ''
   };
 }
 
@@ -120,6 +121,7 @@ export class ServerOrchestrator {
         finance: this.state.raw.finance,
         disclosures: this.state.raw.disclosures,
         searchBriefing: this.state.raw.searchBriefing,
+        rawSearchText: this.state.raw.searchBriefing?.rawContent || "", 
         previousFeedback: criticFeedback // 재분석 시 피드백 전달
       };
 
@@ -265,15 +267,21 @@ Context Disclosures: ${JSON.stringify(disclosures)}`;
         tools: [{ google_search: {} }],
         temperature: 0.2
       });
-
-      const text = searchResult.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-      const extracted = extractJson(text) || text;
-      searchBriefing = normalizeSearchBriefing(JSON.parse(extracted));
+      
+      const fullText = searchResult.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      const extracted = extractJson(fullText) || fullText;
+      
+      try {
+        const parsed = JSON.parse(extracted);
+        searchBriefing = normalizeSearchBriefing({ ...parsed, rawContent: fullText });
+      } catch (parseErr) {
+        this.logger?.warn("Search JSON parse failed, using raw fallback", { error: parseErr.message });
+        searchBriefing = normalizeSearchBriefing({ rawContent: fullText });
+      }
       
       this.logger?.info('Deep Search result captured', { 
         sourceCount: sources.length,
-        briefingKeys: Object.keys(searchBriefing),
-        hasBusinessModel: !!searchBriefing.businessModel && searchBriefing.businessModel !== '상세 정보 없음'
+        hasStructuredData: !!searchBriefing.businessModel && searchBriefing.businessModel !== '상세 정보 없음'
       });
 
       const groundingMetadata = searchResult.candidates?.[0]?.groundingMetadata;
@@ -285,8 +293,7 @@ Context Disclosures: ${JSON.stringify(disclosures)}`;
         });
       }
     } catch (e) {
-      this.logger?.warn("Search Briefing JSON parse error", { error: e.message });
-      console.warn("Search Briefing JSON parse error:", e);
+      this.logger?.error("Search Briefing API/Process error", { error: e.message });
       searchBriefing = normalizeSearchBriefing({});
     }
 

@@ -32,6 +32,7 @@ async function testCompany(name) {
 }
 
 async function main() {
+  await testCompany('삼천당 제약');
   await testCompany('삼성전자');
   await testCompany('Apple');
 }

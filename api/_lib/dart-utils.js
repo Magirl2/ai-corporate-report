@@ -37,6 +37,7 @@ export const COMMON_CORPS = {
   '삼성생명': '00115440', '삼성화재': '00126362', '삼성물산': '00126256',
   'SK텔레콤': '00429904', 'SKT': '00429904', 'SK': '00164842', 'KT': '00781904', 'LG유플러스': '00869061',
   '현대건설': '00164753', '두산에너빌리티': '00264660', '한화솔루션': '00115592', '대한항공': '00114007',
+  '삼천당제약': '00121774',
 };
 
 /**
@@ -46,7 +47,7 @@ export const COMMON_CORPS = {
 export function normalizeCorpName(name) {
   if (!name) return '';
   return name
-    .replace(/\s*(주식회사|㈜|\(주\)|그룹|홀딩스|유한회사|사단법인|재단법인)\s*/gi, '')
+    .replace(/\s*(주식회사|㈜|\(주\)|그룹|홀딩스|유한회사|사단법인|재단법인|합명회사|합자회사|유한책임회사)\s*/gi, '')
     .replace(/\s+/g, '')
     .trim();
 }
@@ -112,11 +113,12 @@ export async function resolveCorpCode(userInput, apiKey) {
     const today = new Date();
     const formatDate = (d) => d.toISOString().split('T')[0].replace(/-/g, '');
     
-    // 후보군 생성
-    const candidates = [...new Set([normalized, keyword, firstToken])].filter(s => s && s.length >= 2);
+    // 후보군 생성 (공백 제거 버전, 키워드 버전, 첫 단어 버전, 그리고 원본 트림 버전)
+    const originalTrimmed = targetName.trim();
+    const candidates = [...new Set([normalized, keyword, firstToken, originalTrimmed])].filter(s => s && s.length >= 2);
     
-    // 최근 6개월을 2개 윈도우로 나누어 조회 (DART 3개월 제한 대응)
-    const windows = [0, 1].map(i => {
+    // 최근 1년(4개 윈도우) 조회
+    const windows = [0, 1, 2, 3].map(i => {
       const end = new Date(today);
       end.setMonth(today.getMonth() - i * 3);
       const start = new Date(end);
