@@ -264,8 +264,7 @@ Context Disclosures: ${JSON.stringify(disclosures)}`;
     let searchBriefing = {};
     try {
       const searchResult = await this.callGemini('gemini-2.5-pro', searchPrompt, { 
-        tools: [{ googleSearch: {} }],
-        temperature: 0.2
+        tools: [{ googleSearch: {} }]
       });
       
       const fullText = searchResult.candidates?.[0]?.content?.parts?.[0]?.text || '';
