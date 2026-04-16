@@ -31,6 +31,7 @@ export function normalizeSearchBriefing(parsed) {
  * Analyst 출력 정규화 (프론트엔드 중첩 스키마 호환성 보장)
  */
 export function normalizeAnalystOutput(raw) {
+  if (!raw) raw = {};
   const n = (obj) => (typeof obj === 'string' ? { summary: obj, detail: '' } : obj || { summary: '정보 부족', detail: '' });
   
   return {
@@ -108,7 +109,7 @@ export class ServerOrchestrator {
     let currentIteration = 1;
     const MAX_ITERATIONS = 2; // 타임아웃 방지를 위해 최대 2회로 제한 (초기 + 1회 교정)
     let bestAnalysis = null;
-    let bestScore = 0;
+    let bestScore = -1;
     let criticFeedback = "";
 
     while (currentIteration <= MAX_ITERATIONS) {
@@ -122,11 +123,11 @@ export class ServerOrchestrator {
         previousFeedback: criticFeedback // 재분석 시 피드백 전달
       };
 
-      const coreAnalysisRaw = await this.executeJsonAgent('core-analyst', 'gemini-1.5-flash', analysisContext, ['financial', 'strategy', 'news']);
+      const coreAnalysisRaw = await this.executeJsonAgent('core-analyst', 'gemini-2.5-flash', analysisContext, ['financial', 'strategy', 'news']);
       const currentAnalysis = normalizeAnalystOutput(coreAnalysisRaw);
 
       // 품질 비판 (Critic)
-      const criticResult = await this.executeJsonAgent('critic', 'gemini-1.5-flash', {
+      const criticResult = await this.executeJsonAgent('critic', 'gemini-2.5-flash', {
         analysis: currentAnalysis,
         companyName: this.companyName
       }, ['score', 'decision']);
@@ -155,7 +156,7 @@ export class ServerOrchestrator {
 
     // 4. 보고서 합성
     this.onStatusUpdate?.('종합 보고서 작성 중...');
-    this.state.composerMarkdown = await this.executeTextAgent('composer', 'gemini-1.5-pro', {
+    this.state.composerMarkdown = await this.executeTextAgent('composer', 'gemini-2.5-pro', {
       ...this.state.analysis,
       companyName: this.companyName,
     });
@@ -192,7 +193,7 @@ export class ServerOrchestrator {
    */
   async resolveTicker() {
     this.onStatusUpdate?.('상장 시장 및 티커 식별 중...');
-    const result = await this.executeJsonAgent('resolver', 'gemini-1.5-flash', { 
+    const result = await this.executeJsonAgent('resolver', 'gemini-2.5-flash', { 
       companyName: this.companyName 
     }, ['type', 'ticker']);
 
@@ -260,10 +261,9 @@ Context Disclosures: ${JSON.stringify(disclosures)}`;
     
     let searchBriefing = {};
     try {
-      const searchResult = await this.callGemini('gemini-1.5-pro', searchPrompt, { 
-        tools: [{ google_search_retrieval: {} }],
-        temperature: 0.2,
-        responseMimeType: 'application/json'
+      const searchResult = await this.callGemini('gemini-2.5-pro', searchPrompt, { 
+        tools: [{ google_search: {} }],
+        temperature: 0.2
       });
 
       const text = searchResult.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
@@ -390,9 +390,10 @@ Context Disclosures: ${JSON.stringify(disclosures)}`;
 
   assembleFinalReport() {
     const { analysis, raw } = this.state;
-    const strategy = analysis.strategy || {};
-    const financial = analysis.financial || {};
-    const news = analysis.news || {};
+    const safeAnalysis = analysis || {};
+    const strategy = safeAnalysis.strategy || {};
+    const financial = safeAnalysis.financial || {};
+    const news = safeAnalysis.news || {};
 
     return {
       companyName: this.companyName,
