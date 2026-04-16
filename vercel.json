@@ -1,6 +1,7 @@
 {
   "functions": {
-    "api/dart-finance.js": { "maxDuration": 60 }
+    "api/dart-finance.js": { "maxDuration": 60 },
+    "api/report/generate.js": { "maxDuration": 60 }
   },
   "rewrites": [
     { "source": "/((?!api/).*)", "destination": "/index.html" }

@@ -5,7 +5,7 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
-    const DART_API_KEY = process.env.DART_API_KEY || process.env.VITE_DART_API_KEY || '98c7f5eef7673f915ae614cb61a339afa5684fa3';
+    const DART_API_KEY = process.env.DART_API_KEY || '98c7f5eef7673f915ae614cb61a339afa5684fa3';
     if (!DART_API_KEY) throw new Error('DART_API_KEY is missing');
 
     const queryString = req.url.split('?')[1] || '';

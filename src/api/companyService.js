@@ -1,5 +1,4 @@
 import { extractJson } from '../utils/formatters';
-import { SisyphusOrchestrator } from './sisyphusOrchestrator';
 
 export const fetchDartDisclosures = async (companyName) => {
   try {
@@ -165,112 +164,88 @@ export const resolveTicker = async (companyName) => {
 // FMP 재무제표 수치 가져오기 (미국 주식용)
 export const fetchFmpFinance = async (ticker) => {
   try {
-    const apiKey = import.meta.env.VITE_FMP_API_KEY;
-    if (!apiKey) {
-      console.error("FMP API 키가 없습니다.");
+    const response = await fetch(`/api/fmp-finance?ticker=${ticker}`);
+    
+    const contentType = response.headers.get('content-type') || '';
+    if (!response.ok || !contentType.includes('application/json')) {
+      console.error('FMP Finance API 오류:', response.status);
       return null;
     }
     
-    const incUrl = `https://financialmodelingprep.com/api/v3/income-statement/${ticker}?limit=4&apikey=${apiKey}`;
-    const balUrl = `https://financialmodelingprep.com/api/v3/balance-sheet-statement/${ticker}?limit=4&apikey=${apiKey}`;
-    
-    const [incRes, balRes] = await Promise.all([
-      fetch(incUrl),
-      fetch(balUrl)
-    ]);
-
-    if (!incRes.ok || !balRes.ok) {
-      console.error('FMP API 오류:', incRes.status, balRes.status);
-      return null;
-    }
-
-    const incData = await incRes.json();
-    const balData = await balRes.json();
-
-    if (!Array.isArray(incData) || !Array.isArray(balData) || incData.length === 0 || balData.length === 0) {
-      return null;
-    }
-
-    const rawByYear = {};
-    for (let i = 0; i < Math.max(incData.length, balData.length); i++) {
-      const inc = incData[i] || {};
-      const bal = balData[i] || {};
-      const year = inc.calendarYear || bal.calendarYear || (new Date().getFullYear() - i).toString();
-      
-      const rev = inc.revenue || 0;
-      const op = inc.operatingIncome || 0;
-      const net = inc.netIncome || 0;
-      const eq = bal.totalStockholdersEquity || bal.totalEquity || 0;
-      const liab = bal.totalLiabilities || 0;
-
-      rawByYear[year] = {
-        year,
-        revenue: rev,
-        opIncome: op,
-        netInc: net,
-        equity: eq,
-        liab: liab,
-        revenueRaw: rev.toLocaleString(),
-        opIncomeRaw: op.toLocaleString(),
-        netIncRaw: net.toLocaleString(),
-        equityRaw: eq.toLocaleString(),
-        liabRaw: liab.toLocaleString(),
-      };
-    }
-
-    const validYears = Object.keys(rawByYear).sort((a, b) => b - a);
-    const displayYears = validYears.slice(0, 3);
-    const displayYearData = displayYears.map(year => rawByYear[year]);
-
-    const yearlyMetrics = displayYearData.map((cur) => {
-      const prevYearStr = (parseInt(cur.year) - 1).toString();
-      const prev = rawByYear[prevYearStr] || {};
-      const curRev = cur.revenue;
-      const prevRev = prev.revenue;
-      const revGrowth = prevRev ? ((curRev - prevRev) / Math.abs(prevRev)) * 100 : 0;
-      const opMargin = curRev ? (cur.opIncome / curRev) * 100 : 0;
-      const roe = cur.equity ? (cur.netInc / cur.equity) * 100 : 0;
-      const debtRatio = cur.equity ? (cur.liab / cur.equity) * 100 : 0;
-
-      return {
-        year: cur.year,
-        revenueGrowth: revGrowth ? `${revGrowth > 0 ? '+' : ''}${revGrowth.toFixed(1)}%` : null,
-        operatingMargin: opMargin ? `${opMargin.toFixed(1)}%` : null,
-        roe: roe ? `${roe.toFixed(1)}%` : null,
-        debtRatio: debtRatio ? `${debtRatio.toFixed(1)}%` : null,
-        raw: {
-          revenue: cur.revenueRaw,
-          opIncome: cur.opIncomeRaw,
-          netIncome: cur.netIncRaw,
-          equity: cur.equityRaw,
-          liab: cur.liabRaw,
-        }
-      };
-    });
-
-    if (yearlyMetrics.length === 0) return null;
-
-    return {
-      bsnsYear: yearlyMetrics[0].year,
-      raw: {
-        ...yearlyMetrics[0].raw,
-        currency: incData[0]?.reportedCurrency || 'USD'
-      },
-      keyMetrics: {
-        revenueGrowth: yearlyMetrics[0].revenueGrowth || '데이터 없음',
-        operatingMargin: yearlyMetrics[0].operatingMargin || '데이터 없음',
-        roe: yearlyMetrics[0].roe || '데이터 없음',
-        debtRatio: yearlyMetrics[0].debtRatio || '데이터 없음',
-      },
-      yearlyMetrics
-    };
+    return await response.json();
   } catch (error) {
     console.error("FMP Finance 에러:", error);
     return null;
   }
 };
 
+/**
+ * 서버 사이드 오케스트레이션을 호출하고 NDJSON 스트림을 처리합니다.
+ */
 export const fetchCompanyData = async (companyName, onStatusUpdate) => {
-  const orchestrator = new SisyphusOrchestrator(companyName, onStatusUpdate);
-  return await orchestrator.run();
+  try {
+    const response = await fetch('/api/report/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ companyName })
+    });
+
+    if (!response.ok) {
+      let errResp = {};
+      try {
+        errResp = await response.json();
+      } catch (_) {}
+      
+      const errorObj = errResp.error || { message: `서버 오류 (${response.status})` };
+      const error = new Error(errorObj.message);
+      error.code = errorObj.code || 'HTTP_ERROR';
+      error.retryable = typeof errorObj.retryable === 'boolean' ? errorObj.retryable : false;
+      throw error;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let finalReport = null;
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value);
+      const lines = chunk.split('\n').filter(Boolean);
+
+      for (const line of lines) {
+        try {
+          const payload = JSON.parse(line);
+          
+          if (payload.type === 'status') {
+            onStatusUpdate?.(payload.data?.message || '');
+          } else if (payload.type === 'success') {
+            finalReport = payload.data;
+          } else if (payload.type === 'error') {
+            const errorObj = payload.error || { message: '알 수 없는 스트림 오류' };
+            const error = new Error(errorObj.message);
+            error.code = errorObj.code || 'STREAM_ERROR';
+            error.retryable = typeof errorObj.retryable === 'boolean' ? errorObj.retryable : false;
+            throw error;
+          }
+        } catch (e) {
+          if (e.code) throw e; // 우리가 던진 에러면 통과
+          console.warn('NDJSON 파싱 오류:', e, line);
+        }
+      }
+    }
+
+    if (!finalReport) {
+      const error = new Error('보고서 생성 결과가 없습니다.');
+      error.code = 'NO_REPORT_DATA';
+      error.retryable = false;
+      throw error;
+    }
+
+    return finalReport;
+  } catch (error) {
+    console.error('Report Generation Error:', error);
+    throw error;
+  }
 };

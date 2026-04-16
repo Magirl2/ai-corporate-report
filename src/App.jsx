@@ -50,7 +50,7 @@ function Toast({ message, type = 'info', onClose }) {
 }
 
 export default function App() {
-  const { currentUser, checkUsageLimit, recordUsage } = useAuth();
+  const { currentUser, trackUsage } = useAuth();
   const [searchInput, setSearchInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -92,8 +92,11 @@ export default function App() {
       return;
     }
 
-    if (!checkUsageLimit()) {
-      showToast('오늘의 무료 분석 횟수를 모두 사용했습니다. 프리미엄으로 업그레이드하세요!', 'warning');
+    try {
+      // 서버에서 검사 및 사용량 차감 (권한 부족 시 Error 발생)
+      await trackUsage('search');
+    } catch (err) {
+      showToast(err.message, 'warning');
       setTab('pricing');
       return;
     }
@@ -109,7 +112,6 @@ export default function App() {
     try {
       const data = await fetchCompanyData(query, setStatusMessage);
       setSingleData(data);
-      recordUsage();
 
       // 최근 검색 기록 localStorage에 저장 (최대 5건, 중복 제거)
       try {
@@ -140,8 +142,11 @@ export default function App() {
       return;
     }
 
-    if (currentUser.plan !== 'premium') {
-      showToast('기업 비교 분석은 프리미엄 전용 기능입니다.', 'warning');
+    try {
+      // 서버에서 프리미엄 여부 검사 (권한 부족 시 Error 발생)
+      await trackUsage('compare');
+    } catch (err) {
+      showToast(err.message, 'warning');
       setTab('pricing');
       return;
     }

@@ -9,90 +9,108 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Initialize from LocalStorage (Mock Backend)
+  // Initialize from Real Backend (/api/auth/me)
   useEffect(() => {
-    const storedUser = localStorage.getItem('ei_user');
-    if (storedUser) {
-      setCurrentUser(JSON.parse(storedUser));
-    }
-    setLoading(false);
+    const fetchSession = async () => {
+      try {
+        const response = await fetch('/api/auth/me');
+        if (response.ok) {
+          const data = await response.json();
+          setCurrentUser(data.user);
+        } else {
+          setCurrentUser(null);
+        }
+      } catch (err) {
+        console.error("Session verification failed", err);
+        setCurrentUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchSession();
   }, []);
 
   const login = async (email, password) => {
-    // Fake Server Delay
-    await new Promise(resolve => setTimeout(resolve, 800));
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
     
-    // In a real app we'd query Supabase: const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    const storedUsers = JSON.parse(localStorage.getItem('ei_users_db') || '[]');
-    const user = storedUsers.find(u => u.email === email && u.password === password);
-    
-    if (!user) {
-      throw new Error('이메일 혹은 비밀번호가 일치하지 않습니다.');
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || '로그인에 실패했습니다.');
     }
     
-    // Update local state
-    const userInfo = { id: user.id, email: user.email, plan: user.plan || 'free', usage: user.usage || 0 };
-    setCurrentUser(userInfo);
-    localStorage.setItem('ei_user', JSON.stringify(userInfo));
-    return userInfo;
+    setCurrentUser(data.user);
+    return data.user;
   };
 
   const signup = async (email, password, name) => {
-    // Fake Server Delay
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    const storedUsers = JSON.parse(localStorage.getItem('ei_users_db') || '[]');
-    if (storedUsers.some(u => u.email === email)) {
-      throw new Error('이미 가입된 이메일입니다.');
+    const response = await fetch('/api/auth/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, name })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || '회원가입에 실패했습니다.');
     }
-    
-    const newUser = { id: Date.now().toString(), email, password, name, plan: 'free', usage: 0 };
-    storedUsers.push(newUser);
-    localStorage.setItem('ei_users_db', JSON.stringify(storedUsers));
-    
-    const userInfo = { id: newUser.id, email: newUser.email, name: newUser.name, plan: 'free', usage: 0 };
-    setCurrentUser(userInfo);
-    localStorage.setItem('ei_user', JSON.stringify(userInfo));
-    return userInfo;
+
+    setCurrentUser(data.user);
+    return data.user;
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (err) {
+      console.error('Logout error', err);
+    }
     setCurrentUser(null);
-    localStorage.removeItem('ei_user');
   };
 
   const upgradePlan = async (planType) => {
-    await new Promise(resolve => setTimeout(resolve, 1500)); // Fake Stripe processing
     if (!currentUser) throw new Error('로그인이 필요합니다.');
     
-    const updatedUser = { ...currentUser, plan: planType };
-    setCurrentUser(updatedUser);
-    localStorage.setItem('ei_user', JSON.stringify(updatedUser));
+    const response = await fetch('/api/user/upgrade', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ planType })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || '플랜 변경에 실패했습니다.');
+    }
     
-    // Update the fake DB
-    let storedUsers = JSON.parse(localStorage.getItem('ei_users_db') || '[]');
-    storedUsers = storedUsers.map(u => u.email === currentUser.email ? { ...u, plan: planType } : u);
-    localStorage.setItem('ei_users_db', JSON.stringify(storedUsers));
-    
-    return updatedUser;
+    setCurrentUser(data.user);
+    return data.user;
   };
 
-  const checkUsageLimit = () => {
-    if (!currentUser) return false;
-    if (currentUser.plan === 'premium') return true;
-    if (currentUser.usage >= 3) return false; // Free users get 3 times
-    return true;
-  };
+  /**
+   * 서버 측 권한 검사를 수행하고 결과를 반환합니다.
+   * action: 'search' | 'compare'
+   */
+  const trackUsage = async (action) => {
+    if (!currentUser) throw new Error('로그인이 필요합니다.');
 
-  const recordUsage = () => {
-    if (!currentUser) return;
-    const updatedUser = { ...currentUser, usage: (currentUser.usage || 0) + 1 };
-    setCurrentUser(updatedUser);
-    localStorage.setItem('ei_user', JSON.stringify(updatedUser));
-    
-    let storedUsers = JSON.parse(localStorage.getItem('ei_users_db') || '[]');
-    storedUsers = storedUsers.map(u => u.email === currentUser.email ? { ...u, usage: updatedUser.usage } : u);
-    localStorage.setItem('ei_users_db', JSON.stringify(storedUsers));
+    const response = await fetch('/api/user/usage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || '권한 검증에 실패했습니다.');
+    }
+
+    // 서버가 변경된 사용량(usage) 정보를 내려주면 즉각 동기화
+    setCurrentUser(data.user);
+    return data.allowed;
   };
 
   const value = {
@@ -102,8 +120,7 @@ export const AuthProvider = ({ children }) => {
     signup,
     logout,
     upgradePlan,
-    checkUsageLimit,
-    recordUsage
+    trackUsage
   };
 
   return (
