@@ -12,7 +12,10 @@ const useKV = !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
  * 환경 변수 ADMIN_EMAILS를 확인하여 관리자 여부를 판단합니다.
  */
 export function isAdminEmail(email) {
-  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase());
+  if (!email) return false;
+  const adminEmails = (process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map(e => e.trim().replace(/^["'](.*)["']$/, '$1').toLowerCase());
   return adminEmails.includes(email.toLowerCase());
 }
 
