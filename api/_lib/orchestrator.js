@@ -61,9 +61,9 @@ function extractJson(text) {
 export function normalizeSearchBriefing(parsed) {
   if (!parsed || typeof parsed !== 'object') parsed = {};
   return {
-    companyIdentity: typeof parsed.companyIdentity === 'string' ? parsed.companyIdentity : '정보 부족',
-    marketContext: typeof parsed.marketContext === 'string' ? parsed.marketContext : '상세 정보 없음',
-    businessModel: typeof parsed.businessModel === 'string' ? parsed.businessModel : '상세 정보 없음',
+    companyIdentity: typeof parsed.companyIdentity === 'string' ? parsed.companyIdentity : null,
+    marketContext: typeof parsed.marketContext === 'string' ? parsed.marketContext : null,
+    businessModel: typeof parsed.businessModel === 'string' ? parsed.businessModel : null,
     newsFindings: Array.isArray(parsed.newsFindings) ? parsed.newsFindings : [],
     sentiment: typeof parsed.sentiment === 'string' ? parsed.sentiment : 'Neutral',
     risks: Array.isArray(parsed.risks) ? parsed.risks : [],
@@ -77,7 +77,7 @@ export function normalizeSearchBriefing(parsed) {
  */
 export function normalizeAnalystOutput(raw) {
   if (!raw) raw = {};
-  const n = (obj) => (typeof obj === 'string' ? { summary: obj, detail: '' } : obj || { summary: '정보 부족', detail: '' });
+  const n = (obj) => (typeof obj === 'string' ? { summary: obj, detail: '' } : obj || null);
   
   return {
     financial: {

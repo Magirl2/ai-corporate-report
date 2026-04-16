@@ -10,7 +10,7 @@ describe('ServerOrchestrator Contract Normalization', () => {
   describe('normalizeSearchBriefing', () => {
     it('provides fallback defaults for empty or null input', () => {
       const result = normalizeSearchBriefing(null);
-      expect(result.companyIdentity).toBe('정보 부족');
+      expect(result.companyIdentity).toBe(null);
       expect(result.newsFindings).toEqual([]);
       expect(result.risks).toEqual([]);
     });
@@ -31,7 +31,7 @@ describe('ServerOrchestrator Contract Normalization', () => {
   describe('normalizeAnalystOutput', () => {
     it('handles totally missing input with empty structure', () => {
       const result = normalizeAnalystOutput({});
-      expect(result.financial.overview).toEqual({ summary: '정보 부족', detail: '' });
+      expect(result.financial.overview).toBe(null);
       expect(result.strategy.swotAnalysis).toEqual({ strengths: [], weaknesses: [], opportunities: [], threats: [] });
       expect(result.news.recentNews).toEqual([]);
     });
