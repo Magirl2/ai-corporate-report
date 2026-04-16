@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildComparePayload } from '../compare.js';
+import { buildComparePayload } from '../_compare.js';
 
 describe('compare route shaping', () => {
   it('buildComparePayload constructs the correct NDJSON success shape', () => {

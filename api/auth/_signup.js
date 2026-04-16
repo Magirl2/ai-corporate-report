@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { serialize } from 'cookie';
 import bcrypt from 'bcryptjs';
-import { createUser, findUserByEmail } from './db.js';
+import { createUser, findUserByEmail } from '../_lib/db.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'ei_mock_secret_key_123';
 

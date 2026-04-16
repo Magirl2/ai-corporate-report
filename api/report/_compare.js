@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { parse } from 'cookie';
-import { findUserByEmail, getCachedReport, setCachedReport } from '../auth/db.js';
+import { findUserByEmail, getCachedReport, setCachedReport } from '../_lib/db.js';
 import { ServerOrchestrator } from '../_lib/orchestrator.js';
 import { createLogger } from '../_lib/logger.js';
 import { ErrorCategory, createErrorResponse, createStreamError } from '../_lib/errors.js';

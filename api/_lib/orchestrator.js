@@ -150,14 +150,14 @@ export class ServerOrchestrator {
 
     if (type === 'KR') {
       const [dRes, fRes] = await Promise.all([
-        this.internalFetch(`/api/dart?corp_name=${encodeURIComponent(this.companyName)}`),
-        this.internalFetch(`/api/dart-finance?corp_name=${encodeURIComponent(this.companyName)}`)
+        this.internalFetch(`/api/data/dart?corp_name=${encodeURIComponent(this.companyName)}`),
+        this.internalFetch(`/api/data/dart-finance?corp_name=${encodeURIComponent(this.companyName)}`)
       ]);
       disclosures = dRes.list?.map(d => ({ date: d.rcept_dt, title: d.report_nm })) || [];
       finance = fRes;
       sources.push({ title: 'DART 전자공시시스템', uri: 'https://opendart.fss.or.kr/' });
     } else {
-      finance = await this.internalFetch(`/api/fmp-finance?ticker=${ticker}`);
+      finance = await this.internalFetch(`/api/data/fmp-finance?ticker=${ticker}`);
       disclosures = [{ date: 'Current', title: `US SEC Filings for ${ticker}` }];
       sources.push({ title: 'Financial Modeling Prep (FMP)', uri: 'https://financialmodelingprep.com/' });
     }
