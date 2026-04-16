@@ -2,11 +2,28 @@ import fs from 'fs';
 import path from 'path';
 import { kv } from '@vercel/kv';
 
-const isVercelEnvironment = !!process.env.VERCEL || process.env.NODE_ENV === 'production';
-const DB_PATH = isVercelEnvironment ? '/tmp/users.json' : path.join(process.cwd(), '.users.json');
+// VERCEL 환경변수가 명시적으로 설정된 경우에만 Vercel 배포 환경으로 간주합니다.
+// NODE_ENV=production 만으로는 Vercel 배포라고 가정하지 않습니다.
+const isVercelDeployment = !!process.env.VERCEL;
 
-// Vercel KV가 활성화 상태인지 확인 (서버리스 프로덕션 대상)
+// 로컬 개발 전용 파일 DB 경로 (Vercel 배포에서는 사용되지 않습니다)
+const DB_PATH = path.join(process.cwd(), '.users.json');
+
+// Vercel KV가 활성화 상태인지 확인
 const useKV = !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
+
+/**
+ * Vercel 배포 환경에서 KV가 설정되지 않은 경우 명시적 오류를 던집니다.
+ * 이를 통해 /tmp 기반의 잘못된 fallback을 방지합니다.
+ */
+function assertPersistence() {
+  if (isVercelDeployment && !useKV) {
+    throw new Error(
+      '[DB] Vercel 배포 환경에서 KV가 설정되지 않았습니다. ' +
+      'KV_REST_API_URL 및 KV_REST_API_TOKEN 환경 변수를 구성하세요.'
+    );
+  }
+}
 
 /**
  * 환경 변수 ADMIN_EMAILS를 확인하여 관리자 여부를 판단합니다.
@@ -15,7 +32,7 @@ export function isAdminEmail(email) {
   if (!email) return false;
   const adminEmails = (process.env.ADMIN_EMAILS || '')
     .split(',')
-    .map(e => e.trim().replace(/^["'](.*)["']$/, '$1').toLowerCase());
+    .map(e => e.trim().replace(/^["'](.*)["]$/, '$1').toLowerCase());
   return adminEmails.includes(email.toLowerCase());
 }
 
@@ -31,7 +48,7 @@ function enrichUser(user) {
 }
 
 /**
- * [로컬 모드 Fallback] 로컬 파일 불러오기
+ * [로컬 개발 전용] 로컬 파일 불러오기
  */
 function getLocalDb() {
   try {
@@ -46,7 +63,7 @@ function getLocalDb() {
 }
 
 /**
- * [로컬 모드 Fallback] 로컬 파일 저장
+ * [로컬 개발 전용] 로컬 파일 저장
  */
 function saveLocalDb(data) {
   try {
@@ -60,6 +77,7 @@ function saveLocalDb(data) {
  * 비동기: 이메일로 사용자 찾기
  */
 export async function findUserByEmail(email) {
+  assertPersistence();
   if (useKV) {
     try {
       const user = await kv.get(`user:${email}`);
@@ -69,7 +87,7 @@ export async function findUserByEmail(email) {
       return null;
     }
   } else {
-    // Vercel KV 세팅이 미비되어 있으면 로컬(혹은 임시 파일) 시스템으로 안전하게 우회
+    // KV 미설정 시 로컬 개발 파일 DB 사용 (Vercel 배포에서는 assertPersistence()가 먼저 예외를 던짐)
     const users = getLocalDb();
     const user = users.find(u => u.email === email);
     return enrichUser(user || null);
@@ -80,6 +98,7 @@ export async function findUserByEmail(email) {
  * 비동기: 새로운 사용자 생성
  */
 export async function createUser(userObj) {
+  assertPersistence();
   if (useKV) {
     const existing = await kv.get(`user:${userObj.email}`);
     if (existing) {
@@ -102,6 +121,7 @@ export async function createUser(userObj) {
  * 비동기: 사용자 업데이트
  */
 export async function updateUser(email, updates) {
+  assertPersistence();
   if (useKV) {
     const user = await kv.get(`user:${email}`);
     if (!user) throw new Error('User not found');
@@ -143,7 +163,9 @@ export async function getNormalizedUser(email) {
 /**
  * [로컬 모드 Fallback] 캐시 불러오기
  */
-const CACHE_PATH = isVercelEnvironment ? '/tmp/reports.json' : path.join(process.cwd(), '.reports_cache.json');
+// 보고서 캐시도 로컬 개발 전용 파일 경로 사용 (Vercel 배포에서는 KV를 통해 처리)
+const CACHE_PATH = path.join(process.cwd(), '.reports_cache.json');
+
 function getLocalCache() {
   try {
     if (fs.existsSync(CACHE_PATH)) return JSON.parse(fs.readFileSync(CACHE_PATH, 'utf8') || '{}');
