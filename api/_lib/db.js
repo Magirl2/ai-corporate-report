@@ -13,15 +13,18 @@ const DB_PATH = path.join(process.cwd(), '.users.json');
 const useKV = !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
 
 /**
- * Vercel 배포 환경에서 KV가 설정되지 않은 경우 명시적 오류를 던집니다.
- * 이를 통해 /tmp 기반의 잘못된 fallback을 방지합니다.
+ * Vercel 배포 환경에서 KV가 설정되지 않은 경우 경고를 출력합니다.
+ * 하드 크래시 대신 경고를 남기고 로컬 파일 fallback을 허용합니다.
+ * (Vercel 서버리스 환경에서는 /tmp가 함수별로 격리되므로 KV 설정을 강력히 권장)
  */
 function assertPersistence() {
   if (isVercelDeployment && !useKV) {
-    throw new Error(
-      '[DB] Vercel 배포 환경에서 KV가 설정되지 않았습니다. ' +
-      'KV_REST_API_URL 및 KV_REST_API_TOKEN 환경 변수를 구성하세요.'
+    console.warn(
+      '[DB] WARNING: Vercel 배포 환경에서 KV가 설정되지 않았습니다. ' +
+      '서버리스 함수 간 사용자 데이터를 공유할 수 없습니다. ' +
+      'KV_REST_API_URL 및 KV_REST_API_TOKEN을 Vercel 환경변수에 설정하세요.'
     );
+    // 하드 크래시 없이 진행 - KV 없이도 최소 동작을 허용합니다.
   }
 }
 
