@@ -347,8 +347,9 @@ Context Disclosures: ${JSON.stringify(disclosures)}`;
         });
       }
     } catch (e) {
+      console.error("\n\n[DEEP SEARCH PROCESS ERROR]\n", e.message || e, "\n\n");
       this.logger?.error("Search Briefing API/Process error", { error: e.message });
-      searchBriefing = normalizeSearchBriefing({});
+      searchBriefing = { ...normalizeSearchBriefing({}), rawContent: '' };
     }
 
     this.state.raw = { disclosures, finance, searchBriefing, sources };
@@ -359,13 +360,15 @@ Context Disclosures: ${JSON.stringify(disclosures)}`;
     const prompt = `${system}\n\nContext: ${JSON.stringify(context, null, 2)}`;
     
     let result = null;
+    let text = '';
+    let extracted = '';
     try {
       result = await this.callGemini(model, prompt, { 
         temperature: 0.2, 
         responseMimeType: 'application/json' 
       });
-      const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      const extracted = extractJson(text) || text;
+      text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      extracted = extractJson(text) || text;
 
       if (!extracted || extracted === '{}') {
         this.logger?.warn('executeJsonAgent returned empty result', { agentName, rawText: text.substring(0, 100) });
@@ -432,20 +435,36 @@ Context Disclosures: ${JSON.stringify(disclosures)}`;
     
     body.generationConfig = generationConfig;
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
+    let retries = 3;
+    let res;
+    while (retries > 0) {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      if (res.ok) break;
+
+      if (res.status === 503 || res.status === 429) {
+        retries--;
+        if (retries === 0) break;
+        this.logger?.warn(`API ${res.status} error. Retrying in 2s... (${retries} attempts left)`);
+        console.warn(`[RETRYING] Gemini API ${res.status} for ${model}. Attempts left: ${retries}`);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      } else {
+        break; // 400, 401, 404 등은 즉시 중단
+      }
+    }
     
     if (!res.ok) {
       const errorText = await res.text().catch(() => 'No body');
-      this.logger?.error('Gemini API Failure', {
-        status: res.status,
-        model,
-        body: errorText
-      });
-      throw new Error(`Gemini API error (${res.status}): ${errorText.substring(0, 200)}`);
+      console.error("\n\n[FATAL API ERROR DUMP]");
+      console.error("Status:", res.status);
+      console.error("Model:", model);
+      console.error("Response:", errorText, "\n\n");
+      this.logger?.error('Gemini API Failure', { status: res.status, model, body: errorText });
+      throw new Error(`Gemini API error (${res.status}): ${errorText}`);
     }
     return res.json();
   }
