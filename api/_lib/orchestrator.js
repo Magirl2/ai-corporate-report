@@ -327,10 +327,10 @@ Context Disclosures: ${JSON.stringify(disclosures)}`;
       
       try {
         const parsed = JSON.parse(extracted);
-        searchBriefing = normalizeSearchBriefing({ ...parsed, rawContent: fullText });
+        searchBriefing = { ...normalizeSearchBriefing(parsed), rawContent: fullText };
       } catch (parseErr) {
         this.logger?.warn("Search JSON parse failed, using raw fallback", { error: parseErr.message });
-        searchBriefing = normalizeSearchBriefing({ rawContent: fullText });
+        searchBriefing = { ...normalizeSearchBriefing({}), rawContent: fullText };
       }
       
       this.logger?.info('Deep Search result captured', { 
