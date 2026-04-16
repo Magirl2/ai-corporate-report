@@ -217,35 +217,37 @@ export default function SingleReportView({ singleData }) {
     <div className="mt-8 mx-auto w-full flex-1 animate-in fade-in slide-in-from-bottom-8">
 
       {/* 리포트 헤더 */}
-      <div className="mb-8 flex flex-col md:flex-row md:items-start justify-between gap-6">
-        <div>
-          <div className="flex items-center gap-3 mb-2 flex-wrap">
-            <span className="px-3 py-1 bg-primary/10 text-primary text-xs font-bold rounded-full uppercase tracking-wider">
+      <div className="mb-8 flex flex-col lg:flex-row lg:items-center justify-between gap-6 px-1 md:px-0">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-2.5 flex-wrap">
+            <span className="px-2.5 py-1 bg-primary/10 text-primary text-[10px] md:text-xs font-bold rounded-full uppercase tracking-wider">
               {sourceBadge}
             </span>
-            <span className="text-on-surface-variant text-sm font-medium">{today}</span>
+            <span className="text-on-surface-variant text-[11px] md:text-sm font-medium">{today}</span>
             {aiScore != null && (
               <span
+                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[10px] md:text-[11px] font-bold"
                 title={`Sisyphus Loop ${aiIteration}회 반복 후 확정`}
                 style={{
-                  display: 'inline-flex', alignItems: 'center', gap: '4px',
-                  padding: '2px 10px', borderRadius: '9999px',
                   background: aiScore >= 85 ? '#f0fdf4' : aiScore >= 70 ? '#fffbeb' : '#fff1f2',
-                  border: `1px solid ${aiScore >= 85 ? '#86efac' : aiScore >= 70 ? '#fcd34d' : '#fca5a5'}`,
-                  fontSize: '0.7rem', fontWeight: 700,
+                  borderColor: aiScore >= 85 ? '#86efac' : aiScore >= 70 ? '#fcd34d' : '#fca5a5',
                   color: aiScore >= 85 ? '#166534' : aiScore >= 70 ? '#92400e' : '#be123c',
                 }}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: '12px', fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
-                AI 품질 {aiScore}점
+                <span className="material-symbols-outlined !text-[12px] md:!text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
+                AI {aiScore}
               </span>
             )}
           </div>
-          <h2 className="text-3xl font-extrabold text-on-surface tracking-tight font-headline">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-on-surface tracking-tight font-headline break-keep">
             {singleData.companyName} 분석 보고서
           </h2>
         </div>
-        {hasSentiment && <MarketSentimentBanner sentiment={r?.marketSentiment} />}
+        {hasSentiment && (
+          <div className="w-full lg:w-auto">
+            <MarketSentimentBanner sentiment={r?.marketSentiment} />
+          </div>
+        )}
       </div>
 
       {/* 서브탭 */}

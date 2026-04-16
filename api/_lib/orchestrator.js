@@ -87,6 +87,10 @@ export class ServerOrchestrator {
     };
   }
 
+  /**
+   * 오케스트레이션 실행 (Ticker 식별 -> 데이터 수집 -> 핵심 분석 -> 보고서 합성)
+   * @returns {Promise<Object>} 최종 조립된 보고서 객체
+   */
   async run() {
     this.onStatusUpdate?.('심층 분석 오케스트레이션 기동');
     this.logger?.info('Orchestrator started');
@@ -100,15 +104,54 @@ export class ServerOrchestrator {
     await this.collectData();
     this.logger?.info('Data collection complete');
 
-    // 3. 통합 구조 분석 (Core Analyst)
-    this.onStatusUpdate?.('핵심 데이터 분석 및 통찰 추출 중...');
-    const coreAnalysisRaw = await this.executeJsonAgent('core-analyst', 'gemini-2.5-flash', { 
-      finance: this.state.raw.finance,
-      disclosures: this.state.raw.disclosures,
-      searchBriefing: this.state.raw.searchBriefing
-    }, ['financial', 'strategy', 'news']);
+    // 3. 통합 구조 분석 루프 (Sisyphus Loop)
+    let currentIteration = 1;
+    const MAX_ITERATIONS = 2; // 타임아웃 방지를 위해 최대 2회로 제한 (초기 + 1회 교정)
+    let bestAnalysis = null;
+    let bestScore = 0;
+    let criticFeedback = "";
 
-    this.state.analysis = normalizeAnalystOutput(coreAnalysisRaw);
+    while (currentIteration <= MAX_ITERATIONS) {
+      this.state.iteration = currentIteration;
+      this.onStatusUpdate?.(currentIteration === 1 ? '핵심 데이터 분석 및 통찰 추출 중...' : `분석 품질 보강 중 (반복 ${currentIteration})...`);
+      
+      const analysisContext = { 
+        finance: this.state.raw.finance,
+        disclosures: this.state.raw.disclosures,
+        searchBriefing: this.state.raw.searchBriefing,
+        previousFeedback: criticFeedback // 재분석 시 피드백 전달
+      };
+
+      const coreAnalysisRaw = await this.executeJsonAgent('core-analyst', 'gemini-2.5-flash', analysisContext, ['financial', 'strategy', 'news']);
+      const currentAnalysis = normalizeAnalystOutput(coreAnalysisRaw);
+
+      // 품질 비판 (Critic)
+      const criticResult = await this.executeJsonAgent('critic', 'gemini-2.5-flash', {
+        analysis: currentAnalysis,
+        companyName: this.companyName
+      }, ['score', 'decision']);
+
+      const score = criticResult.score || 0;
+      this.state.score = score;
+      this.logger?.info('Critic score received', { iteration: currentIteration, score, decision: criticResult.decision });
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestAnalysis = currentAnalysis;
+      }
+
+      // 목표 점수 도달 혹은 루프 종료
+      if (score >= 85 || currentIteration >= MAX_ITERATIONS) {
+        break;
+      }
+
+      // 점수 부족 시 피드백 업데이트 및 루프 계속
+      criticFeedback = criticResult.feedback || "전체적인 분석의 깊이를 더 보강해 주세요.";
+      currentIteration++;
+    }
+
+    this.state.analysis = bestAnalysis;
+    this.state.score = bestScore;
 
     // 4. 보고서 합성
     this.onStatusUpdate?.('종합 보고서 작성 중...');
@@ -122,6 +165,11 @@ export class ServerOrchestrator {
 
   // --- Helpers ---
 
+  /**
+   * 내부 API 호출 (DART, FMP 등 프록시 경로)
+   * @param {string} path API 엔드포인트 경로
+   * @param {Object} options fetch 옵션
+   */
   async internalFetch(path, options = {}) {
     const url = path.startsWith('http') ? path : `${this.baseUrl}${path}`;
     const res = await fetch(url, options);
@@ -132,22 +180,31 @@ export class ServerOrchestrator {
         path, 
         body: errorBody 
       });
-      throw new Error(`Internal API error (${res.status}): ${path}`);
+      // 에러 메시지에 응답 본문 일부 포함 (디버깅 용이성)
+      throw new Error(`Internal API error (${res.status}) for ${path}: ${errorBody.substring(0, 100)}`);
     }
     return res.json();
   }
 
+  /**
+   * 기업명으로부터 상장 시장 및 티커 식별 (AI Resolver 활용)
+   * @returns {Promise<{type: 'KR'|'US', ticker: string|null}>}
+   */
   async resolveTicker() {
-    // 서버에서의 Ticker 식별은 직접 Gemini를 호출하여 구현 (companyService.js 로직 이관)
-    const prompt = `Task: Identify stock exchange of "${this.companyName}". KRX (삼성전자) -> KOREAN, US (Apple) -> Ticker (AAPL). ONLY uppercase ticker or KOREAN.`;
-    const result = await this.callGemini('gemini-2.5-flash', prompt, { temperature: 0 });
-    const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    
-    if (text.toUpperCase().includes('KOREAN')) return { type: 'KR', ticker: null };
-    const ticker = text.match(/\b[A-Z0-9-]{1,8}\b/g)?.[0]?.toUpperCase() || 'UNKNOWN';
-    return { type: ticker === 'UNKNOWN' ? 'KR' : 'US', ticker };
+    this.onStatusUpdate?.('상장 시장 및 티커 식별 중...');
+    const result = await this.executeJsonAgent('resolver', 'gemini-2.5-flash', { 
+      companyName: this.companyName 
+    }, ['type', 'ticker']);
+
+    return {
+      type: result.type === 'US' ? 'US' : 'KR',
+      ticker: result.type === 'US' ? (result.ticker || 'UNKNOWN') : null
+    };
   }
 
+  /**
+   * 지정된 기업의 외부 데이터(DART 공시, 재무, 실시간 뉴스) 수집
+   */
   async collectData() {
     this.onStatusUpdate?.('DART/FMP 데이터 수집 중...');
     const { type, ticker } = this.state.resolve;
@@ -262,9 +319,14 @@ Context Disclosures: ${JSON.stringify(disclosures)}`;
       this.logger?.error('executeJsonAgent failed', { 
         agentName, 
         error: err.message,
-        stack: err.stack?.split('\n')[0]
+        sample: (result?.candidates?.[0]?.content?.parts?.[0]?.text || '').substring(0, 200)
       });
-      this._agentErrors.push({ agent: agentName, error: err.message });
+      this._agentErrors.push({ 
+        agent: agentName, 
+        error: err.message,
+        stage: 'parsing',
+        rawSnippet: (result?.candidates?.[0]?.content?.parts?.[0]?.text || '').substring(0, 100)
+      });
       return {};
     }
   }
@@ -278,7 +340,7 @@ Context Disclosures: ${JSON.stringify(disclosures)}`;
       return result.candidates?.[0]?.content?.parts?.[0]?.text || '';
     } catch (err) {
       this.logger?.error('executeTextAgent failed', { agentName, error: err.message });
-      this._agentErrors.push({ agent: agentName, error: err.message });
+      this._agentErrors.push({ agent: agentName, error: err.message, stage: 'generation' });
       return '';
     }
   }
@@ -296,14 +358,15 @@ Context Disclosures: ${JSON.stringify(disclosures)}`;
       body.tools = config.tools;
     }
 
-    const generationConfig = {};
-    if (config.temperature !== undefined) generationConfig.temperature = config.temperature;
+    const generationConfig = {
+      temperature: config.temperature ?? 0.2,
+      topP: 0.95,
+      topK: 40,
+      maxOutputTokens: config.maxOutputTokens ?? 2048,
+    };
     if (config.responseMimeType) generationConfig.responseMimeType = config.responseMimeType;
-    if (config.maxOutputTokens) generationConfig.maxOutputTokens = config.maxOutputTokens;
     
-    if (Object.keys(generationConfig).length > 0) {
-      body.generationConfig = generationConfig;
-    }
+    body.generationConfig = generationConfig;
 
     const res = await fetch(url, {
       method: 'POST',
@@ -347,6 +410,8 @@ Context Disclosures: ${JSON.stringify(disclosures)}`;
       },
       sources: raw.sources,
       financeData: raw.finance,
+      score: this.state.score,
+      iteration: this.state.iteration,
       debug: { agentErrors: this._agentErrors },
     };
   }

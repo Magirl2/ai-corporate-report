@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import Redis from 'ioredis';
+import { normalizeCorpName, ALIAS_MAP } from './dart-utils.js';
 
 // VERCEL 환경변수가 명시적으로 설정된 경우에만 Vercel 배포 환경으로 간주합니다.
 const isVercelDeployment = !!process.env.VERCEL;
@@ -218,7 +219,9 @@ function saveLocalCache(data) {
 }
 
 export async function getCachedReport(companyName) {
-  const key = `report:${companyName.trim().toUpperCase()}`;
+  const normalized = normalizeCorpName(companyName);
+  const target = ALIAS_MAP[normalized] || normalized;
+  const key = `report:${target.toUpperCase()}`;
   if (useRedis) {
     try {
       const raw = await redis.get(key);
@@ -236,7 +239,9 @@ export async function getCachedReport(companyName) {
 }
 
 export async function setCachedReport(companyName, reportData) {
-  const key = `report:${companyName.trim().toUpperCase()}`;
+  const normalized = normalizeCorpName(companyName);
+  const target = ALIAS_MAP[normalized] || normalized;
+  const key = `report:${target.toUpperCase()}`;
   const ttlSeconds = 60 * 60 * 24; // 24 hours
   if (useRedis) {
     try {

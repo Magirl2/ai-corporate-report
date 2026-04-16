@@ -38,7 +38,7 @@ export default function MarketSentimentBanner({ sentiment }) {
   }
 
   return (
-    <div className={`flex flex-col gap-3 min-w-[300px]`}>
+    <div className={`flex flex-col gap-3 w-full md:min-w-[300px]`}>
       <div className={`${theme.bg} border-l-4 ${theme.border} px-6 py-4 rounded-r-xl flex items-center gap-4 shadow-sm h-full`}>
         <div className={`w-10 h-10 rounded-full ${theme.iconBg} flex items-center justify-center text-white shrink-0`}>
           <span className="material-symbols-outlined shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>{theme.icon}</span>
