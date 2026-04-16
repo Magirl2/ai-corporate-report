@@ -204,14 +204,20 @@ Context Disclosures: ${JSON.stringify(disclosures)}`;
     let searchBriefing = {};
     try {
       const searchResult = await this.callGemini('gemini-2.5-pro', searchPrompt, { 
-        tools: [{ googleSearch: {} }],
+        tools: [{ googleSearchRetrieval: {} }],
         temperature: 0.2,
         responseMimeType: 'application/json'
       });
 
       const text = searchResult.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-      searchBriefing = normalizeSearchBriefing(JSON.parse(extractJson(text) || text));
-      this.logger?.info('Deep Search success', { sourceCount: Object.keys(sources).length });
+      const extracted = extractJson(text) || text;
+      searchBriefing = normalizeSearchBriefing(JSON.parse(extracted));
+      
+      this.logger?.info('Deep Search result captured', { 
+        sourceCount: sources.length,
+        briefingKeys: Object.keys(searchBriefing),
+        hasBusinessModel: !!searchBriefing.businessModel && searchBriefing.businessModel !== '상세 정보 없음'
+      });
 
       const groundingMetadata = searchResult.candidates?.[0]?.groundingMetadata;
       if (groundingMetadata?.groundingChunks) {
@@ -240,11 +246,24 @@ Context Disclosures: ${JSON.stringify(disclosures)}`;
         responseMimeType: 'application/json' 
       });
       const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      const parsed = JSON.parse(extractJson(text) || text || '{}');
-      this.logger?.info('executeJsonAgent success', { agentName });
+      const extracted = extractJson(text) || text;
+
+      if (!extracted || extracted === '{}') {
+        this.logger?.warn('executeJsonAgent returned empty result', { agentName, rawText: text.substring(0, 100) });
+      }
+
+      const parsed = JSON.parse(extracted || '{}');
+      this.logger?.info('executeJsonAgent success', { 
+        agentName, 
+        resultKeys: Object.keys(parsed) 
+      });
       return wantedTopKeys.length > 0 ? normalizeAgentJson(parsed, wantedTopKeys) : parsed;
     } catch (err) {
-      this.logger?.error('executeJsonAgent failed', { agentName, error: err.message });
+      this.logger?.error('executeJsonAgent failed', { 
+        agentName, 
+        error: err.message,
+        stack: err.stack?.split('\n')[0]
+      });
       this._agentErrors.push({ agent: agentName, error: err.message });
       return {};
     }
