@@ -122,11 +122,11 @@ export class ServerOrchestrator {
         previousFeedback: criticFeedback // 재분석 시 피드백 전달
       };
 
-      const coreAnalysisRaw = await this.executeJsonAgent('core-analyst', 'gemini-2.5-flash', analysisContext, ['financial', 'strategy', 'news']);
+      const coreAnalysisRaw = await this.executeJsonAgent('core-analyst', 'gemini-1.5-flash', analysisContext, ['financial', 'strategy', 'news']);
       const currentAnalysis = normalizeAnalystOutput(coreAnalysisRaw);
 
       // 품질 비판 (Critic)
-      const criticResult = await this.executeJsonAgent('critic', 'gemini-2.5-flash', {
+      const criticResult = await this.executeJsonAgent('critic', 'gemini-1.5-flash', {
         analysis: currentAnalysis,
         companyName: this.companyName
       }, ['score', 'decision']);
@@ -155,7 +155,7 @@ export class ServerOrchestrator {
 
     // 4. 보고서 합성
     this.onStatusUpdate?.('종합 보고서 작성 중...');
-    this.state.composerMarkdown = await this.executeTextAgent('composer', 'gemini-2.5-pro', {
+    this.state.composerMarkdown = await this.executeTextAgent('composer', 'gemini-1.5-pro', {
       ...this.state.analysis,
       companyName: this.companyName,
     });
@@ -192,7 +192,7 @@ export class ServerOrchestrator {
    */
   async resolveTicker() {
     this.onStatusUpdate?.('상장 시장 및 티커 식별 중...');
-    const result = await this.executeJsonAgent('resolver', 'gemini-2.5-flash', { 
+    const result = await this.executeJsonAgent('resolver', 'gemini-1.5-flash', { 
       companyName: this.companyName 
     }, ['type', 'ticker']);
 
@@ -260,8 +260,8 @@ Context Disclosures: ${JSON.stringify(disclosures)}`;
     
     let searchBriefing = {};
     try {
-      const searchResult = await this.callGemini('gemini-2.5-pro', searchPrompt, { 
-        tools: [{ googleSearchRetrieval: {} }],
+      const searchResult = await this.callGemini('gemini-1.5-pro', searchPrompt, { 
+        tools: [{ google_search_retrieval: {} }],
         temperature: 0.2,
         responseMimeType: 'application/json'
       });
@@ -297,8 +297,9 @@ Context Disclosures: ${JSON.stringify(disclosures)}`;
     const system = this.promptsMap[agentName] || `You are ${agentName}. Output JSON. Respond in Korean.`;
     const prompt = `${system}\n\nContext: ${JSON.stringify(context, null, 2)}`;
     
+    let result = null;
     try {
-      const result = await this.callGemini(model, prompt, { 
+      result = await this.callGemini(model, prompt, { 
         temperature: 0.2, 
         responseMimeType: 'application/json' 
       });
@@ -334,8 +335,9 @@ Context Disclosures: ${JSON.stringify(disclosures)}`;
   async executeTextAgent(agentName, model, context = {}) {
     const system = this.promptsMap[agentName] || `You are ${agentName}. Output Markdown. Respond in Korean.`;
     const prompt = `${system}\n\nContext: ${JSON.stringify(context, null, 2)}`;
+    let result = null;
     try {
-      const result = await this.callGemini(model, prompt, { temperature: 0.3 });
+      result = await this.callGemini(model, prompt, { temperature: 0.3 });
       this.logger?.info('executeTextAgent success', { agentName });
       return result.candidates?.[0]?.content?.parts?.[0]?.text || '';
     } catch (err) {
