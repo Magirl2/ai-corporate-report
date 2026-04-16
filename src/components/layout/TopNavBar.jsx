@@ -4,6 +4,20 @@ import { useAuth } from '../../contexts/AuthContext';
 export default function TopNavBar({ tab, setTab, searchInput, setSearchInput, onSearch, showSearch }) {
   const { currentUser } = useAuth();
   
+  const [showNotifications, setShowNotifications] = React.useState(false);
+  const notificationRef = React.useRef(null);
+
+  // Close notifications on outside click
+  React.useEffect(() => {
+    function handleClickOutside(event) {
+      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+        setShowNotifications(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   return (
     <header className="fixed top-0 right-0 left-0 md:left-64 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl z-30 shadow-sm transition-all duration-300">
       <div className="flex items-center justify-between px-8 py-4 max-w-[1920px] mx-auto">
@@ -41,19 +55,32 @@ export default function TopNavBar({ tab, setTab, searchInput, setSearchInput, on
             </div>
           )}
           
-          <button
-            className="flex items-center justify-center p-2 text-slate-300 cursor-not-allowed relative"
-            title="알림 기능은 준비 중입니다"
-            aria-label="알림 (준비 중)"
-            onClick={() => {}}
-          >
-            <span className="material-symbols-outlined">notifications</span>
-            <span style={{
-              position: 'absolute', top: '6px', right: '6px',
-              width: '6px', height: '6px', borderRadius: '50%',
-              background: '#94a3b8',
-            }} />
-          </button>
+          <div className="relative" ref={notificationRef}>
+            <button
+              className={`flex items-center justify-center p-2 rounded-full transition-all relative ${showNotifications ? 'bg-slate-100 text-primary' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}
+              aria-label="알림"
+              onClick={() => setShowNotifications(!showNotifications)}
+            >
+              <span className="material-symbols-outlined">notifications</span>
+              <span className={`absolute top-2 right-2 w-2 h-2 rounded-full border-2 border-white ${showNotifications ? 'bg-primary' : 'bg-slate-300 animate-pulse'}`} />
+            </button>
+
+            {showNotifications && (
+              <div className="absolute right-0 mt-3 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="px-5 py-4 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
+                  <span className="font-bold text-sm">알림</span>
+                  <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Recent</span>
+                </div>
+                <div className="p-8 flex flex-col items-center justify-center text-center">
+                  <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-3">
+                    <span className="material-symbols-outlined text-slate-300">notifications_off</span>
+                  </div>
+                  <p className="text-sm font-bold text-slate-800 mb-1">새로운 알림이 없습니다</p>
+                  <p className="text-xs text-slate-400 leading-relaxed">준비 중인 기업 분석 리포트나<br/>업데이트 소식을 이곳에서 확인하세요.</p>
+                </div>
+              </div>
+            )}
+          </div>
           
           {currentUser ? (
             <div className="flex items-center gap-3 ml-2 group cursor-pointer" onClick={() => setTab('pricing')}>

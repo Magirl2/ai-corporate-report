@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { parse } from 'cookie';
-import { findUserByEmail, updateUser } from '../_lib/db.js';
+import { findUserByEmail, updateUser, toSafeUser } from '../_lib/db.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'ei_mock_secret_key_123';
 
@@ -31,16 +31,8 @@ export default async function handler(req, res) {
     // 유저 플랜을 DB상에 직접 덮어쓰기
     const updatedUser = await updateUser(dbUser.email, { plan: planType });
 
-    const safeUser = {
-      id: updatedUser.id,
-      email: updatedUser.email,
-      name: updatedUser.name,
-      plan: updatedUser.plan,
-      usage: updatedUser.usage
-    };
-
-    return res.status(200).json({ user: safeUser });
-
+    // 공통 헬퍼를 사용하여 일관된 유저 정보 반환 (role 보존됨)
+    return res.status(200).json({ user: toSafeUser(updatedUser) });
   } catch (err) {
     if (err.name === 'TokenExpiredError') {
       return res.status(401).json({ error: '세션이 만료되었습니다.' });

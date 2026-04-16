@@ -104,67 +104,96 @@ export default function Pricing({ setTab }) {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl px-2">
         {/* Free Plan */}
-        <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-sm border border-slate-100 flex flex-col justify-between">
+        <div className={`p-8 rounded-3xl flex flex-col justify-between transition-all duration-300 ${
+          currentUser?.plan === 'free' || !currentUser
+            ? 'bg-white border-2 border-slate-200 shadow-md ring-4 ring-slate-50' 
+            : 'bg-slate-50/50 border border-slate-100 opacity-80'
+        }`}>
           <div>
-            <h3 className="text-2xl font-bold font-headline mb-2 text-slate-800">Free</h3>
+            <div className="flex justify-between items-start mb-4">
+              <h3 className="text-2xl font-bold font-headline text-slate-800">Free</h3>
+              {(currentUser?.plan === 'free' || !currentUser) && (
+                <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider">Current Plan</span>
+              )}
+            </div>
             <p className="text-slate-500 text-sm mb-6">기본적인 분석을 경험해보세요.</p>
             <div className="mb-8">
               <span className="text-4xl font-black text-slate-900">₩0</span>
-              <span className="text-slate-500 font-medium"> / 평생 무료</span>
+              <span className="text-slate-500 font-medium ml-1"> / 평생 무료</span>
             </div>
             
             <ul className="space-y-4 mb-8">
               <li className="flex items-center gap-3 text-slate-600">
-                <span className="material-symbols-outlined text-emerald-500">check_circle</span>
-                <span>하루 최대 3회 기업 분석 무료</span>
+                <span className="material-symbols-outlined text-emerald-500 text-[20px]">check_circle</span>
+                <span className="text-sm">하루 최대 3회 기업 분석 무료</span>
               </li>
               <li className="flex items-center gap-3 text-slate-600">
-                <span className="material-symbols-outlined text-emerald-500">check_circle</span>
-                <span>기본 DART 및 글로벌 재무 데이터 연동</span>
+                <span className="material-symbols-outlined text-emerald-500 text-[20px]">check_circle</span>
+                <span className="text-sm">기본 DART 및 글로벌 재무 데이터 연동</span>
               </li>
               <li className="flex items-center gap-3 text-slate-400">
-                <span className="material-symbols-outlined">do_not_disturb_on</span>
-                <span>기업 1:1 비교 분석 (제한됨)</span>
+                <span className="material-symbols-outlined text-[20px]">do_not_disturb_on</span>
+                <span className="text-sm">기업 1:1 비교 분석 (제한됨)</span>
               </li>
             </ul>
           </div>
           
           <button 
-            disabled
-            className="w-full py-4 text-slate-500 bg-slate-100 rounded-xl font-bold text-sm"
+            disabled={currentUser?.plan === 'free' || !currentUser}
+            onClick={() => setTab('search')}
+            className={`w-full py-4 rounded-xl font-bold text-sm transition-all ${
+              currentUser?.plan === 'free' || !currentUser
+                ? 'bg-slate-100 text-slate-400 cursor-default'
+                : 'bg-slate-900 text-white hover:bg-slate-800 shadow-lg'
+            }`}
           >
-            기본 플랜 유지중
+            {(currentUser?.plan === 'free' || !currentUser) ? '현재 이용 중인 플랜' : '무료 플랜으로 시작하기'}
           </button>
         </div>
 
         {/* Premium Plan (Highlighted) */}
-        <div className="bg-gradient-to-b from-primary/10 to-primary/5 p-8 rounded-3xl border-2 border-primary relative flex flex-col justify-between shadow-2xl shadow-primary/20 transform md:-translate-y-4">
-          <div className="absolute top-0 right-8 -translate-y-1/2 bg-primary text-white px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest shadow-lg">
-            Most Popular
-          </div>
+        <div className={`p-8 rounded-3xl relative flex flex-col justify-between transition-all duration-500 transform ${
+          currentUser?.plan === 'premium'
+            ? 'bg-white border-2 border-primary shadow-xl ring-8 ring-primary/5 -translate-y-2'
+            : 'bg-gradient-to-b from-primary/5 to-white border border-primary/20 hover:border-primary/40 hover:shadow-2xl hover:-translate-y-1'
+        }`}>
+          {currentUser?.plan === 'premium' ? (
+            <div className="absolute top-0 right-8 -translate-y-1/2 bg-primary text-white px-4 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest shadow-lg flex items-center gap-1">
+              <span className="material-symbols-outlined text-[14px]">verified</span> Active
+            </div>
+          ) : (
+            <div className="absolute top-0 right-8 -translate-y-1/2 bg-slate-900 text-white px-4 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest shadow-lg">
+              Most Popular
+            </div>
+          )}
           
           <div>
-            <h3 className="text-2xl font-bold font-headline mb-2 text-primary">Premium</h3>
+            <div className="flex justify-between items-start mb-4">
+              <h3 className="text-2xl font-bold font-headline text-primary">Premium</h3>
+              {currentUser?.plan === 'premium' && (
+                <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider">Current Plan</span>
+              )}
+            </div>
             <p className="text-slate-600 text-sm mb-6">모든 한계를 부수고 무제한으로 분석하세요.</p>
             <div className="mb-8 flex items-baseline gap-1">
               <span className="text-4xl font-black text-slate-900">₩19,000</span>
-              <span className="text-slate-500 font-medium"> / 월</span>
+              <span className="text-slate-500 font-medium ml-1"> / 월</span>
             </div>
             
             <ul className="space-y-4 mb-8">
               <li className="flex items-center gap-3 text-slate-800 font-medium">
-                <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>stars</span>
-                <span>무제한 AI 심층 기업 분석</span>
+                <span className="material-symbols-outlined text-primary text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>stars</span>
+                <span className="text-sm">무제한 AI 심층 기업 분석</span>
               </li>
               <li className="flex items-center gap-3 text-slate-800 font-medium">
-                <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>stars</span>
-                <span>무제한 기업 1:1 비교 분석 모드</span>
+                <span className="material-symbols-outlined text-primary text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>stars</span>
+                <span className="text-sm">무제한 기업 1:1 비교 분석 모드</span>
               </li>
               <li className="flex items-center gap-3 text-slate-800 font-medium">
-                <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>stars</span>
-                <span>포트폴리오 백테스팅 기능 (출시 예정)</span>
+                <span className="material-symbols-outlined text-primary text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>stars</span>
+                <span className="text-sm">포트폴리오 백테스팅 기능 (출시 예정)</span>
               </li>
             </ul>
           </div>
@@ -172,7 +201,11 @@ export default function Pricing({ setTab }) {
           <button 
             onClick={() => handleSubscribe('premium')}
             disabled={currentUser?.plan === 'premium'}
-            className="w-full py-4 bg-primary text-white rounded-xl font-bold text-md shadow-lg shadow-primary/30 hover:bg-primary-container disabled:bg-slate-300 disabled:shadow-none transition-all"
+            className={`w-full py-4 rounded-xl font-bold text-md transition-all ${
+              currentUser?.plan === 'premium'
+                ? 'bg-primary/10 text-primary cursor-default'
+                : 'bg-primary text-white shadow-xl shadow-primary/30 hover:bg-primary-container hover:scale-[1.02] active:scale-[0.98]'
+            }`}
           >
             {currentUser?.plan === 'premium' ? '현재 구독 중인 플랜' : 'Premium으로 업그레이드'}
           </button>

@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { parse } from 'cookie';
-import { getNormalizedUser } from '../_lib/db.js';
+import { getNormalizedUser, toSafeUser } from '../_lib/db.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'ei_mock_secret_key_123';
 
@@ -24,17 +24,8 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: '사용자를 찾을 수 없습니다.' });
     }
 
-    // 민감 정보 제외
-    const safeUser = {
-      id: dbUser.id,
-      email: dbUser.email,
-      name: dbUser.name,
-      plan: dbUser.plan,
-      usage: dbUser.usage,
-      role: dbUser.role
-    };
-
-    return res.status(200).json({ user: safeUser });
+    // 공통 헬퍼를 사용하여 일관된 유저 정보 반환
+    return res.status(200).json({ user: toSafeUser(dbUser) });
   } catch (err) {
     if (err.name === 'TokenExpiredError') {
       return res.status(401).json({ error: '세션이 만료되었습니다.' });

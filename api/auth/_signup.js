@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { serialize } from 'cookie';
 import bcrypt from 'bcryptjs';
-import { createUser, findUserByEmail } from '../_lib/db.js';
+import { createUser, findUserByEmail, toSafeUser } from '../_lib/db.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'ei_mock_secret_key_123';
 
@@ -33,13 +33,13 @@ export default async function handler(req, res) {
       usage: 0
     };
 
-    await createUser(newUserRecord);
+    const dbUser = await createUser(newUserRecord);
 
     // JWT 페이로드에서 비밀번호 포함, 가변 정보(usage, plan)까지 제거
     const userPayload = {
-      id: newUserRecord.id,
-      email: newUserRecord.email,
-      name: newUserRecord.name
+      id: dbUser.id,
+      email: dbUser.email,
+      name: dbUser.name
     };
 
     const token = jwt.sign(userPayload, JWT_SECRET, { expiresIn: '7d' });
@@ -52,17 +52,8 @@ export default async function handler(req, res) {
       maxAge: 7 * 24 * 60 * 60
     }));
 
-    // 클라이언트 초기화를 위해 전체 레코드를 안전하게 전송
-    const safeUserReturn = {
-      id: newUserRecord.id,
-      email: newUserRecord.email,
-      name: newUserRecord.name,
-      plan: newUserRecord.plan,
-      usage: newUserRecord.usage,
-      role: newUserRecord.role
-    };
-
-    return res.status(200).json({ user: safeUserReturn });
+    // 공통 헬퍼를 사용하여 일관된 유저 정보 반환
+    return res.status(200).json({ user: toSafeUser(dbUser) });
   } catch (err) {
     return res.status(500).json({ error: '서버 에러가 발생했습니다.', details: err.message });
   }

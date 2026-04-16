@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { serialize } from 'cookie';
 import bcrypt from 'bcryptjs';
-import { findUserByEmail } from '../_lib/db.js';
+import { findUserByEmail, toSafeUser } from '../_lib/db.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'ei_mock_secret_key_123';
 
@@ -42,17 +42,8 @@ export default async function handler(req, res) {
       maxAge: 7 * 24 * 60 * 60
     }));
 
-    // 클라이언트 초기화를 위해 전체 레코드를 안전하게 전송
-    const safeUserReturn = {
-      id: userRecord.id,
-      email: userRecord.email,
-      name: userRecord.name,
-      plan: userRecord.plan,
-      usage: userRecord.usage,
-      role: userRecord.role
-    };
-
-    return res.status(200).json({ user: safeUserReturn });
+    // 공통 헬퍼를 사용하여 일관된 유저 정보 반환
+    return res.status(200).json({ user: toSafeUser(userRecord) });
   } catch (err) {
     return res.status(500).json({ error: '서버 에러가 발생했습니다.', details: err.message });
   }

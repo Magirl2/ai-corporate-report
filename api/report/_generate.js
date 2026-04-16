@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { parse } from 'cookie';
-import { getNormalizedUser, updateUser, getCachedReport, setCachedReport } from '../_lib/db.js';
+import { getNormalizedUser, incrementUserUsage, getCachedReport, setCachedReport } from '../_lib/db.js';
 import { ServerOrchestrator } from '../_lib/orchestrator.js';
 import { createLogger } from '../_lib/logger.js';
 import { ErrorCategory, createErrorResponse, createStreamError } from '../_lib/errors.js';
@@ -64,7 +64,7 @@ export default async function handler(req, res) {
       sendUpdate({ type: 'status', data: { message: '최근 생성된 캐시 보고서를 불러오는 중...' }});
       
       // 캐시 히트라도 과금/사용량 차감 등 비즈니스 제약은 정상적으로 적용
-      await updateUser(user.email, { usage: user.usage + 1 });
+      await incrementUserUsage(user.email);
       
       sendUpdate({ type: 'success', data: cachedResult });
       res.end();
@@ -86,7 +86,7 @@ export default async function handler(req, res) {
     const finalReport = await orchestrator.run();
 
     // 5. 사용량 차감 (성공 시에만)
-    await updateUser(user.email, { usage: user.usage + 1 });
+    await incrementUserUsage(user.email);
 
     // 5.5 새롭게 생성된 리포트 캐시 저장
     await setCachedReport(companyName, finalReport);

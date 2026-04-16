@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { parse } from 'cookie';
-import { getNormalizedUser } from '../_lib/db.js';
+import { getNormalizedUser, toSafeUser } from '../_lib/db.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'ei_mock_secret_key_123';
 
@@ -29,7 +29,7 @@ export default async function handler(req, res) {
       if (!isAdmin && dbUser.plan !== 'premium') {
         return res.status(403).json({ error: '기업 비교 분석은 프리미엄 전용 기능입니다.' });
       }
-      return res.status(200).json({ allowed: true, user: dbUser });
+      return res.status(200).json({ allowed: true, user: toSafeUser(dbUser) });
     }
 
     if (action === 'search') {
@@ -39,7 +39,7 @@ export default async function handler(req, res) {
       }
       
       // /api/report/generate 에서만 최종 차감하도록 단일화하여 중복 과금 방지
-      return res.status(200).json({ allowed: true, user: dbUser });
+      return res.status(200).json({ allowed: true, user: toSafeUser(dbUser) });
     }
 
     return res.status(400).json({ error: '알 수 없는 액션입니다.' });

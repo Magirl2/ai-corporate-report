@@ -13,19 +13,32 @@ const DB_PATH = path.join(process.cwd(), '.users.json');
 const useKV = !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
 
 /**
- * Vercel 배포 환경에서 KV가 설정되지 않은 경우 경고를 출력합니다.
- * 하드 크래시 대신 경고를 남기고 로컬 파일 fallback을 허용합니다.
- * (Vercel 서버리스 환경에서는 /tmp가 함수별로 격리되므로 KV 설정을 강력히 권장)
+ * Vercel 배포 환경에서 KV가 설정되지 않은 경우 명시적 오류를 던집니다.
+ * 서버리스 환경에서 /tmpfallback이 함수별로 격리되어 발생하는 불일치 문제를 방지합니다.
  */
 function assertPersistence() {
   if (isVercelDeployment && !useKV) {
-    console.warn(
-      '[DB] WARNING: Vercel 배포 환경에서 KV가 설정되지 않았습니다. ' +
-      '서버리스 함수 간 사용자 데이터를 공유할 수 없습니다. ' +
-      'KV_REST_API_URL 및 KV_REST_API_TOKEN을 Vercel 환경변수에 설정하세요.'
+    throw new Error(
+      '[Configuration Error] Vercel 프로덕션 환경에서 KV 데이터베이스가 설정되지 않았습니다. ' +
+      'Vercel 프로젝트 설정의 Storage 탭에서 KV를 연결하거나 KV_REST_API_URL 및 KV_REST_API_TOKEN 환경 변수를 수동으로 설정해 주세요.'
     );
-    // 하드 크래시 없이 진행 - KV 없이도 최소 동작을 허용합니다.
   }
+}
+
+/**
+ * 프론트엔드로 전달할 안전한 유저 객체 형식을 표준화합니다.
+ * 비밀번호 해시 등 민감 정보를 제외하고 필수 필드만 포함합니다.
+ */
+export function toSafeUser(user) {
+  if (!user) return null;
+  return {
+    id: user.id || '',
+    email: user.email || '',
+    name: user.name || '',
+    plan: user.plan || 'free',
+    usage: typeof user.usage === 'number' ? user.usage : 0,
+    role: user.role || 'user'
+  };
 }
 
 /**
@@ -140,6 +153,30 @@ export async function updateUser(email, updates) {
     saveLocalDb(users);
     return enrichUser(updatedUser);
   }
+}
+
+/**
+ * 비동기: 사용자의 일일 사용량을 안전하게 1 증가시킵니다.
+ * 업데이트 직전에 최신 데이터를 다시 읽어와 경합 가능성을 최소화합니다.
+ */
+export async function incrementUserUsage(email) {
+  assertPersistence();
+  const user = await findUserByEmail(email);
+  if (!user) throw new Error('User not found');
+  
+  const updatedUser = { ...user, usage: (user.usage || 0) + 1 };
+  
+  if (useKV) {
+    await kv.set(`user:${email}`, updatedUser);
+  } else {
+    const users = getLocalDb();
+    const idx = users.findIndex(u => u.email === email);
+    if (idx !== -1) {
+      users[idx] = updatedUser;
+      saveLocalDb(users);
+    }
+  }
+  return enrichUser(updatedUser);
 }
 
 /**
