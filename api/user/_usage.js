@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { parse } from 'cookie';
-import { findUserByEmail, updateUser } from '../_lib/db.js';
+import { getNormalizedUser } from '../_lib/db.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'ei_mock_secret_key_123';
 
@@ -15,38 +15,31 @@ export default async function handler(req, res) {
     }
 
     const decoded = jwt.verify(token, JWT_SECRET);
-    const dbUser = await findUserByEmail(decoded.email);
+    // 일일 초기화가 반영된 유저 정보를 가져옵니다.
+    const dbUser = await getNormalizedUser(decoded.email);
+    
     if (!dbUser) {
       return res.status(401).json({ error: '사용자를 찾을 수 없습니다.' });
     }
 
     const { action } = req.body; // 'search' or 'compare'
+    const isAdmin = dbUser.role === 'admin';
 
     if (action === 'compare') {
-      if (dbUser.plan !== 'premium') {
+      if (!isAdmin && dbUser.plan !== 'premium') {
         return res.status(403).json({ error: '기업 비교 분석은 프리미엄 전용 기능입니다.' });
       }
       return res.status(200).json({ allowed: true, user: dbUser });
     }
 
     if (action === 'search') {
-      if (dbUser.plan !== 'premium' && dbUser.usage >= 3) {
+      // 관리자나 프리미엄이면 무조건 허용, 무료 사용자는 일일 3회 제한
+      if (!isAdmin && dbUser.plan !== 'premium' && dbUser.usage >= 3) {
         return res.status(403).json({ error: '오늘의 무료 분석 횟수를 모두 사용했습니다.' });
       }
       
-      // 사용량 증가
-      const updatedUser = await updateUser(dbUser.email, { usage: dbUser.usage + 1 });
-      
-      // 민감 정보 제외
-      const safeUser = {
-        id: updatedUser.id,
-        email: updatedUser.email,
-        name: updatedUser.name,
-        plan: updatedUser.plan,
-        usage: updatedUser.usage
-      };
-      
-      return res.status(200).json({ allowed: true, user: safeUser });
+      // /api/report/generate 에서만 최종 차감하도록 단일화하여 중복 과금 방지
+      return res.status(200).json({ allowed: true, user: dbUser });
     }
 
     return res.status(400).json({ error: '알 수 없는 액션입니다.' });

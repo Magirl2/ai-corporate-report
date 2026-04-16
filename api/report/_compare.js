@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { parse } from 'cookie';
-import { findUserByEmail, getCachedReport, setCachedReport } from '../_lib/db.js';
+import { getNormalizedUser, getCachedReport, setCachedReport } from '../_lib/db.js';
 import { ServerOrchestrator } from '../_lib/orchestrator.js';
 import { createLogger } from '../_lib/logger.js';
 import { ErrorCategory, createErrorResponse, createStreamError } from '../_lib/errors.js';
@@ -33,7 +33,7 @@ export default async function handler(req, res) {
   let user;
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    user = await findUserByEmail(decoded.email);
+    user = await getNormalizedUser(decoded.email);
   } catch (_err) {
     return res.status(401).json(createErrorResponse(ErrorCategory.AUTH, 'INVALID_SESSION', '유효하지 않은 세션입니다.', logger.reqId, false));
   }

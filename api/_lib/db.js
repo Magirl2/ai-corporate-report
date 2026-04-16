@@ -117,6 +117,27 @@ export async function updateUser(email, updates) {
 }
 
 /**
+ * 비동기: 일일 사용량이 초기화된 사용자 정보를 가져옵니다.
+ * 날짜가 바뀌었으면 usage를 0으로 리셋하고 날짜를 업데이트합니다.
+ */
+export async function getNormalizedUser(email) {
+  const user = await findUserByEmail(email);
+  if (!user) return null;
+
+  const today = new Date().toISOString().split('T')[0];
+  
+  // 날짜가 다르거나 기록이 없으면 초기화
+  if (user.usageResetAt !== today) {
+    return await updateUser(email, { 
+      usage: 0, 
+      usageResetAt: today 
+    });
+  }
+  
+  return user;
+}
+
+/**
  * [로컬 모드 Fallback] 캐시 불러오기
  */
 const CACHE_PATH = isVercelEnvironment ? '/tmp/reports.json' : path.join(process.cwd(), '.reports_cache.json');

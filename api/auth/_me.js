@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { parse } from 'cookie';
-import { findUserByEmail } from '../_lib/db.js';
+import { getNormalizedUser } from '../_lib/db.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'ei_mock_secret_key_123';
 
@@ -18,7 +18,7 @@ export default async function handler(req, res) {
     const decoded = jwt.verify(token, JWT_SECRET);
     
     // DB에서 실시간 유저 정보 조회 (플랜/사용량 동기화)
-    const dbUser = await findUserByEmail(decoded.email);
+    const dbUser = await getNormalizedUser(decoded.email);
 
     if (!dbUser) {
       return res.status(401).json({ error: '사용자를 찾을 수 없습니다.' });
