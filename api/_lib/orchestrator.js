@@ -7,8 +7,52 @@ const DEBUG = process.env.NODE_ENV !== 'production';
  * 텍스트에서 JSON 블록을 추출합니다.
  */
 function extractJson(text) {
-  const match = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/{[\s\S]*}/);
-  return match ? (match[1] || match[0]) : '';
+  if (!text) return '';
+  
+  let candidates = [];
+
+  // 1. Try Markdown code blocks first
+  const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/g;
+  let match;
+  while ((match = codeBlockRegex.exec(text)) !== null) {
+    candidates.push(match[1].trim());
+  }
+
+  // 2. Find balanced { } blocks (outermost)
+  let stack = 0;
+  let start = -1;
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '{') {
+      if (stack === 0) start = i;
+      stack++;
+    } else if (text[i] === '}') {
+      stack--;
+      if (stack === 0 && start !== -1) {
+        candidates.push(text.substring(start, i + 1));
+      }
+    }
+  }
+
+  // 3. Greedy fallback if no balanced blocks were found or if they're parts of a larger mess
+  const first = text.indexOf('{');
+  const last = text.lastIndexOf('}');
+  if (first !== -1 && last !== -1 && last > first) {
+    candidates.push(text.substring(first, last + 1));
+  }
+
+  // 4. Filter and sort valid JSON candidates by length (largest first)
+  const valid = candidates
+    .filter(c => {
+      try {
+        JSON.parse(c);
+        return true;
+      } catch (_e) {
+        return false;
+      }
+    })
+    .sort((a, b) => b.length - a.length);
+
+  return valid.length > 0 ? valid[0] : '';
 }
 
 /**
@@ -59,18 +103,29 @@ export function normalizeAnalystOutput(raw) {
  */
 export function normalizeAgentJson(parsed, wantedTopKeys) {
   if (!parsed || typeof parsed !== 'object') return {};
-  const hasWantedKey = wantedTopKeys.some(k => k in parsed);
-  if (hasWantedKey) return parsed;
 
-  const keys = Object.keys(parsed);
-  if (keys.length === 1) {
-    const inner = parsed[keys[0]];
-    if (inner && typeof inner === 'object') {
-      const innerHasWanted = wantedTopKeys.some(k => k in inner);
-      if (innerHasWanted) return inner;
+  /**
+   * 트리 전체를 재귀적으로 탐색하여 대상 키가 포함된 가장 높은 레벨의 객체를 반환합니다.
+   */
+  function recursiveSearch(obj) {
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
+
+    // 현재 레벨에 원하는 키 중 하나라도 있는지 확인
+    const hasKey = wantedTopKeys.some(k => k in obj);
+    if (hasKey) return obj;
+
+    // 자식 노드 탐색
+    for (const key in obj) {
+      const val = obj[key];
+      if (val && typeof val === 'object') {
+        const found = recursiveSearch(val);
+        if (found) return found;
+      }
     }
+    return null;
   }
-  return parsed;
+
+  return recursiveSearch(parsed) || {};
 }
 
 export class ServerOrchestrator {
@@ -326,13 +381,14 @@ Context Disclosures: ${JSON.stringify(disclosures)}`;
       this.logger?.error('executeJsonAgent failed', { 
         agentName, 
         error: err.message,
-        sample: (result?.candidates?.[0]?.content?.parts?.[0]?.text || '').substring(0, 200)
+        extractedSample: extracted ? extracted.substring(0, 500) : 'EMPTY',
+        fullRaw: (result?.candidates?.[0]?.content?.parts?.[0]?.text || '').substring(0, 1000)
       });
       this._agentErrors.push({ 
         agent: agentName, 
         error: err.message,
         stage: 'parsing',
-        rawSnippet: (result?.candidates?.[0]?.content?.parts?.[0]?.text || '').substring(0, 100)
+        extractedSnippet: extracted ? extracted.substring(0, 300) : 'EMPTY'
       });
       return {};
     }
