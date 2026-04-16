@@ -18,6 +18,7 @@ export const fetchCompanyData = async (companyName, onStatusUpdate) => {
       
       const errorObj = errResp.error || { message: `서버 오류 (${response.status})` };
       const error = new Error(errorObj.message);
+      error.category = errorObj.category || 'INTERNAL';
       error.code = errorObj.code || 'HTTP_ERROR';
       error.retryable = typeof errorObj.retryable === 'boolean' ? errorObj.retryable : false;
       throw error;
@@ -45,6 +46,7 @@ export const fetchCompanyData = async (companyName, onStatusUpdate) => {
           } else if (payload.type === 'error') {
             const errorObj = payload.error || { message: '알 수 없는 스트림 오류' };
             const error = new Error(errorObj.message);
+            error.category = errorObj.category || 'UPSTREAM';
             error.code = errorObj.code || 'STREAM_ERROR';
             error.retryable = typeof errorObj.retryable === 'boolean' ? errorObj.retryable : false;
             throw error;
@@ -89,6 +91,7 @@ export const fetchCompareData = async (companyA, companyB, onStatusUpdate) => {
       
       const errorObj = errResp.error || { message: `서버 오류 (${response.status})` };
       const error = new Error(errorObj.message);
+      error.category = errorObj.category || 'INTERNAL';
       error.code = errorObj.code || 'HTTP_ERROR';
       error.retryable = typeof errorObj.retryable === 'boolean' ? errorObj.retryable : false;
       throw error;
@@ -116,6 +119,7 @@ export const fetchCompareData = async (companyA, companyB, onStatusUpdate) => {
           } else if (payload.type === 'error') {
             const errorObj = payload.error || { message: '비교 스트림 오류' };
             const error = new Error(errorObj.message);
+            error.category = errorObj.category || 'UPSTREAM';
             error.code = errorObj.code || 'STREAM_ERROR';
             error.retryable = typeof errorObj.retryable === 'boolean' ? errorObj.retryable : false;
             throw error;

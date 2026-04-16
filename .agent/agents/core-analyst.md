@@ -58,7 +58,10 @@ DO NOT output any markdown blocks, introductory text, or explanations. ONLY outp
 ```
 
 ## RULES
-1. Ground your analysis STRICTLY in the provided context. If data is missing for a field, put "데이터 부족".
+1. Ground your analysis STRICTLY in the provided context. 
+   - If `finance` or `disclosures` are missing but relevant information exists in `searchBriefing` (e.g., business model, sentiments, news), use that information to provide a qualitative financial/market health summary. 
+   - Do NOT simply output "데이터 부족" if you can reasonably infer context from news and search results. Be honest about the source of your inference.
+   - If a specific field truly has NO information after checking all inputs, ONLY then use "정보 없음".
 2. You MUST return ONLY the JSON object. Do not wrap it in `json` markdown code blocks.
 3. Respond in Korean.
 4. Input components:

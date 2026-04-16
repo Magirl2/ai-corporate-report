@@ -42,7 +42,18 @@ export function useCompareReport({ auth, showToast, setTab }) {
       setCompareDataA(dataA);
       setCompareDataB(dataB);
     } catch (err) {
-      setCompareError(`비교 분석 중 오류 발생: ${err.message}`);
+      if (err.category === 'AUTH') {
+        showToast('로그인이 필요합니다.', 'info');
+        setTab('login');
+      } else if (err.category === 'USAGE') {
+        showToast('일일 사용량을 모두 소진했습니다.', 'warning');
+        setTab('pricing');
+      } else if (err.category === 'ENTITLEMENT') {
+        showToast('프리미엄 요금제에서 제공되는 기능입니다.', 'info');
+        setTab('pricing');
+      } else {
+        setCompareError(`비교 분석 중 오류 발생: ${err.message}`);
+      }
     } finally {
       setCompareLoading(false);
     }

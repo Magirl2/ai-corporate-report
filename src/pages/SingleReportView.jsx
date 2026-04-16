@@ -276,7 +276,7 @@ export default function SingleReportView({ singleData }) {
             color="cyan"
             summary={r?.macroTrend?.summary}
             detail={r?.macroTrend?.detail}
-            emptyMessage="거시 환경(정치·경제·사회·기술) 분석 데이터를 가져오지 못했습니다."
+            emptyMessage="최근 공식 데이터를 찾지 못했습니다. 관련 시장 뉴스를 분석 중입니다."
           />
 
           {/* 제품 비전 */}
@@ -296,7 +296,7 @@ export default function SingleReportView({ singleData }) {
             color="blue"
             summary={r?.businessModel?.summary}
             detail={r?.businessModel?.detail}
-            emptyMessage="수익 구조 및 핵심 비즈니스 모델 분석 데이터를 가져오지 못했습니다."
+            emptyMessage="공식 사업 보고서 미확인으로 인해 시장 추정치를 기반으로 분석 중입니다."
           />
 
           {/* 5 Forces */}
@@ -306,7 +306,7 @@ export default function SingleReportView({ singleData }) {
             color="amber"
             summary={r?.industryStatus?.summary}
             detail={r?.industryStatus?.detail}
-            emptyMessage="산업 경쟁 구도(Porter's 5 Forces) 분석 데이터를 가져오지 못했습니다."
+            emptyMessage="산업 내 경쟁 구도 및 시장 동향 정보를 분석 중입니다."
           />
 
           {/* 재무 분석 */}
@@ -319,7 +319,12 @@ export default function SingleReportView({ singleData }) {
               const rows = (yearly?.length > 0)
                 ? yearly
                 : (r?.financialAnalysis?.keyMetrics?.length > 0 ? r.financialAnalysis.keyMetrics : null);
-              if (!rows) return <p className="text-slate-400 text-sm">재무 지표 데이터 없음</p>;
+              if (!rows) return (
+                <div className="flex items-center gap-2 py-4">
+                  <span className="material-symbols-outlined text-slate-300" style={{ fontSize: '20px' }}>info</span>
+                  <p className="text-slate-400 text-sm italic">정형화된 재무 제표 데이터가 확인되지 않아 정성적 분석만 제공됩니다.</p>
+                </div>
+              );
               return (
                 <div className="overflow-x-auto rounded-xl border border-slate-100">
                   <table className="w-full text-left border-collapse text-sm">

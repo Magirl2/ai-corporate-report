@@ -40,7 +40,13 @@ export const AuthProvider = ({ children }) => {
     
     const data = await response.json();
     if (!response.ok) {
-      throw new Error(data.error || '로그인에 실패했습니다.');
+      const errorObj = data.error || { message: '로그인에 실패했습니다.' };
+      const error = new Error(typeof errorObj === 'string' ? errorObj : errorObj.message);
+      if (typeof errorObj === 'object') {
+        error.category = errorObj.category;
+        error.code = errorObj.code;
+      }
+      throw error;
     }
     
     setCurrentUser(data.user);
@@ -56,7 +62,13 @@ export const AuthProvider = ({ children }) => {
 
     const data = await response.json();
     if (!response.ok) {
-      throw new Error(data.error || '회원가입에 실패했습니다.');
+      const errorObj = data.error || { message: '회원가입에 실패했습니다.' };
+      const error = new Error(typeof errorObj === 'string' ? errorObj : errorObj.message);
+      if (typeof errorObj === 'object') {
+        error.category = errorObj.category;
+        error.code = errorObj.code;
+      }
+      throw error;
     }
 
     setCurrentUser(data.user);
@@ -83,7 +95,13 @@ export const AuthProvider = ({ children }) => {
 
     const data = await response.json();
     if (!response.ok) {
-      throw new Error(data.error || '플랜 변경에 실패했습니다.');
+      const errorObj = data.error || { message: '플랜 변경에 실패했습니다.' };
+      const error = new Error(typeof errorObj === 'string' ? errorObj : errorObj.message);
+      if (typeof errorObj === 'object') {
+        error.category = errorObj.category;
+        error.code = errorObj.code;
+      }
+      throw error;
     }
     
     setCurrentUser(data.user);
@@ -105,7 +123,13 @@ export const AuthProvider = ({ children }) => {
 
     const data = await response.json();
     if (!response.ok) {
-      throw new Error(data.error || '권한 검증에 실패했습니다.');
+      const errorObj = data.error || { message: '권한 검증에 실패했습니다.' };
+      const error = new Error(typeof errorObj === 'string' ? errorObj : errorObj.message);
+      if (typeof errorObj === 'object') {
+        error.category = errorObj.category;
+        error.code = errorObj.code;
+      }
+      throw error;
     }
 
     // 서버가 변경된 사용량(usage) 정보를 내려주면 즉각 동기화

@@ -125,7 +125,15 @@ export class ServerOrchestrator {
   async internalFetch(path, options = {}) {
     const url = path.startsWith('http') ? path : `${this.baseUrl}${path}`;
     const res = await fetch(url, options);
-    if (!res.ok) throw new Error(`Internal API error: ${res.status}`);
+    if (!res.ok) {
+      const errorBody = await res.text().catch(() => 'No body');
+      this.logger?.error('Internal API fetch failure', { 
+        status: res.status, 
+        path, 
+        body: errorBody 
+      });
+      throw new Error(`Internal API error (${res.status}): ${path}`);
+    }
     return res.json();
   }
 
@@ -149,15 +157,29 @@ export class ServerOrchestrator {
     let finance = null;
 
     if (type === 'KR') {
+      this.logger?.info('Fetching KR data from DART', { companyName: this.companyName });
       const [dRes, fRes] = await Promise.all([
-        this.internalFetch(`/api/data/dart?corp_name=${encodeURIComponent(this.companyName)}`),
+        this.internalFetch(`/api/data/dart?corp_name=${encodeURIComponent(this.companyName)}`)
+          .catch(err => {
+            this.logger?.warn('DART disclosures fetch failed, continuing without them', { error: err.message });
+            return { list: [] };
+          }),
         this.internalFetch(`/api/data/dart-finance?corp_name=${encodeURIComponent(this.companyName)}`)
+          .catch(err => {
+            this.logger?.warn('DART finance fetch failed, continuing without it', { error: err.message });
+            return null;
+          })
       ]);
       disclosures = dRes.list?.map(d => ({ date: d.rcept_dt, title: d.report_nm })) || [];
       finance = fRes;
       sources.push({ title: 'DART 전자공시시스템', uri: 'https://opendart.fss.or.kr/' });
     } else {
-      finance = await this.internalFetch(`/api/data/fmp-finance?ticker=${ticker}`);
+      this.logger?.info('Fetching US data from FMP', { ticker });
+      finance = await this.internalFetch(`/api/data/fmp-finance?ticker=${ticker}`)
+        .catch(err => {
+          this.logger?.warn('FMP finance fetch failed, continuing without it', { error: err.message });
+          return null;
+        });
       disclosures = [{ date: 'Current', title: `US SEC Filings for ${ticker}` }];
       sources.push({ title: 'Financial Modeling Prep (FMP)', uri: 'https://financialmodelingprep.com/' });
     }
@@ -247,7 +269,6 @@ Context Disclosures: ${JSON.stringify(disclosures)}`;
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
     
     // Gemini REST API 규격에 맞춰 페이로드 구조를 재구성합니다.
-    // temperature, responseMimeType 등은 generationConfig 내부에 위치해야 합니다.
     const body = {
       contents: [{ parts: [{ text: prompt }] }]
     };
@@ -272,13 +293,13 @@ Context Disclosures: ${JSON.stringify(disclosures)}`;
     });
     
     if (!res.ok) {
-      const errorText = await res.text();
-      this.logger?.error('Gemini API Error Response', {
+      const errorText = await res.text().catch(() => 'No body');
+      this.logger?.error('Gemini API Failure', {
         status: res.status,
-        body: errorText,
-        model
+        model,
+        body: errorText
       });
-      throw new Error(`Gemini API error: ${res.status}`);
+      throw new Error(`Gemini API error (${res.status}): ${errorText.substring(0, 200)}`);
     }
     return res.json();
   }

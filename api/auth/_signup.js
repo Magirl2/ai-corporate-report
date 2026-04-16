@@ -2,21 +2,24 @@ import jwt from 'jsonwebtoken';
 import { serialize } from 'cookie';
 import bcrypt from 'bcryptjs';
 import { createUser, findUserByEmail, toSafeUser } from '../_lib/db.js';
+import { createErrorResponse, ErrorCategory } from '../_lib/errors.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'ei_mock_secret_key_123';
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
+  if (req.method !== 'POST') {
+    return res.status(405).json(createErrorResponse(ErrorCategory.VALIDATION, 'METHOD_NOT_ALLOWED', 'Method Not Allowed'));
+  }
 
   try {
     const { email, password, name } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ error: '이메일과 비밀번호를 입력해주세요.' });
+    if (!email || !password || !name) {
+      return res.status(400).json(createErrorResponse(ErrorCategory.VALIDATION, 'MISSING_FIELDS', '필수 입력 정보가 누락되었습니다.'));
     }
 
     const existingUser = await findUserByEmail(email);
     if (existingUser) {
-      return res.status(400).json({ error: '이미 가입된 이메일입니다.' });
+      return res.status(400).json(createErrorResponse(ErrorCategory.VALIDATION, 'USER_ALREADY_EXISTS', '이미 등록된 이메일입니다.'));
     }
 
     // 평문 비밀번호를 안전하게 암호화 (Salt Round: 10)
