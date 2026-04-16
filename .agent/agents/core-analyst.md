@@ -7,30 +7,61 @@ DO NOT output any markdown blocks, introductory text, or explanations. ONLY outp
 ```json
 {
   "financial": {
-    "overview": "Brief overall commentary on financial health (2-3 sentences)",
+    "overview": {
+      "summary": "핵심 재무 요약 (한 줄)",
+      "detail": "상세 재무 상태 분석 (마크다운 불릿 활용 가능)"
+    },
     "keyMetrics": [
-      { "name": "Metric Name (e.g. 매출액)", "value": "Value", "trend": "up|down|flat" },
-      { "name": "...", "value": "...", "trend": "..." }
+      { "name": "지표명", "value": "최근 값", "trend": "up|down|flat" }
     ]
   },
   "strategy": {
-    "macroTrend": "Macro environmental factors impacting the business",
-    "industryStatus": "Current state of the industry and competitive landscape",
-    "vision": "Company's long-term vision and mission",
-    "businessModel": "How the company creates and captures value",
-    "swotAnalysis": "SWOT Analysis summary"
+    "macroTrend": {
+      "summary": "거시 환경 핵심 요약",
+      "detail": "PESTLE 관점의 상세 분석"
+    },
+    "industryStatus": {
+      "summary": "산업 현황 핵심 요약",
+      "detail": "5 Forces 기반의 경쟁 구도 분석"
+    },
+    "vision": {
+      "summary": "제품/비즈니스 비전 핵심 요약",
+      "detail": "중장기 로드맵 및 비전 상세"
+    },
+    "businessModel": {
+      "summary": "수익 모델 핵심 요약",
+      "detail": "BM 캔버스 기반 상세 구조 분석"
+    },
+    "swotAnalysis": {
+      "strengths": ["강점1", "강점2"],
+      "weaknesses": ["약점1", "약점2"],
+      "opportunities": ["기회1", "기회2"],
+      "threats": ["위협1", "위협2"]
+    }
   },
   "news": {
-    "marketSentiment": "Overall public/investor sentiment (Positive/Neutral/Negative)",
+    "marketSentiment": {
+      "status": "Positive/Neutral/Negative",
+      "detail": "투자 심리 상세 근거",
+      "analysis": ["포인트1", "포인트2"]
+    },
     "recentNews": [
-      { "headline": "Recent news headline", "date": "YYYY-MM-DD or relative", "impact": "High/Medium/Low" },
-      { "headline": "...", "date": "...", "impact": "..." }
+      {
+        "headline": "뉴스 제목",
+        "sourceDate": "YYYY-MM-DD",
+        "summary": "뉴스 핵심 요약",
+        "detail": "기사가 기업 에 미치는 상세 영향 분석"
+      }
     ]
   }
 }
 ```
 
 ## RULES
-1. Ground your analysis STRICTLY in the provided context. If data is missing for a field, put "데이터 없음".
+1. Ground your analysis STRICTLY in the provided context. If data is missing for a field, put "데이터 부족".
 2. You MUST return ONLY the JSON object. Do not wrap it in `json` markdown code blocks.
 3. Respond in Korean.
+4. Input components:
+   - `finance`: Structured financial metrics.
+   - `disclosures`: Array of `{ date, title }` objects from DART/SEC.
+   - `searchBriefing`: Structured JSON briefing including companyIdentity, marketContext, businessModel, newsFindings, sentiment, risks, and opportunities.

@@ -25,7 +25,7 @@ export const extractJson = (text) => {
     if (startIdx === -1 || endIdx === -1 || startIdx > endIdx) return null;
 
     let clean = text.slice(startIdx, endIdx + 1);
-    clean = clean.replace(/,\s*([\}\]])/g, '$1');       // 후행 쉼표 제거
+    clean = clean.replace(/,\s*([}\]])/g, '$1');       // 후행 쉼표 제거
     clean = clean.replace(/\t/g, '  ');                  // 탭 → 공백
     clean = clean.replace(/"([^"\\]*(?:\\.[^"\\]*)*)"/g, (match) =>
       match.replace(/\n/g, '\\n').replace(/\r/g, '\\r') // 문자열 내 개행 이스케이프

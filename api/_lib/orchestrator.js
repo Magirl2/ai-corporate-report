@@ -2,13 +2,6 @@
 import { loadAgentPrompts } from './prompts.js';
 
 const DEBUG = process.env.NODE_ENV !== 'production';
-function dbg(label, data) {
-  if (!DEBUG) return;
-  const preview = typeof data === 'string'
-    ? data.slice(0, 300) + (data.length > 300 ? '…' : '')
-    : JSON.stringify(data, null, 2).slice(0, 600);
-  console.debug(`[ServerOrchestrator] ── ${label} ──\n${preview}`);
-}
 
 /**
  * 텍스트에서 JSON 블록을 추출합니다.
@@ -19,9 +12,50 @@ function extractJson(text) {
 }
 
 /**
+ * Search Briefing 스키마 정규화 도우미
+ */
+export function normalizeSearchBriefing(parsed) {
+  if (!parsed || typeof parsed !== 'object') parsed = {};
+  return {
+    companyIdentity: typeof parsed.companyIdentity === 'string' ? parsed.companyIdentity : '정보 부족',
+    marketContext: typeof parsed.marketContext === 'string' ? parsed.marketContext : '상세 정보 없음',
+    businessModel: typeof parsed.businessModel === 'string' ? parsed.businessModel : '상세 정보 없음',
+    newsFindings: Array.isArray(parsed.newsFindings) ? parsed.newsFindings : [],
+    sentiment: typeof parsed.sentiment === 'string' ? parsed.sentiment : 'Neutral',
+    risks: Array.isArray(parsed.risks) ? parsed.risks : [],
+    opportunities: Array.isArray(parsed.opportunities) ? parsed.opportunities : []
+  };
+}
+
+/**
+ * Analyst 출력 정규화 (프론트엔드 중첩 스키마 호환성 보장)
+ */
+export function normalizeAnalystOutput(raw) {
+  const n = (obj) => (typeof obj === 'string' ? { summary: obj, detail: '' } : obj || { summary: '정보 부족', detail: '' });
+  
+  return {
+    financial: {
+      overview: n(raw.financial?.overview),
+      keyMetrics: Array.isArray(raw.financial?.keyMetrics) ? raw.financial.keyMetrics : []
+    },
+    strategy: {
+      macroTrend: n(raw.strategy?.macroTrend),
+      industryStatus: n(raw.strategy?.industryStatus),
+      vision: n(raw.strategy?.vision),
+      businessModel: n(raw.strategy?.businessModel),
+      swotAnalysis: raw.strategy?.swotAnalysis || { strengths: [], weaknesses: [], opportunities: [], threats: [] }
+    },
+    news: {
+      marketSentiment: raw.news?.marketSentiment || { status: 'Neutral', detail: '', analysis: [] },
+      recentNews: Array.isArray(raw.news?.recentNews) ? raw.news.recentNews : []
+    }
+  };
+}
+
+/**
  * JSON 에이전트 응답 정규화
  */
-function normalizeAgentJson(parsed, wantedTopKeys) {
+export function normalizeAgentJson(parsed, wantedTopKeys) {
   if (!parsed || typeof parsed !== 'object') return {};
   const hasWantedKey = wantedTopKeys.some(k => k in parsed);
   if (hasWantedKey) return parsed;
@@ -38,45 +72,43 @@ function normalizeAgentJson(parsed, wantedTopKeys) {
 }
 
 export class ServerOrchestrator {
-  constructor(companyName, onStatusUpdate, baseUrl = 'http://localhost:3000') {
+  constructor(companyName, onStatusUpdate, baseUrl = 'http://localhost:3000', logger = null) {
     this.companyName = companyName;
     this.onStatusUpdate = onStatusUpdate;
     this.baseUrl = baseUrl;
+    this.logger = logger;
     this.promptsMap = loadAgentPrompts();
     this._agentErrors = [];
     this.state = {
       resolve: null,
-      raw: { disclosures: '', finance: null, searchBriefing: '', sources: [] },
-      normalized: null,
-      analysis: { financial: null, disclosure: null, news: null, strategy: null },
+      raw: { disclosures: [], finance: null, searchBriefing: {}, sources: [] },
+      analysis: { financial: null, news: null, strategy: null },
       composerMarkdown: '',
-      validation: { isValid: true, errors: [] },
     };
   }
 
   async run() {
     this.onStatusUpdate?.('심층 분석 오케스트레이션 기동');
+    this.logger?.info('Orchestrator started');
 
     // 1. Ticker 식별 (기존 API 호출 활용)
     this.state.resolve = await this.resolveTicker();
     this.onStatusUpdate?.(`기업 식별 완료: ${this.state.resolve.type === 'KR' ? '한국' : '미국 ' + this.state.resolve.ticker}`);
+    this.logger?.info('Ticker resolved', { resolveInfo: this.state.resolve });
 
     // 2. 데이터 수집
     await this.collectData();
+    this.logger?.info('Data collection complete');
 
     // 3. 통합 구조 분석 (Core Analyst)
     this.onStatusUpdate?.('핵심 데이터 분석 및 통찰 추출 중...');
-    const coreAnalysis = await this.executeJsonAgent('core-analyst', 'gemini-2.5-flash', { 
+    const coreAnalysisRaw = await this.executeJsonAgent('core-analyst', 'gemini-2.5-flash', { 
       finance: this.state.raw.finance,
       disclosures: this.state.raw.disclosures,
       searchBriefing: this.state.raw.searchBriefing
     }, ['financial', 'strategy', 'news']);
 
-    this.state.analysis = { 
-      financial: coreAnalysis.financial || null, 
-      news: coreAnalysis.news || null, 
-      strategy: coreAnalysis.strategy || null 
-    };
+    this.state.analysis = normalizeAnalystOutput(coreAnalysisRaw);
 
     // 4. 보고서 합성
     this.onStatusUpdate?.('종합 보고서 작성 중...');
@@ -156,7 +188,8 @@ Context Disclosures: ${JSON.stringify(disclosures)}`;
       });
 
       const text = searchResult.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-      searchBriefing = JSON.parse(extractJson(text) || text);
+      searchBriefing = normalizeSearchBriefing(JSON.parse(extractJson(text) || text));
+      this.logger?.info('Deep Search success', { sourceCount: Object.keys(sources).length });
 
       const groundingMetadata = searchResult.candidates?.[0]?.groundingMetadata;
       if (groundingMetadata?.groundingChunks) {
@@ -167,7 +200,9 @@ Context Disclosures: ${JSON.stringify(disclosures)}`;
         });
       }
     } catch (e) {
+      this.logger?.warn("Search Briefing JSON parse error", { error: e.message });
       console.warn("Search Briefing JSON parse error:", e);
+      searchBriefing = normalizeSearchBriefing({});
     }
 
     this.state.raw = { disclosures, finance, searchBriefing, sources };
@@ -184,8 +219,10 @@ Context Disclosures: ${JSON.stringify(disclosures)}`;
       });
       const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
       const parsed = JSON.parse(extractJson(text) || text || '{}');
+      this.logger?.info('executeJsonAgent success', { agentName });
       return wantedTopKeys.length > 0 ? normalizeAgentJson(parsed, wantedTopKeys) : parsed;
     } catch (err) {
+      this.logger?.error('executeJsonAgent failed', { agentName, error: err.message });
       this._agentErrors.push({ agent: agentName, error: err.message });
       return {};
     }
@@ -196,8 +233,10 @@ Context Disclosures: ${JSON.stringify(disclosures)}`;
     const prompt = `${system}\n\nContext: ${JSON.stringify(context, null, 2)}`;
     try {
       const result = await this.callGemini(model, prompt, { temperature: 0.3 });
+      this.logger?.info('executeTextAgent success', { agentName });
       return result.candidates?.[0]?.content?.parts?.[0]?.text || '';
     } catch (err) {
+      this.logger?.error('executeTextAgent failed', { agentName, error: err.message });
       this._agentErrors.push({ agent: agentName, error: err.message });
       return '';
     }

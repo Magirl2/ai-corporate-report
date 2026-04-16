@@ -94,3 +94,63 @@ export async function updateUser(email, updates) {
     return updatedUser;
   }
 }
+
+/**
+ * [로컬 모드 Fallback] 캐시 불러오기
+ */
+const CACHE_PATH = isVercelEnvironment ? '/tmp/reports.json' : path.join(process.cwd(), '.reports_cache.json');
+function getLocalCache() {
+  try {
+    if (fs.existsSync(CACHE_PATH)) return JSON.parse(fs.readFileSync(CACHE_PATH, 'utf8') || '{}');
+  } catch (error) {
+    console.error('[Mock Cache] Failed to read:', error);
+  }
+  return {};
+}
+
+function saveLocalCache(data) {
+  try {
+    fs.writeFileSync(CACHE_PATH, JSON.stringify(data, null, 2), 'utf8');
+  } catch (error) {
+    console.error('[Mock Cache] Failed to write:', error);
+  }
+}
+
+/**
+ * 비동기: 서버 캐시 구조에서 보고서 가져오기
+ */
+export async function getCachedReport(companyName) {
+  const key = `report:${companyName.trim().toUpperCase()}`;
+  if (useKV) {
+    try {
+      return await kv.get(key);
+    } catch (err) {
+      console.error('[KV Cache] Get error:', err);
+      return null;
+    }
+  } else {
+    const cache = getLocalCache();
+    const hit = cache[key];
+    if (hit && hit.expires > Date.now()) return hit.data;
+    return null;
+  }
+}
+
+/**
+ * 비동기: 서버 캐시 구조에 보고서 저장하기 (TTL 24시간)
+ */
+export async function setCachedReport(companyName, reportData) {
+  const key = `report:${companyName.trim().toUpperCase()}`;
+  const ttlSeconds = 60 * 60 * 24; // 24 hours
+  if (useKV) {
+    try {
+      await kv.set(key, reportData, { ex: ttlSeconds });
+    } catch (err) {
+      console.error('[KV Cache] Set error:', err);
+    }
+  } else {
+    const cache = getLocalCache();
+    cache[key] = { data: reportData, expires: Date.now() + ttlSeconds * 1000 };
+    saveLocalCache(cache);
+  }
+}

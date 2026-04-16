@@ -1,59 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import MarketSentimentBanner from '../components/MarketSentimentBanner';
-
-/**
- * 마크다운 텍스트를 전문적인 리포트 스타일로 렌더링
- */
-const renderMarkdown = (text) => {
-  if (!text) return null;
-  const str = String(text);
-
-  // 불릿 포인트와 줄바꿈을 포함한 복합적인 렌더링
-  const lines = str.split('\n');
-  const elements = [];
-  let inList = false;
-  let listItems = [];
-
-  const flushList = (key) => {
-    if (listItems.length > 0) {
-      elements.push(
-        <ul key={`list-${key}`} className="list-disc ml-5 my-2 space-y-1 text-slate-700">
-          {listItems.map((item, i) => <li key={i}>{item}</li>)}
-        </ul>
-      );
-      listItems = [];
-    }
-    inList = false;
-  };
-
-  lines.forEach((line, idx) => {
-    const trimmed = line.trim();
-    if (trimmed.startsWith('###')) {
-      flushList(idx);
-      elements.push(<h4 key={idx} className="text-sm font-bold text-slate-800 mt-4 mb-2">{trimmed.replace(/^###\s+/, '')}</h4>);
-    } else if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
-      inList = true;
-      listItems.push(trimmed.replace(/^[-•]\s+/, ''));
-    } else if (trimmed === '') {
-      flushList(idx);
-    } else {
-      flushList(idx);
-      // **강조** 처리
-      const parts = trimmed.split(/(\*\*.+?\*\*)/g);
-      const content = parts.map((part, i) => {
-        if (part.startsWith('**') && part.endsWith('**')) {
-          return <strong key={i} className="font-bold text-slate-900">{part.slice(2, -2)}</strong>;
-        }
-        return part;
-      });
-      elements.push(<p key={idx} className="mb-2 leading-relaxed">{content}</p>);
-    }
-  });
-  flushList('final');
-
-  return <div className="markdown-body text-[13.5px] text-slate-600">{elements}</div>;
-};
-
+import { renderMarkdown } from '../utils/displayHelpers';
+import { getYearlyMetrics, getSourceBadge, getSafeItems } from '../utils/reportSelectors';
 
 /**
  * NewsItem 컴포넌트 — 개별 뉴스 토글 및 심층 분석 지원
@@ -187,7 +135,7 @@ const BentoCard = ({ icon, title, color, summary, detail, className = '', childr
 
 /* ─── SWOT 사분면 — 배열 데이터 기반 렌더링 ─── */
 const SwotQuadrant = ({ label, bgColor, borderColor, textColor, items }) => {
-  const safeItems = Array.isArray(items) ? items : (typeof items === 'string' ? [items] : []);
+  const safeItems = getSafeItems(items);
   return (
     <div className={`p-6 rounded-2xl border flex flex-col gap-3 ${bgColor} ${borderColor}`}>
       <p className={`text-[10px] font-black tracking-widest uppercase ${textColor} opacity-80`}>{label}</p>
@@ -251,14 +199,12 @@ export default function SingleReportView({ singleData }) {
 
   const d = new Date();
   const today = `${d.getFullYear()}년 ${String(d.getMonth() + 1).padStart(2, '0')}월 ${String(d.getDate()).padStart(2, '0')}일`;
-  const yearly = singleData.financeData?.yearlyMetrics || singleData.dartFinance?.yearlyMetrics;
+  const yearly = getYearlyMetrics(singleData);
 
   const r = singleData.report;
 
   // 데이터 소스 뱃지 동적 결정
-  const sourceBadge = singleData.financeData
-    ? (singleData.financeData.raw?.currency && singleData.financeData.raw.currency !== 'KRW' ? 'FMP · US' : 'DART · KR')
-    : 'AI REPORT';
+  const sourceBadge = getSourceBadge(singleData);
 
   // AI 품질 점수
   const aiScore = singleData.score;

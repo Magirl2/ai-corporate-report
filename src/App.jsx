@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { fetchCompanyData } from './api/companyService';
 import TopNavBar from './components/layout/TopNavBar';
 import SideNavBar from './components/layout/SideNavBar';
 import Footer from './components/layout/Footer';
@@ -11,6 +10,8 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Pricing from './pages/Pricing';
 import { useAuth } from './contexts/AuthContext';
+import { useSingleReport } from './hooks/useSingleReport';
+import { useCompareReport } from './hooks/useCompareReport';
 
 /* ── 토스트 알림 컴포넌트 ── */
 function Toast({ message, type = 'info', onClose }) {
@@ -50,126 +51,23 @@ function Toast({ message, type = 'info', onClose }) {
 }
 
 export default function App() {
-  const { currentUser, trackUsage } = useAuth();
-  const [searchInput, setSearchInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [statusMessage, setStatusMessage] = useState('');
+  const auth = useAuth();
+  const { currentUser } = auth;
   const [tab, setTab] = useState('search');
-  const [singleData, setSingleData] = useState(null);
   const [toast, setToast] = useState(null);
-
-  const [inputA, setInputA] = useState('');
-  const [inputB, setInputB] = useState('');
-  const [compareDataA, setCompareDataA] = useState(null);
-  const [compareDataB, setCompareDataB] = useState(null);
-  const [compareLoading, setCompareLoading] = useState(false);
-  const [compareError, setCompareError] = useState(null);
-  const [compareStatus, setCompareStatus] = useState('');
 
   const showToast = (message, type = 'info') => {
     setToast({ message, type });
   };
 
+  const single = useSingleReport({ auth, showToast, setTab });
+  const compare = useCompareReport({ auth, showToast, setTab });
+
   const navigateToSearch = () => {
     setTab('search');
-    setSingleData(null);
-    setSearchInput('');
-    setError(null);
+    single.resetSearch();
   };
 
-  const handleSearch = async (e, keyword) => {
-    if (e) e.preventDefault();
-    const query = keyword || searchInput;
-    if (!query.trim()) {
-      showToast('기업명을 입력해주세요.', 'warning');
-      return;
-    }
-
-    if (!currentUser) {
-      showToast('로그인 후 분석 기능을 이용하실 수 있습니다.', 'info');
-      setTab('login');
-      return;
-    }
-
-    try {
-      // 서버에서 검사 및 사용량 차감 (권한 부족 시 Error 발생)
-      await trackUsage('search');
-    } catch (err) {
-      showToast(err.message, 'warning');
-      setTab('pricing');
-      return;
-    }
-
-    if (keyword) setSearchInput(keyword);
-
-    setTab('single');
-    setLoading(true);
-    setError(null);
-    setSingleData(null);
-    setStatusMessage('');
-
-    try {
-      const data = await fetchCompanyData(query, setStatusMessage);
-      setSingleData(data);
-
-      // 최근 검색 기록 localStorage에 저장 (최대 5건, 중복 제거)
-      try {
-        const prev = JSON.parse(localStorage.getItem('ei_recent_searches') || '[]');
-        const updated = [
-          { name: query, date: new Date().toISOString() },
-          ...prev.filter(r => r.name !== query)
-        ].slice(0, 5);
-        localStorage.setItem('ei_recent_searches', JSON.stringify(updated));
-      } catch (_) {}
-    } catch (err) {
-      setError(`분석 중 오류 발생: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCompareSearch = async (e) => {
-    if (e) e.preventDefault();
-    if (!inputA.trim() || !inputB.trim()) {
-      showToast('두 기업명을 모두 입력해주세요.', 'warning');
-      return;
-    }
-
-    if (!currentUser) {
-      showToast('로그인 후 비교 분석 기능을 이용하실 수 있습니다.', 'info');
-      setTab('login');
-      return;
-    }
-
-    try {
-      // 서버에서 프리미엄 여부 검사 (권한 부족 시 Error 발생)
-      await trackUsage('compare');
-    } catch (err) {
-      showToast(err.message, 'warning');
-      setTab('pricing');
-      return;
-    }
-
-    setCompareLoading(true);
-    setCompareError(null);
-    setCompareDataA(null);
-    setCompareDataB(null);
-    setCompareStatus('');
-
-    try {
-      const [dataA, dataB] = await Promise.all([
-        fetchCompanyData(inputA, (msg) => setCompareStatus(msg)),
-        fetchCompanyData(inputB, (msg) => setCompareStatus(msg)),
-      ]);
-      setCompareDataA(dataA);
-      setCompareDataB(dataB);
-    } catch (err) {
-      setCompareError(`비교 분석 중 오류 발생: ${err.message}`);
-    } finally {
-      setCompareLoading(false);
-    }
-  };
 
   const isSearchFocus = tab === 'search';
   const showSidebar = !isSearchFocus && !['login', 'signup', 'pricing'].includes(tab);
@@ -184,33 +82,33 @@ export default function App() {
         <TopNavBar
           tab={tab === 'search' ? 'single' : tab}
           setTab={(t) => {
-            if (t === 'single' && !singleData) setTab('search');
+            if (t === 'single' && !single.singleData) setTab('search');
             else setTab(t);
           }}
-          onSearch={handleSearch}
-          searchInput={searchInput}
-          setSearchInput={setSearchInput}
+          onSearch={single.handleSearch}
+          searchInput={single.searchInput}
+          setSearchInput={single.setSearchInput}
           showSearch={tab === 'single'}
         />
 
         {/* 로딩 화면 */}
-        {(loading || compareLoading) ? (
-          <LoadingScreen message={loading ? statusMessage : compareStatus} />
+        {(single.loading || compare.compareLoading) ? (
+          <LoadingScreen message={single.loading ? single.statusMessage : compare.compareStatus} />
         ) : (
           <main className={`flex-1 flex flex-col pt-24 px-6 md:px-12 pb-20 ${isSearchFocus ? '' : 'max-w-[1400px] mx-auto w-full'}`}>
 
             {/* 검색 대시보드 */}
             {tab === 'search' && (
               <SearchDashboard
-                searchInput={searchInput}
-                setSearchInput={setSearchInput}
-                onSearch={handleSearch}
+                searchInput={single.searchInput}
+                setSearchInput={single.setSearchInput}
+                onSearch={single.handleSearch}
                 setTab={setTab}
               />
             )}
 
             {/* 에러 배너 */}
-            {(error || compareError) && (
+            {(single.error || compare.compareError) && (
               <div style={{
                 background: '#fff1f2', borderLeft: '4px solid #f43f5e',
                 padding: '1.5rem', borderRadius: '0.75rem',
@@ -220,7 +118,7 @@ export default function App() {
                 <span className="material-symbols-outlined" style={{ color: '#f43f5e', fontVariationSettings: "'FILL' 1" }}>error</span>
                 <div>
                   <h3 style={{ fontWeight: 700, color: '#be123c', marginBottom: '0.25rem' }}>분석 중 오류 발생</h3>
-                  <p style={{ color: '#be123c', fontSize: '0.875rem' }}>{error || compareError}</p>
+                  <p style={{ color: '#be123c', fontSize: '0.875rem' }}>{single.error || compare.compareError}</p>
                   <button
                     onClick={navigateToSearch}
                     style={{
@@ -236,12 +134,12 @@ export default function App() {
             )}
 
             {/* 단일 보고서 */}
-            {tab === 'single' && !error && singleData && (
-              <SingleReportView singleData={singleData} />
+            {tab === 'single' && !single.error && single.singleData && (
+              <SingleReportView singleData={single.singleData} />
             )}
 
             {/* 비교 분석 */}
-            {tab === 'compare' && !compareError && (
+            {tab === 'compare' && !compare.compareError && (
               <div className="w-full mx-auto animate-in fade-in">
                 <section style={{ marginBottom: '3rem' }}>
                   <div style={{ marginBottom: '2rem' }}>
@@ -256,7 +154,7 @@ export default function App() {
                     <p style={{ color: 'var(--color-on-surface-variant)', marginTop: '0.5rem' }}>두 기업의 핵심 재무 지표와 성장 잠재력을 한눈에 비교합니다.</p>
                   </div>
 
-                  <form onSubmit={handleCompareSearch} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', position: 'relative' }}>
+                  <form onSubmit={compare.handleCompareSearch} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', position: 'relative' }}>
                     {/* VS 뱃지 */}
                     <div style={{
                       position: 'absolute', left: '50%', top: '50%',
@@ -286,8 +184,8 @@ export default function App() {
                           color: 'var(--color-on-surface)', outline: 'none',
                         }}
                         placeholder="기준 기업 입력 (예: 삼성전자)"
-                        type="text" value={inputA}
-                        onChange={(e) => setInputA(e.target.value)}
+                        type="text" value={compare.inputA}
+                        onChange={(e) => compare.setInputA(e.target.value)}
                       />
                     </div>
 
@@ -307,8 +205,8 @@ export default function App() {
                           color: 'var(--color-on-surface)', outline: 'none',
                         }}
                         placeholder="비교 기업 입력 (예: SK하이닉스)"
-                        type="text" value={inputB}
-                        onChange={(e) => setInputB(e.target.value)}
+                        type="text" value={compare.inputB}
+                        onChange={(e) => compare.setInputB(e.target.value)}
                       />
                       <button
                         type="submit"
@@ -326,8 +224,8 @@ export default function App() {
                   </form>
                 </section>
 
-                {compareDataA && compareDataB && (
-                  <CompareFinancials dataA={compareDataA} dataB={compareDataB} />
+                {compare.compareDataA && compare.compareDataB && (
+                  <CompareFinancials dataA={compare.compareDataA} dataB={compare.compareDataB} />
                 )}
               </div>
             )}
