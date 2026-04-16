@@ -246,16 +246,40 @@ Context Disclosures: ${JSON.stringify(disclosures)}`;
     const apiKey = process.env.GEMINI_API_KEY;
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
     
+    // Gemini REST API 규격에 맞춰 페이로드 구조를 재구성합니다.
+    // temperature, responseMimeType 등은 generationConfig 내부에 위치해야 합니다.
+    const body = {
+      contents: [{ parts: [{ text: prompt }] }]
+    };
+
+    if (config.tools) {
+      body.tools = config.tools;
+    }
+
+    const generationConfig = {};
+    if (config.temperature !== undefined) generationConfig.temperature = config.temperature;
+    if (config.responseMimeType) generationConfig.responseMimeType = config.responseMimeType;
+    if (config.maxOutputTokens) generationConfig.maxOutputTokens = config.maxOutputTokens;
+    
+    if (Object.keys(generationConfig).length > 0) {
+      body.generationConfig = generationConfig;
+    }
+
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        ...config
-      })
+      body: JSON.stringify(body)
     });
     
-    if (!res.ok) throw new Error(`Gemini API error: ${res.status}`);
+    if (!res.ok) {
+      const errorText = await res.text();
+      this.logger?.error('Gemini API Error Response', {
+        status: res.status,
+        body: errorText,
+        model
+      });
+      throw new Error(`Gemini API error: ${res.status}`);
+    }
     return res.json();
   }
 
