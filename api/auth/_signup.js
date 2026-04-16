@@ -58,7 +58,8 @@ export default async function handler(req, res) {
       email: newUserRecord.email,
       name: newUserRecord.name,
       plan: newUserRecord.plan,
-      usage: newUserRecord.usage
+      usage: newUserRecord.usage,
+      role: newUserRecord.role
     };
 
     return res.status(200).json({ user: safeUserReturn });

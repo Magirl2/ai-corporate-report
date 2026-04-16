@@ -9,6 +9,25 @@ const DB_PATH = isVercelEnvironment ? '/tmp/users.json' : path.join(process.cwd(
 const useKV = !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
 
 /**
+ * 환경 변수 ADMIN_EMAILS를 확인하여 관리자 여부를 판단합니다.
+ */
+export function isAdminEmail(email) {
+  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase());
+  return adminEmails.includes(email.toLowerCase());
+}
+
+/**
+ * 유저 객체에 role 필드를 동적으로 주입합니다.
+ */
+function enrichUser(user) {
+  if (!user) return null;
+  return {
+    ...user,
+    role: isAdminEmail(user.email) ? 'admin' : 'user'
+  };
+}
+
+/**
  * [로컬 모드 Fallback] 로컬 파일 불러오기
  */
 function getLocalDb() {
@@ -40,7 +59,8 @@ function saveLocalDb(data) {
 export async function findUserByEmail(email) {
   if (useKV) {
     try {
-      return await kv.get(`user:${email}`);
+      const user = await kv.get(`user:${email}`);
+      return enrichUser(user);
     } catch (err) {
       console.error('[KV DB] Fetch error:', err);
       return null;
@@ -48,7 +68,8 @@ export async function findUserByEmail(email) {
   } else {
     // Vercel KV 세팅이 미비되어 있으면 로컬(혹은 임시 파일) 시스템으로 안전하게 우회
     const users = getLocalDb();
-    return users.find(u => u.email === email) || null;
+    const user = users.find(u => u.email === email);
+    return enrichUser(user || null);
   }
 }
 
@@ -62,7 +83,7 @@ export async function createUser(userObj) {
       throw new Error('이미 존재하는 사용자입니다.');
     }
     await kv.set(`user:${userObj.email}`, userObj); // 무기한 유지
-    return userObj;
+    return enrichUser(userObj);
   } else {
     const users = getLocalDb();
     if (users.find(u => u.email === userObj.email)) {
@@ -70,7 +91,7 @@ export async function createUser(userObj) {
     }
     users.push(userObj);
     saveLocalDb(users);
-    return userObj;
+    return enrichUser(userObj);
   }
 }
 
@@ -83,7 +104,7 @@ export async function updateUser(email, updates) {
     if (!user) throw new Error('User not found');
     const updatedUser = { ...user, ...updates };
     await kv.set(`user:${email}`, updatedUser);
-    return updatedUser;
+    return enrichUser(updatedUser);
   } else {
     const users = getLocalDb();
     const idx = users.findIndex(u => u.email === email);
@@ -91,7 +112,7 @@ export async function updateUser(email, updates) {
     const updatedUser = { ...users[idx], ...updates };
     users[idx] = updatedUser;
     saveLocalDb(users);
-    return updatedUser;
+    return enrichUser(updatedUser);
   }
 }
 

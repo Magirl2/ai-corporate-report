@@ -33,7 +33,9 @@ export default async function handler(req, res) {
   if (!user) return res.status(401).json(createErrorResponse(ErrorCategory.AUTH, 'USER_NOT_FOUND', '사용자를 찾을 수 없습니다.', logger.reqId, false));
 
   // 2. 권한/사용량 체크
-  if (user.plan !== 'premium' && user.usage >= 3) {
+  // 관리자(admin)는 모든 제한을 우회합니다.
+  const isAdmin = user.role === 'admin';
+  if (!isAdmin && user.plan !== 'premium' && user.usage >= 3) {
     return res.status(403).json(createErrorResponse(ErrorCategory.USAGE, 'QUOTA_EXCEEDED', '무료 분석 한도를 모두 사용했습니다. 플랜을 업그레이드하세요.', logger.reqId, false));
   }
 

@@ -26,7 +26,14 @@ export default function SideNavBar({ tab, setTab, navigateToSearch }) {
     <aside className="fixed left-0 h-full w-64 bg-slate-50 flex flex-col p-6 gap-2 z-40 hidden md:flex border-r border-slate-100">
       <div className="mb-10">
         <h1 className="text-lg font-black text-primary uppercase tracking-widest font-headline">Editorial Intelligence</h1>
-        <p className="text-xs text-slate-500 font-headline font-semibold mt-1 tracking-wider">AI Financial Curator</p>
+        {currentUser?.role === 'admin' ? (
+          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-rose-50 text-[10px] text-rose-600 font-bold rounded-md border border-rose-100 mt-1 uppercase tracking-tighter">
+            <span className="material-symbols-outlined text-[12px] font-bold">verified_user</span>
+            Admin Mode
+          </div>
+        ) : (
+          <p className="text-xs text-slate-500 font-headline font-semibold mt-1 tracking-wider">AI Financial Curator</p>
+        )}
       </div>
 
       <nav className="flex-1 space-y-1 font-body">

@@ -25,15 +25,16 @@ export default async function handler(req, res) {
     }
 
     // 민감 정보 제외
-    const user = {
+    const safeUser = {
       id: dbUser.id,
       email: dbUser.email,
       name: dbUser.name,
       plan: dbUser.plan,
-      usage: dbUser.usage
+      usage: dbUser.usage,
+      role: dbUser.role
     };
 
-    return res.status(200).json({ user });
+    return res.status(200).json({ user: safeUser });
   } catch (err) {
     if (err.name === 'TokenExpiredError') {
       return res.status(401).json({ error: '세션이 만료되었습니다.' });

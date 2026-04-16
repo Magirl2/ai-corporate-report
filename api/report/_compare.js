@@ -40,9 +40,11 @@ export default async function handler(req, res) {
 
   if (!user) return res.status(401).json(createErrorResponse(ErrorCategory.AUTH, 'USER_NOT_FOUND', '사용자를 찾을 수 없습니다.', logger.reqId, false));
 
-  // 2. 권한 체크 (비교기능은 프리미엄 전용)
-  if (user.plan !== 'premium') {
-    return res.status(403).json(createErrorResponse(ErrorCategory.ENTITLEMENT, 'FORBIDDEN', '기업 비교 분석은 프리미엄 전용 기능입니다.', logger.reqId, false));
+  // 2. 권한 체크 (비교 분석은 프리미엄 전용)
+  // 관리자(admin)는 모든 권한을 우회합니다.
+  const isAdmin = user.role === 'admin';
+  if (!isAdmin && user.plan !== 'premium') {
+    return res.status(403).json(createErrorResponse(ErrorCategory.USAGE, 'PREMIUM_REQUIRED', '비교 분석은 프리미엄 플랜 전용 기능입니다.', logger.reqId, false));
   }
 
   const { companyA, companyB } = req.body;
