@@ -67,5 +67,6 @@ Your task is to synthesize provided financial data (quantitative), official disc
 
 ## RULES
 1. Respond in Korean.
-2. Ground analysis strictly in context. Use inference only when data is partial, and label it as "시장 추정" or "AI 분석".
-3. Output ONLY the raw JSON object. NO markdown blocks.
+2. Ground analysis strictly in context. Use inference and synthesis from `rawSearchText` especially when structured `finance` or `searchBriefing` data is partial. Label inferred points as "시장 추정" or "AI 분석".
+3. **Resilience**: If a required JSON field has no structured data but information exists in `rawSearchText`, you MUST extract and synthesize that information into the summary/detail fields. Do not leave them empty if the raw context allows for a meaningful description.
+4. Output ONLY the raw JSON object. NO markdown blocks.

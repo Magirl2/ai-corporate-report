@@ -228,6 +228,9 @@ export class ServerOrchestrator {
     this.state.composerMarkdown = await this.executeTextAgent('composer', 'gemini-2.5-pro', {
       ...this.state.analysis,
       companyName: this.companyName,
+      rawSearchText: this.state.raw.searchBriefing?.rawContent || "", 
+      financeData: this.state.raw.finance,
+      disclosures: this.state.raw.disclosures
     });
 
     return this.assembleFinalReport();
