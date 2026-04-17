@@ -40,10 +40,10 @@ export default async function handler(req, res) {
       // corpCode를 못 찾은 경우 corp_name + 3개월로 폴백
       const threeMonthsAgo = new Date();
       threeMonthsAgo.setMonth(today.getMonth() - 3);
-      const normalized = normalizeCorpName(corpName);
+      const spaced = normalizeCorpName(corpName, true);
       dartUrl =
         `https://opendart.fss.or.kr/api/list.json?crtfc_key=${DART_API_KEY}` +
-        `&corp_name=${encodeURIComponent(normalized)}&bgn_de=${fmt(threeMonthsAgo)}&end_de=${fmt(today)}&page_count=${pageCount}`;
+        `&corp_name=${encodeURIComponent(spaced)}&bgn_de=${fmt(threeMonthsAgo)}&end_de=${fmt(today)}&page_count=${pageCount}`;
     }
 
     const response = await fetch(dartUrl, {

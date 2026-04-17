@@ -293,7 +293,8 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
     
     try {
       const searchResult = await this.callGemini('gemini-2.5-flash', searchPrompt, { 
-        tools: [{ googleSearch: {} }]
+        tools: [{ googleSearch: {} }],
+        maxOutputTokens: 8192
       });
       
       const fullText = searchResult.candidates?.[0]?.content?.parts?.[0]?.text || '';

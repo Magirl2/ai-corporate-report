@@ -44,12 +44,18 @@ export const COMMON_CORPS = {
  * 3. 기업명 정규화
  * 법인 구분어, 공백 제거 등
  */
-export function normalizeCorpName(name) {
+export function normalizeCorpName(name, preserveSpace = false) {
   if (!name) return '';
-  return name
-    .replace(/\s*(주식회사|㈜|\(주\)|그룹|홀딩스|유한회사|사단법인|재단법인|합명회사|합자회사|유한책임회사)\s*/gi, '')
-    .replace(/\s+/g, '')
-    .trim();
+  // 1. 법인 구분어 제거 시 공백으로 대체하여 단어 간 결합 방지
+  let cleaned = name.replace(/\s*(주식회사|㈜|\(주\)|그룹|홀딩스|유한회사|사단법인|재단법인|합명회사|합자회사|유한책임회사)\s*/gi, ' ');
+  
+  if (!preserveSpace) {
+    // 공백 모두 제거
+    return cleaned.replace(/\s+/g, '').trim();
+  } else {
+    // 연속된 공백을 하나로 축소하고 트림
+    return cleaned.replace(/\s+/g, ' ').trim();
+  }
 }
 
 /**
@@ -96,7 +102,8 @@ export async function resolveCorpCode(userInput, apiKey) {
   const aliasResolved = ALIAS_MAP[userInput] || ALIAS_MAP[normalizeCorpName(userInput)];
   const targetName = aliasResolved || userInput;
   
-  const normalized = normalizeCorpName(targetName);
+  const normalized = normalizeCorpName(targetName, false); // 공백 제거 버전
+  const spaced = normalizeCorpName(targetName, true);     // 공백 보존 버전
   const keyword = extractKeyword(normalized);
   const firstToken = targetName.trim().split(/\s+/)[0];
 
@@ -113,9 +120,9 @@ export async function resolveCorpCode(userInput, apiKey) {
     const today = new Date();
     const formatDate = (d) => d.toISOString().split('T')[0].replace(/-/g, '');
     
-    // 후보군 생성 (공백 제거 버전, 키워드 버전, 첫 단어 버전, 그리고 원본 트림 버전)
+    // 후보군 생성 (공백 제거 버전, 공백 보존 버전, 키워드 버전, 첫 단어 버전, 원본 트림 버전)
     const originalTrimmed = targetName.trim();
-    const candidates = [...new Set([normalized, keyword, firstToken, originalTrimmed])].filter(s => s && s.length >= 2);
+    const candidates = [...new Set([normalized, spaced, keyword, firstToken, originalTrimmed])].filter(s => s && s.length >= 2);
     
     // 최근 1년(4개 윈도우) 조회
     const windows = [0, 1, 2, 3].map(i => {
