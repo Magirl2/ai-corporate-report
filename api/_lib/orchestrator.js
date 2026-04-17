@@ -145,30 +145,44 @@ export class ServerOrchestrator {
   }
 
   /**
-   * 오케스트레이션 실행 (Ticker 식별 -> 데이터 수집 -> 핵심 분석 -> 보고서 합성)
+   * 오케스트레이션 실행 (Ticker 식별 + Deep Search -> 데이터 수집 -> 핵심 분석 -> 보고서 합성)
    * @returns {Promise<Object>} 최종 조립된 보고서 객체
    */
   async run() {
+    const startTime = Date.now();
     this.onStatusUpdate?.('심층 분석 오케스트레이션 기동');
     this.logger?.info('Orchestrator started');
 
-    // 1. Ticker 식별 (기존 API 호출 활용)
-    this.state.resolve = await this.resolveTicker();
+    // 1. 병렬 시작: Ticker 식별 및 Deep Search (Google Search)
+    // Deep Search는 Ticker와 무관하게 회사명으로 수행 가능하므로 즉시 시작
+    const searchPromise = this.collectDeepSearch();
+    const resolvePromise = this.resolveTicker();
+
+    this.state.resolve = await resolvePromise;
     this.onStatusUpdate?.(`기업 식별 완료: ${this.state.resolve.type === 'KR' ? '한국' : '미국 ' + this.state.resolve.ticker}`);
     this.logger?.info('Ticker resolved', { resolveInfo: this.state.resolve });
 
-    // 2. 데이터 수집
-    await this.collectData();
-    this.logger?.info('Data collection complete');
+    // 2. 재무 데이터 수집 (Ticker 필요)
+    await this.collectFinancialData();
+    
+    // 3. Deep Search 완료 대기
+    await searchPromise;
+    this.logger?.info('Data collection complete (Parallelized)');
 
-    // 3. 통합 구조 분석 루프 (Sisyphus Loop)
+    // 4. 통합 구조 분석 루프 (Sisyphus Loop)
     let currentIteration = 1;
-    const MAX_ITERATIONS = 2; // 타임아웃 방지를 위해 최대 2회로 제한 (초기 + 1회 교정)
+    const MAX_ITERATIONS = 2;
     let bestAnalysis = null;
     let bestScore = -1;
     let criticFeedback = "";
 
     while (currentIteration <= MAX_ITERATIONS) {
+      // 타임아웃 방지: 35초가 넘어가면 2회차 반복을 포기하고 현재까지의 결과를 사용
+      if (currentIteration > 1 && Date.now() - startTime > 35000) {
+        this.logger?.info('Time safety break: Skipping 2nd iteration to ensure report composition time');
+        break;
+      }
+
       this.state.iteration = currentIteration;
       this.onStatusUpdate?.(currentIteration === 1 ? '핵심 데이터 분석 및 통찰 추출 중...' : `분석 품질 보강 중 (반복 ${currentIteration})...`);
       
@@ -177,7 +191,7 @@ export class ServerOrchestrator {
         disclosures: this.state.raw.disclosures,
         searchBriefing: this.state.raw.searchBriefing,
         rawSearchText: this.state.raw.searchBriefing?.rawContent || "", 
-        previousFeedback: criticFeedback // 재분석 시 피드백 전달
+        previousFeedback: criticFeedback
       };
 
       const coreAnalysisRaw = await this.executeJsonAgent('core-analyst', 'gemini-2.5-flash', analysisContext, ['financial', 'strategy', 'news']);
@@ -198,12 +212,10 @@ export class ServerOrchestrator {
         bestAnalysis = currentAnalysis;
       }
 
-      // 목표 점수 도달 혹은 루프 종료
       if (score >= 85 || currentIteration >= MAX_ITERATIONS) {
         break;
       }
 
-      // 점수 부족 시 피드백 업데이트 및 루프 계속
       criticFeedback = criticResult.feedback || "전체적인 분석의 깊이를 더 보강해 주세요.";
       currentIteration++;
     }
@@ -211,7 +223,7 @@ export class ServerOrchestrator {
     this.state.analysis = bestAnalysis;
     this.state.score = bestScore;
 
-    // 4. 보고서 합성
+    // 5. 보고서 합성
     this.onStatusUpdate?.('종합 보고서 작성 중...');
     this.state.composerMarkdown = await this.executeTextAgent('composer', 'gemini-2.5-pro', {
       ...this.state.analysis,
@@ -238,7 +250,6 @@ export class ServerOrchestrator {
         path, 
         body: errorBody 
       });
-      // 에러 메시지에 응답 본문 일부 포함 (디버깅 용이성)
       throw new Error(`Internal API error (${res.status}) for ${path}: ${errorBody.substring(0, 100)}`);
     }
     return res.json();
@@ -261,47 +272,12 @@ export class ServerOrchestrator {
   }
 
   /**
-   * 지정된 기업의 외부 데이터(DART 공시, 재무, 실시간 뉴스) 수집
+   * 최신 뉴스 및 시장 동향 검색 (Google Search 활용)
    */
-  async collectData() {
-    this.onStatusUpdate?.('DART/FMP 데이터 수집 중...');
-    const { type, ticker } = this.state.resolve;
-    const sources = [];
-    
-    let disclosures = [];
-    let finance = null;
-
-    if (type === 'KR') {
-      this.logger?.info('Fetching KR data from DART', { companyName: this.companyName });
-      const [dRes, fRes] = await Promise.all([
-        this.internalFetch(`/api/data/dart?corp_name=${encodeURIComponent(this.companyName)}`)
-          .catch(err => {
-            this.logger?.warn('DART disclosures fetch failed, continuing without them', { error: err.message });
-            return { list: [] };
-          }),
-        this.internalFetch(`/api/data/dart-finance?corp_name=${encodeURIComponent(this.companyName)}`)
-          .catch(err => {
-            this.logger?.warn('DART finance fetch failed, continuing without it', { error: err.message });
-            return null;
-          })
-      ]);
-      disclosures = dRes.list?.map(d => ({ date: d.rcept_dt, title: d.report_nm })) || [];
-      finance = fRes;
-      sources.push({ title: 'DART 전자공시시스템', uri: 'https://opendart.fss.or.kr/' });
-    } else {
-      this.logger?.info('Fetching US data from FMP', { ticker });
-      finance = await this.internalFetch(`/api/data/fmp-finance?ticker=${ticker}`)
-        .catch(err => {
-          this.logger?.warn('FMP finance fetch failed, continuing without it', { error: err.message });
-          return null;
-        });
-      disclosures = [{ date: 'Current', title: `US SEC Filings for ${ticker}` }];
-      sources.push({ title: 'Financial Modeling Prep (FMP)', uri: 'https://financialmodelingprep.com/' });
-    }
-
-    // Deep Search
+  async collectDeepSearch() {
     this.onStatusUpdate?.('최신 뉴스 및 시장 동향 검색 중...');
     const today = new Date().toLocaleDateString('ko-KR');
+    // 병렬화를 위해 disclosures 의존성 제거 (웹 검색은 독립적으로 수행 가능)
     const searchPrompt = `Evaluate '${this.companyName}'. Today is ${today}.
 Output a STRICT JSON object containing:
 {
@@ -313,18 +289,17 @@ Output a STRICT JSON object containing:
   "risks": ["risk factor 1"],
   "opportunities": ["opportunity 1"]
 }
-DO NOT output markdown. Respond ONLY with valid JSON.
-Context Disclosures: ${JSON.stringify(disclosures)}`;
+DO NOT output markdown. Respond ONLY with valid JSON.`;
     
-    let searchBriefing = {};
     try {
-      const searchResult = await this.callGemini('gemini-2.5-pro', searchPrompt, { 
+      const searchResult = await this.callGemini('gemini-2.5-flash', searchPrompt, { 
         tools: [{ googleSearch: {} }]
       });
       
       const fullText = searchResult.candidates?.[0]?.content?.parts?.[0]?.text || '';
       const extracted = extractJson(fullText) || fullText;
       
+      let searchBriefing = {};
       try {
         const parsed = JSON.parse(extracted);
         searchBriefing = { ...normalizeSearchBriefing(parsed), rawContent: fullText };
@@ -333,26 +308,64 @@ Context Disclosures: ${JSON.stringify(disclosures)}`;
         searchBriefing = { ...normalizeSearchBriefing({}), rawContent: fullText };
       }
       
-      this.logger?.info('Deep Search result captured', { 
-        sourceCount: sources.length,
-        hasStructuredData: !!searchBriefing.businessModel && searchBriefing.businessModel !== '상세 정보 없음'
-      });
+      this.state.raw.searchBriefing = searchBriefing;
 
       const groundingMetadata = searchResult.candidates?.[0]?.groundingMetadata;
       if (groundingMetadata?.groundingChunks) {
         groundingMetadata.groundingChunks.forEach(chunk => {
-          if (chunk.web?.uri && !sources.some(s => s.uri === chunk.web.uri)) {
-            sources.push({ title: chunk.web.title || chunk.web.uri, uri: chunk.web.uri });
+          if (chunk.web?.uri && !this.state.raw.sources.some(s => s.uri === chunk.web.uri)) {
+            this.state.raw.sources.push({ title: chunk.web.title || chunk.web.uri, uri: chunk.web.uri });
           }
         });
       }
     } catch (e) {
-      console.error("\n\n[DEEP SEARCH PROCESS ERROR]\n", e.message || e, "\n\n");
       this.logger?.error("Search Briefing API/Process error", { error: e.message });
-      searchBriefing = { ...normalizeSearchBriefing({}), rawContent: '' };
+      this.state.raw.searchBriefing = { ...normalizeSearchBriefing({}), rawContent: '' };
     }
+  }
 
-    this.state.raw = { disclosures, finance, searchBriefing, sources };
+  /**
+   * DART/FMP 등 재무 데이터 수집
+   */
+  async collectFinancialData() {
+    this.onStatusUpdate?.('DART/FMP 데이터 수집 중...');
+    const { type, ticker } = this.state.resolve;
+    
+    if (type === 'KR') {
+      this.logger?.info('Fetching KR data from DART', { companyName: this.companyName });
+      const [dRes, fRes] = await Promise.all([
+        this.internalFetch(`/api/data/dart?corp_name=${encodeURIComponent(this.companyName)}`)
+          .catch(err => {
+            this.logger?.warn('DART disclosures fetch failed', { error: err.message });
+            return { list: [] };
+          }),
+        this.internalFetch(`/api/data/dart-finance?corp_name=${encodeURIComponent(this.companyName)}`)
+          .catch(err => {
+            this.logger?.warn('DART finance fetch failed', { error: err.message });
+            return null;
+          })
+      ]);
+      this.state.raw.disclosures = dRes.list?.map(d => ({ date: d.rcept_dt, title: d.report_nm })) || [];
+      this.state.raw.finance = fRes;
+      this.state.raw.sources.push({ title: 'DART 전자공시시스템', uri: 'https://opendart.fss.or.kr/' });
+    } else {
+      this.logger?.info('Fetching US data from FMP', { ticker });
+      this.state.raw.finance = await this.internalFetch(`/api/data/fmp-finance?ticker=${ticker}`)
+        .catch(err => {
+          this.logger?.warn('FMP finance fetch failed', { error: err.message });
+          return null;
+        });
+      this.state.raw.disclosures = [{ date: 'Current', title: `US SEC Filings for ${ticker}` }];
+      this.state.raw.sources.push({ title: 'Financial Modeling Prep (FMP)', uri: 'https://financialmodelingprep.com/' });
+    }
+  }
+
+  /**
+   * 지정된 기업의 외부 데이터 수집 (레거시 유지용)
+   */
+  async collectData() {
+    await this.collectFinancialData();
+    await this.collectDeepSearch();
   }
 
   async executeJsonAgent(agentName, model, context = {}, wantedTopKeys = []) {
@@ -365,7 +378,8 @@ Context Disclosures: ${JSON.stringify(disclosures)}`;
     try {
       result = await this.callGemini(model, prompt, { 
         temperature: 0.2, 
-        responseMimeType: 'application/json' 
+        responseMimeType: 'application/json',
+        maxOutputTokens: 8192 
       });
       text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
       extracted = extractJson(text) || text;
@@ -449,9 +463,9 @@ Context Disclosures: ${JSON.stringify(disclosures)}`;
       if (res.status === 503 || res.status === 429) {
         retries--;
         if (retries === 0) break;
-        this.logger?.warn(`API ${res.status} error. Retrying in 2s... (${retries} attempts left)`);
+        this.logger?.warn(`API ${res.status} error. Retrying in 1s... (${retries} attempts left)`);
         console.warn(`[RETRYING] Gemini API ${res.status} for ${model}. Attempts left: ${retries}`);
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 1000));
       } else {
         break; // 400, 401, 404 등은 즉시 중단
       }
