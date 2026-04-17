@@ -148,93 +148,196 @@ export class ServerOrchestrator {
       iteration: 0,
       score: 0
     };
+    this.startTime = 0;
   }
 
   /**
-   * 내부 엔진 단계를 측정하고 상태를 기록합니다.
+   * 내부 엔진 단계를 측정하고 상태를 기록하며 표준 결과 봉투를 반환합니다.
    */
   async measureStage(stageName, fn) {
     const stage = {
       status: 'running',
       startTime: Date.now(),
       durationMs: 0,
-      error: null
+      error: null,
+      warnings: []
     };
     this.metadata.stagedEngines[stageName] = stage;
     this.logger?.info(`Engine stage started: ${stageName}`);
 
     try {
+      // 엔진 함수 호출 (결과는 { ok, data, error, warnings } 형태를 기대)
       const result = await fn();
-      stage.status = 'completed';
+      
+      stage.status = result.ok ? 'completed' : 'failed';
+      stage.error = result.error || null;
+      stage.warnings = result.warnings || [];
+      
+      if (!result.ok) {
+        this.logger?.warn(`Engine stage completed with error: ${stageName}`, { error: result.error });
+      } else {
+        this.logger?.info(`Engine stage completed successfully: ${stageName}`);
+      }
+      
       return result;
     } catch (err) {
       stage.status = 'failed';
       stage.error = err.message;
-      this.logger?.error(`Engine stage failed: ${stageName}`, { error: err.message });
-      // 특정 단계 실패가 전체 중단을 의미하지는 않도록 전략적으로 판단 가능
-      // 여기서는 에러를 던져서 상위 run() 에서 처리하게 하거나, 부분 성공으로 유지
-      throw err; 
+      this.logger?.error(`Engine stage failed with exception: ${stageName}`, { error: err.message });
+      return { ok: false, error: err.message, data: null };
     } finally {
       stage.durationMs = Date.now() - stage.startTime;
     }
   }
 
+  getRemainingBudget() {
+    const elapsed = Date.now() - this.startTime;
+    return Math.max(0, 58000 - elapsed); // 60초 제한에서 2초 여유
+  }
+
   /**
-   * 오케스트레이션 실행 (Ticker 식별 + Deep Search -> 데이터 수집 -> 핵심 분석 -> 보고서 합성)
+   * 오케스트레이션 실행 (Ticker 식별 -> 데이터/검색 -> 분석 -> 합성)
    * @returns {Promise<Object>} 최종 조립된 보고서 객체
    */
   async run() {
-    const globalStart = Date.now();
+    this.startTime = Date.now();
     this.onStatusUpdate?.('심층 분석 오케스트레이션 기동');
     this.logger?.info('Orchestrator started');
 
-    try {
-      // 1. Resolve Stage: 기업 식별
-      await this.measureStage('resolve', () => this.engineResolve());
-
-      // 2. Data & Search Stages (Parallelized)
-      await Promise.all([
-        this.measureStage('data', () => this.engineData()),
-        this.measureStage('search', () => this.engineSearch())
-      ]);
-
-      // 3. Analyze Stage: 심층 분석 (Sisyphus Loop)
-      await this.measureStage('analyze', (context) => this.engineAnalyze(globalStart));
-
-      // 4. Compose Stage: 보고서 합성
-      await this.measureStage('compose', () => this.engineCompose());
-
-    } catch (err) {
-      this.logger?.error('Orchestration interrupted', { error: err.message });
-      // 치명적 에러가 아닌 경우 최대한 assembleFinalReport()까지 진행 시도
-    } finally {
-      this.metadata.totalDurationMs = Date.now() - globalStart;
+    // 1. Resolve Stage
+    const resolveRes = await this.measureStage('resolve', () => this.engineResolve(this.companyName));
+    if (resolveRes.ok) {
+      this.state.resolve = resolveRes.data;
+    } else {
+      // 기본값 설정 (KR 시도)
+      this.state.resolve = { type: 'KR', ticker: null };
     }
 
+    // 2. Data & Search (Parallel)
+    const [dataRes, searchRes] = await Promise.all([
+      this.measureStage('data', () => this.engineData(this.state.resolve, this.companyName)),
+      this.measureStage('search', () => this.engineSearch(this.companyName, this.state.resolve))
+    ]);
+
+    if (dataRes.ok) {
+      this.state.raw.disclosures = dataRes.data.disclosures;
+      this.state.raw.finance = dataRes.data.finance;
+    }
+    if (searchRes.ok) {
+      this.state.raw.searchBriefing = searchRes.data.searchBriefing;
+    }
+
+    // 3. Analyze Stage
+    const analyzeRes = await this.measureStage('analyze', () => this.engineAnalyze(this.startTime));
+    if (analyzeRes.ok) {
+      this.state.analysis = analyzeRes.data.analysis;
+      this.state.score = analyzeRes.data.score;
+      this.state.iteration = analyzeRes.data.iteration;
+    }
+
+    // 4. Compose Stage
+    const composeRes = await this.measureStage('compose', () => this.engineCompose());
+    if (composeRes.ok) {
+      this.state.composerMarkdown = composeRes.data;
+    }
+
+    this.metadata.totalDurationMs = Date.now() - this.startTime;
     return this.assembleFinalReport();
   }
 
   /**
    * STAGE 1: 기업 식별 (Resolve)
    */
-  async engineResolve() {
-    this.state.resolve = await this.resolveTicker();
-    this.onStatusUpdate?.(`기업 식별 완료: ${this.state.resolve.type === 'KR' ? '한국' : '미국 ' + this.state.resolve.ticker}`);
-    return this.state.resolve;
+  async engineResolve(companyName) {
+    try {
+      const resolveInfo = await this.resolveTicker();
+      this.onStatusUpdate?.(`기업 식별 완료: ${resolveInfo.type === 'KR' ? '한국' : '미국 ' + resolveInfo.ticker}`);
+      return { ok: true, data: resolveInfo };
+    } catch (err) {
+      return { ok: false, error: err.message, data: { type: 'KR', ticker: null } };
+    }
   }
 
   /**
    * STAGE 2: 데이터 수집 (Data)
    */
-  async engineData() {
-    await this.collectFinancialData();
+  async engineData(identity, companyName) {
+    const result = { disclosures: [], finance: null };
+    const warnings = [];
+    
+    this.onStatusUpdate?.('DART/FMP 데이터 수집 중...');
+    const { type, ticker } = identity;
+    
+    try {
+      if (type === 'KR') {
+        const safeCorpName = encodeURIComponent(companyName.replace(/\s+/g, ''));
+        const [dRes, fRes] = await Promise.all([
+          this.internalFetch(`/api/data/dart?corp_name=${safeCorpName}`).catch(e => { warnings.push(`DART disclosures error: ${e.message}`); return { list: [] }; }),
+          this.internalFetch(`/api/data/dart-finance?corp_name=${safeCorpName}`).catch(e => { warnings.push(`DART finance error: ${e.message}`); return null; })
+        ]);
+        result.disclosures = dRes.list?.map(d => ({ date: d.rcept_dt, title: d.report_nm })) || [];
+        result.finance = fRes;
+        this.state.raw.sources.push({ title: 'DART 전자공시시스템', uri: 'https://opendart.fss.or.kr/' });
+      } else {
+        result.finance = await this.internalFetch(`/api/data/fmp-finance?ticker=${ticker}`).catch(e => { warnings.push(`FMP error: ${e.message}`); return null; });
+        result.disclosures = [{ date: 'Current', title: `US SEC Filings for ${ticker}` }];
+        this.state.raw.sources.push({ title: 'Financial Modeling Prep (FMP)', uri: 'https://financialmodelingprep.com/' });
+      }
+      return { ok: true, data: result, warnings };
+    } catch (err) {
+      return { ok: false, error: err.message, data: result, warnings };
+    }
   }
 
   /**
    * STAGE 3: 웹 검색 (Search)
    */
-  async engineSearch() {
-    await this.collectDeepSearch();
+  async engineSearch(companyName, identity) {
+    this.onStatusUpdate?.('최신 뉴스 및 시장 동향 검색 중...');
+    const today = new Date().toLocaleDateString('ko-KR');
+    const searchPrompt = `Evaluate '${companyName}'. Today is ${today}. identity: ${JSON.stringify(identity)}.
+Output a STRICT JSON object containing:
+{
+  "companyIdentity": "Brief business area and vision",
+  "marketContext": "Current industry and market trends",
+  "businessModel": "How it creates value",
+  "newsFindings": ["recent news headline 1", "recent news headline 2"],
+  "sentiment": "Positive/Neutral/Negative",
+  "risks": ["risk factor 1"],
+  "opportunities": ["opportunity 1"]
+}
+DO NOT output markdown. Respond ONLY with valid JSON.`;
+    
+    try {
+      const searchResult = await this.callGemini('gemini-2.5-flash', searchPrompt, { 
+        tools: [{ googleSearch: {} }],
+        maxOutputTokens: 8192
+      });
+      
+      const fullText = searchResult.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      const extracted = extractJson(fullText) || fullText;
+      
+      let searchBriefing = {};
+      try {
+        const parsed = JSON.parse(extracted);
+        searchBriefing = { ...normalizeSearchBriefing(parsed), rawContent: fullText };
+      } catch (parseErr) {
+        searchBriefing = { ...normalizeSearchBriefing({}), rawContent: fullText };
+      }
+      
+      const groundingMetadata = searchResult.candidates?.[0]?.groundingMetadata;
+      if (groundingMetadata?.groundingChunks) {
+        groundingMetadata.groundingChunks.forEach(chunk => {
+          if (chunk.web?.uri && !this.state.raw.sources.some(s => s.uri === chunk.web.uri)) {
+            this.state.raw.sources.push({ title: chunk.web.title || chunk.web.uri, uri: chunk.web.uri });
+          }
+        });
+      }
+      
+      return { ok: true, data: { searchBriefing } };
+    } catch (e) {
+      return { ok: false, error: e.message, data: { searchBriefing: normalizeSearchBriefing({}) } };
+    }
   }
 
   /**
@@ -248,13 +351,12 @@ export class ServerOrchestrator {
     let criticFeedback = "";
 
     while (currentIteration <= MAX_ITERATIONS) {
-      // 타임아웃 방지: 35초가 넘어가면 2회차 반복을 포기
+      // 타임아웃 방지: 35초(global elapsed)가 넘어가면 2회차 반복을 포기
       if (currentIteration > 1 && Date.now() - startTime > 35000) {
         this.logger?.info('Time safety break: Skipping 2nd iteration');
         break;
       }
 
-      this.state.iteration = currentIteration;
       this.onStatusUpdate?.(currentIteration === 1 ? '핵심 데이터 분석 및 통찰 추출 중...' : `분석 품질 보강 중 (반복 ${currentIteration})...`);
       
       const analysisContext = { 
@@ -275,7 +377,6 @@ export class ServerOrchestrator {
       }, ['score', 'decision']);
 
       const score = criticResult.score || 0;
-      this.state.score = score;
 
       if (score > bestScore) {
         bestScore = score;
@@ -290,8 +391,7 @@ export class ServerOrchestrator {
       currentIteration++;
     }
 
-    this.state.analysis = bestAnalysis;
-    this.state.score = bestScore;
+    return { ok: true, data: { analysis: bestAnalysis, score: bestScore, iteration: currentIteration } };
   }
 
   /**
@@ -299,13 +399,14 @@ export class ServerOrchestrator {
    */
   async engineCompose() {
     this.onStatusUpdate?.('종합 보고서 작성 중...');
-    this.state.composerMarkdown = await this.executeTextAgent('composer', 'gemini-2.5-pro', {
+    const result = await this.executeTextAgent('composer', 'gemini-2.5-pro', {
       ...this.state.analysis,
       companyName: this.companyName,
       rawSearchText: this.state.raw.searchBriefing?.rawContent || "", 
       financeData: this.state.raw.finance,
       disclosures: this.state.raw.disclosures
     });
+    return { ok: true, data: result };
   }
 
   // --- Helpers ---
