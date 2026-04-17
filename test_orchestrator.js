@@ -24,6 +24,7 @@ async function testCompany(name) {
     console.log(`Macro Trend Summary:`, report.report.macroTrend?.summary);
     console.log(`Number of News items:`, report.report.recentNews?.length);
     console.log(`Search Briefing output keys:`, Object.keys(orchestrator.state.raw.searchBriefing));
+    console.log(`Staged Engines Metadata:`, JSON.stringify(report.metadata?.stagedEngines, null, 2));
     console.log(`Errors:`, report.debug.agentErrors);
     console.log(`\n`);
   } catch (err) {

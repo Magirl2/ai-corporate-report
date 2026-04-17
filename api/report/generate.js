@@ -87,7 +87,9 @@ export default async function handler(req, res) {
       sendUpdate({ type: 'status', data: { message: status } });
     }, baseUrl, logger);
 
+    logger.info('Starting staged orchestration engines');
     const finalReport = await orchestrator.run();
+    logger.info('Orchestration completed successfully', { totalDurationMs: finalReport.metadata?.totalDurationMs });
 
     // 5. 사용량 차감 (성공 시에만)
     await incrementUserUsage(user.email);

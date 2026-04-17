@@ -136,12 +136,47 @@ export class ServerOrchestrator {
     this.logger = logger;
     this.promptsMap = loadAgentPrompts();
     this._agentErrors = [];
+    this.metadata = {
+      stagedEngines: {},
+      totalDurationMs: 0
+    };
     this.state = {
       resolve: null,
       raw: { disclosures: [], finance: null, searchBriefing: {}, sources: [] },
       analysis: { financial: null, news: null, strategy: null },
       composerMarkdown: '',
+      iteration: 0,
+      score: 0
     };
+  }
+
+  /**
+   * 내부 엔진 단계를 측정하고 상태를 기록합니다.
+   */
+  async measureStage(stageName, fn) {
+    const stage = {
+      status: 'running',
+      startTime: Date.now(),
+      durationMs: 0,
+      error: null
+    };
+    this.metadata.stagedEngines[stageName] = stage;
+    this.logger?.info(`Engine stage started: ${stageName}`);
+
+    try {
+      const result = await fn();
+      stage.status = 'completed';
+      return result;
+    } catch (err) {
+      stage.status = 'failed';
+      stage.error = err.message;
+      this.logger?.error(`Engine stage failed: ${stageName}`, { error: err.message });
+      // 특정 단계 실패가 전체 중단을 의미하지는 않도록 전략적으로 판단 가능
+      // 여기서는 에러를 던져서 상위 run() 에서 처리하게 하거나, 부분 성공으로 유지
+      throw err; 
+    } finally {
+      stage.durationMs = Date.now() - stage.startTime;
+    }
   }
 
   /**
@@ -149,27 +184,63 @@ export class ServerOrchestrator {
    * @returns {Promise<Object>} 최종 조립된 보고서 객체
    */
   async run() {
-    const startTime = Date.now();
+    const globalStart = Date.now();
     this.onStatusUpdate?.('심층 분석 오케스트레이션 기동');
     this.logger?.info('Orchestrator started');
 
-    // 1. 병렬 시작: Ticker 식별 및 Deep Search (Google Search)
-    // Deep Search는 Ticker와 무관하게 회사명으로 수행 가능하므로 즉시 시작
-    const searchPromise = this.collectDeepSearch();
-    const resolvePromise = this.resolveTicker();
+    try {
+      // 1. Resolve Stage: 기업 식별
+      await this.measureStage('resolve', () => this.engineResolve());
 
-    this.state.resolve = await resolvePromise;
+      // 2. Data & Search Stages (Parallelized)
+      await Promise.all([
+        this.measureStage('data', () => this.engineData()),
+        this.measureStage('search', () => this.engineSearch())
+      ]);
+
+      // 3. Analyze Stage: 심층 분석 (Sisyphus Loop)
+      await this.measureStage('analyze', (context) => this.engineAnalyze(globalStart));
+
+      // 4. Compose Stage: 보고서 합성
+      await this.measureStage('compose', () => this.engineCompose());
+
+    } catch (err) {
+      this.logger?.error('Orchestration interrupted', { error: err.message });
+      // 치명적 에러가 아닌 경우 최대한 assembleFinalReport()까지 진행 시도
+    } finally {
+      this.metadata.totalDurationMs = Date.now() - globalStart;
+    }
+
+    return this.assembleFinalReport();
+  }
+
+  /**
+   * STAGE 1: 기업 식별 (Resolve)
+   */
+  async engineResolve() {
+    this.state.resolve = await this.resolveTicker();
     this.onStatusUpdate?.(`기업 식별 완료: ${this.state.resolve.type === 'KR' ? '한국' : '미국 ' + this.state.resolve.ticker}`);
-    this.logger?.info('Ticker resolved', { resolveInfo: this.state.resolve });
+    return this.state.resolve;
+  }
 
-    // 2. 재무 데이터 수집 (Ticker 필요)
+  /**
+   * STAGE 2: 데이터 수집 (Data)
+   */
+  async engineData() {
     await this.collectFinancialData();
-    
-    // 3. Deep Search 완료 대기
-    await searchPromise;
-    this.logger?.info('Data collection complete (Parallelized)');
+  }
 
-    // 4. 통합 구조 분석 루프 (Sisyphus Loop)
+  /**
+   * STAGE 3: 웹 검색 (Search)
+   */
+  async engineSearch() {
+    await this.collectDeepSearch();
+  }
+
+  /**
+   * STAGE 4: 분석 (Analyze)
+   */
+  async engineAnalyze(startTime) {
     let currentIteration = 1;
     const MAX_ITERATIONS = 2;
     let bestAnalysis = null;
@@ -177,9 +248,9 @@ export class ServerOrchestrator {
     let criticFeedback = "";
 
     while (currentIteration <= MAX_ITERATIONS) {
-      // 타임아웃 방지: 35초가 넘어가면 2회차 반복을 포기하고 현재까지의 결과를 사용
+      // 타임아웃 방지: 35초가 넘어가면 2회차 반복을 포기
       if (currentIteration > 1 && Date.now() - startTime > 35000) {
-        this.logger?.info('Time safety break: Skipping 2nd iteration to ensure report composition time');
+        this.logger?.info('Time safety break: Skipping 2nd iteration');
         break;
       }
 
@@ -205,7 +276,6 @@ export class ServerOrchestrator {
 
       const score = criticResult.score || 0;
       this.state.score = score;
-      this.logger?.info('Critic score received', { iteration: currentIteration, score, decision: criticResult.decision });
 
       if (score > bestScore) {
         bestScore = score;
@@ -222,8 +292,12 @@ export class ServerOrchestrator {
 
     this.state.analysis = bestAnalysis;
     this.state.score = bestScore;
+  }
 
-    // 5. 보고서 합성
+  /**
+   * STAGE 5: 합성 (Compose)
+   */
+  async engineCompose() {
     this.onStatusUpdate?.('종합 보고서 작성 중...');
     this.state.composerMarkdown = await this.executeTextAgent('composer', 'gemini-2.5-pro', {
       ...this.state.analysis,
@@ -232,8 +306,6 @@ export class ServerOrchestrator {
       financeData: this.state.raw.finance,
       disclosures: this.state.raw.disclosures
     });
-
-    return this.assembleFinalReport();
   }
 
   // --- Helpers ---
@@ -528,6 +600,7 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
       financeData: raw.finance,
       score: this.state.score,
       iteration: this.state.iteration,
+      metadata: this.metadata, // 스테이지 메타데이터 포함
       debug: { agentErrors: this._agentErrors },
     };
   }
