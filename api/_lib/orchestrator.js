@@ -334,13 +334,14 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
     
     if (type === 'KR') {
       this.logger?.info('Fetching KR data from DART', { companyName: this.companyName });
+      const safeCorpName = encodeURIComponent(this.companyName.replace(/\s+/g, '')); // RESTORED
       const [dRes, fRes] = await Promise.all([
-        this.internalFetch(`/api/data/dart?corp_name=${encodeURIComponent(this.companyName)}`)
+        this.internalFetch(`/api/data/dart?corp_name=${safeCorpName}`)
           .catch(err => {
             this.logger?.warn('DART disclosures fetch failed', { error: err.message });
             return { list: [] };
           }),
-        this.internalFetch(`/api/data/dart-finance?corp_name=${encodeURIComponent(this.companyName)}`)
+        this.internalFetch(`/api/data/dart-finance?corp_name=${safeCorpName}`)
           .catch(err => {
             this.logger?.warn('DART finance fetch failed', { error: err.message });
             return null;
@@ -429,30 +430,30 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
 
   async callGemini(model, prompt, config = {}) {
     const apiKey = process.env.GEMINI_API_KEY;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-    
-    // Gemini REST API 규격에 맞춰 페이로드 구조를 재구성합니다.
-    const body = {
-      contents: [{ parts: [{ text: prompt }] }]
-    };
-
-    if (config.tools) {
-      body.tools = config.tools;
-    }
-
-    const generationConfig = {
-      temperature: config.temperature ?? 0.2,
-      topP: 0.95,
-      topK: 40,
-      maxOutputTokens: config.maxOutputTokens ?? 2048,
-    };
-    if (config.responseMimeType) generationConfig.responseMimeType = config.responseMimeType;
-    
-    body.generationConfig = generationConfig;
-
     let retries = 3;
     let res;
     while (retries > 0) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      
+      // Gemini REST API 규격에 맞춰 페이로드 구조를 재구성합니다.
+      const body = {
+        contents: [{ parts: [{ text: prompt }] }]
+      };
+
+      if (config.tools) {
+        body.tools = config.tools;
+      }
+
+      const generationConfig = {
+        temperature: config.temperature ?? 0.2,
+        topP: 0.95,
+        topK: 40,
+        maxOutputTokens: config.maxOutputTokens ?? 2048,
+      };
+      if (config.responseMimeType) generationConfig.responseMimeType = config.responseMimeType;
+      
+      body.generationConfig = generationConfig;
+
       res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -463,10 +464,23 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
 
       if (res.status === 503 || res.status === 429) {
         retries--;
-        if (retries === 0) break;
-        this.logger?.warn(`API ${res.status} error. Retrying in 1s... (${retries} attempts left)`);
-        console.warn(`[RETRYING] Gemini API ${res.status} for ${model}. Attempts left: ${retries}`);
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        if (retries === 0) {
+          if (model === 'gemini-2.5-flash') {
+            this.logger?.warn(`Falling back from 2.5-flash to 2.0-flash.`);
+            model = 'gemini-2.0-flash';
+            retries = 1;
+            // URL 업데이트가 필요하므로 루프 계속
+          } else if (model === 'gemini-2.5-pro') {
+            this.logger?.warn(`Falling back from 2.5-pro to 1.5-pro.`);
+            model = 'gemini-1.5-pro';
+            retries = 1;
+          } else {
+             break;
+          }
+        } else {
+          this.logger?.warn(`API ${res.status} error. Retrying in 1s... (${retries} attempts left)`);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
       } else {
         break; // 400, 401, 404 등은 즉시 중단
       }

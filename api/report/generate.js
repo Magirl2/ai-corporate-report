@@ -39,7 +39,7 @@ export default async function handler(req, res) {
     return res.status(403).json(createErrorResponse(ErrorCategory.USAGE, 'QUOTA_EXCEEDED', '무료 분석 한도를 모두 사용했습니다. 플랜을 업그레이드하세요.', logger.reqId, false));
   }
 
-  const { companyName } = req.body;
+  const { companyName, forceRefresh } = req.body;
   if (!companyName) {
     logger.warn('Missing companyName');
     return res.status(400).json(createErrorResponse(ErrorCategory.VALIDATION, 'BAD_REQUEST', '기업명이 필요합니다.', logger.reqId, false));
@@ -58,18 +58,22 @@ export default async function handler(req, res) {
 
   try {
     // 3.5 캐시 히트 검사 (Single-Report 전용)
-    const cachedResult = await getCachedReport(companyName);
-    if (cachedResult) {
-      logger.info('Cache hit', { companyName, stage: 'cache_check' });
-      sendUpdate({ type: 'status', data: { message: '최근 생성된 캐시 보고서를 불러오는 중...' }});
-      
-      // 캐시 히트라도 과금/사용량 차감 등 비즈니스 제약은 정상적으로 적용
-      await incrementUserUsage(user.email);
-      
-      sendUpdate({ type: 'success', data: cachedResult });
-      res.end();
-      logger.info('Generate report success (cached)', { companyName });
-      return;
+    if (!forceRefresh) {
+      const cachedResult = await getCachedReport(companyName);
+      if (cachedResult) {
+        logger.info('Cache hit', { companyName, stage: 'cache_check' });
+        sendUpdate({ type: 'status', data: { message: '최근 생성된 캐시 보고서를 불러오는 중...' }});
+        
+        // 캐시 히트라도 과금/사용량 차감 등 비즈니스 제약은 정상적으로 적용
+        await incrementUserUsage(user.email);
+        
+        sendUpdate({ type: 'success', data: cachedResult });
+        res.end();
+        logger.info('Generate report success (cached)', { companyName });
+        return;
+      }
+    } else {
+      logger.info('Force refresh requested, bypassing cache', { companyName });
     }
 
     logger.info('Cache miss, starting orchestrator', { companyName, stage: 'orchestration' });
