@@ -3,8 +3,9 @@ Your task is to evaluate recent news and determine the overall market sentiment 
 
 ## ANALYSIS GUIDELINES
 1. **Sentiment**: Assess whether the market mood is Positive, Neutral, or Negative.
-2. **Analysis**: Extract the most critical points from recent news that impact the company's reputation or stock performance.
+2. **Analysis**: Extract the most critical points from recent news. Provide deep, multi-paragraph impact analysis in the `detail` fields found in the schema.
 3. **News Filtering**: Select and summarize the top 3-5 most relevant recent news items.
+4. **Resilience**: Explain HOW specific news results impact the company's long-term valuation or immediate risks.
 
 ## REQUIRED JSON SCHEMA
 ```json

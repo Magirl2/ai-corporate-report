@@ -4,6 +4,20 @@ import { loadAgentPrompts } from './prompts.js';
 const DEBUG = process.env.NODE_ENV !== 'production';
 
 /**
+ * 엔진 스테이지별 독립 실행 예산 (Timeout) 정의
+ */
+const STAGE_TIMEOUTS = {
+  resolve: 15000,
+  data: 15000,
+  search: 40000,
+  analyze: 50000,
+  'analyze-financial': 45000,
+  'analyze-strategy': 45000,
+  'analyze-news': 45000,
+  compose: 35000
+};
+
+/**
  * 텍스트에서 JSON 블록을 추출합니다.
  */
 function extractJson(text) {
@@ -153,8 +167,13 @@ export class ServerOrchestrator {
 
   /**
    * 내부 엔진 단계를 측정하고 상태를 기록하며 표준 결과 봉투를 반환합니다.
+   * 각 스테이지는 독립적인 Timeout 예산을 가집니다.
    */
   async measureStage(stageName, fn) {
+    const controller = new AbortController();
+    const signal = controller.signal;
+    const timeoutMs = STAGE_TIMEOUTS[stageName] || 30000;
+
     const stage = {
       status: 'running',
       startTime: Date.now(),
@@ -163,11 +182,20 @@ export class ServerOrchestrator {
       warnings: []
     };
     this.metadata.stagedEngines[stageName] = stage;
-    this.logger?.info(`Engine stage started: ${stageName}`);
+    this.logger?.info(`Engine stage started: ${stageName} (Budget: ${timeoutMs}ms)`);
+
+    const timeoutPromise = new Promise((_, reject) => {
+      const timer = setTimeout(() => {
+        controller.abort();
+        reject(new Error(`Timeout: ${stageName} stage exceeded ${timeoutMs}ms`));
+      }, timeoutMs);
+      signal.addEventListener('abort', () => clearTimeout(timer));
+    });
 
     try {
-      // 엔진 함수 호출 (결과는 { ok, data, error, warnings } 형태를 기대)
-      const result = await fn();
+      // 엔진 함수 호출 (AbortSignal 전달)
+      const executionPromise = fn(signal);
+      const result = await Promise.race([executionPromise, timeoutPromise]);
       
       stage.status = result.ok ? 'completed' : 'failed';
       stage.error = result.error || null;
@@ -181,42 +209,39 @@ export class ServerOrchestrator {
       
       return result;
     } catch (err) {
-      stage.status = 'failed';
+      const isTimeout = err.message.includes('exceeded') || err.name === 'AbortError';
+      stage.status = isTimeout ? 'timeout' : 'failed';
       stage.error = err.message;
-      this.logger?.error(`Engine stage failed with exception: ${stageName}`, { error: err.message });
-      return { ok: false, error: err.message, data: null };
+      this.logger?.error(`Engine stage stopped: ${stageName}`, { error: err.message, type: stage.status });
+      
+      return { 
+        ok: false, 
+        error: err.message, 
+        data: null, 
+        isTimeout 
+      };
     } finally {
       stage.durationMs = Date.now() - stage.startTime;
+      controller.abort(); // 실행이 이미 완료되었더라도 정리
     }
   }
 
-  getRemainingBudget() {
-    const elapsed = Date.now() - this.startTime;
-    return Math.max(0, 58000 - elapsed); // 60초 제한에서 2초 여유
-  }
+  // getRemainingBudget() 제거됨 (최고 품질을 위해 독립 예산 체제로 전환)
 
-  /**
-   * 오케스트레이션 실행 (Ticker 식별 -> 데이터/검색 -> 분석 -> 합성)
-   * @returns {Promise<Object>} 최종 조립된 보고서 객체
-   */
   async run() {
     this.startTime = Date.now();
     this.onStatusUpdate?.('심층 분석 오케스트레이션 기동');
     this.logger?.info('Orchestrator started');
 
-    // 1. Resolve Stage
-    const resolveRes = await this.measureStage('resolve', () => this.engineResolve(this.companyName));
-    if (resolveRes.ok) {
-      this.state.resolve = resolveRes.data;
-    } else {
-      // 기본값 설정 (KR 시도)
-      this.state.resolve = { type: 'KR', ticker: null };
-    }
+    // 1. Resolve Stage (Independent budget)
+    const resolveRes = await this.measureStage('resolve', (sig) => this.engineResolve(this.companyName, sig));
+    this.state.resolve = resolveRes.ok ? resolveRes.data : { type: 'KR', ticker: null };
 
-    // 2. Data & Search (Parallel)
+    // 2. Data & Search (Parallel, Independent budgets)
+    // searchBriefing이 생성되어야 분석을 시작할 수 있음 (선후 관계 보존)
     const [dataRes, searchRes] = await Promise.all([
-      this.measureStage('data', () => this.engineData(this.state.resolve, this.companyName)),
-      this.measureStage('search', () => this.engineSearch(this.companyName, this.state.resolve))
+      this.measureStage('data', (sig) => this.engineData(this.state.resolve, this.companyName, sig)),
+      this.measureStage('search', (sig) => this.engineSearch(this.companyName, this.state.resolve, sig))
     ]);
 
     if (dataRes.ok) {
@@ -227,16 +252,17 @@ export class ServerOrchestrator {
       this.state.raw.searchBriefing = searchRes.data.searchBriefing;
     }
 
-    // 3. Analyze Stage
-    const analyzeRes = await this.measureStage('analyze', () => this.engineAnalyze(this.startTime));
+    // 3. Analyze Stage (Output engines run in parallel with independent budgets)
+    // upstream(search) 지연과 상관없이 각 엔진은 STAGE_TIMEOUTS에 정의된 예산을 풀로 사용함
+    const analyzeRes = await this.measureStage('analyze', (sig) => this.engineAnalyze(sig));
     if (analyzeRes.ok) {
       this.state.analysis = analyzeRes.data.analysis;
       this.state.score = analyzeRes.data.score;
       this.state.iteration = analyzeRes.data.iteration;
     }
 
-    // 4. Compose Stage
-    const composeRes = await this.measureStage('compose', () => this.engineCompose());
+    // 4. Summarize/Compose Stage (Produces a concise Executive Summary)
+    const composeRes = await this.measureStage('compose', (sig) => this.engineCompose(sig));
     if (composeRes.ok) {
       this.state.composerMarkdown = composeRes.data;
     }
@@ -248,9 +274,9 @@ export class ServerOrchestrator {
   /**
    * STAGE 1: 기업 식별 (Resolve)
    */
-  async engineResolve(companyName) {
+  async engineResolve(companyName, signal) {
     try {
-      const resolveInfo = await this.resolveTicker();
+      const resolveInfo = await this.resolveTicker(signal);
       this.onStatusUpdate?.(`기업 식별 완료: ${resolveInfo.type === 'KR' ? '한국' : '미국 ' + resolveInfo.ticker}`);
       return { ok: true, data: resolveInfo };
     } catch (err) {
@@ -261,7 +287,7 @@ export class ServerOrchestrator {
   /**
    * STAGE 2: 데이터 수집 (Data)
    */
-  async engineData(identity, companyName) {
+  async engineData(identity, companyName, signal) {
     const result = { disclosures: [], finance: null };
     const warnings = [];
     
@@ -272,14 +298,14 @@ export class ServerOrchestrator {
       if (type === 'KR') {
         const safeCorpName = encodeURIComponent(companyName.replace(/\s+/g, ''));
         const [dRes, fRes] = await Promise.all([
-          this.internalFetch(`/api/data/dart?corp_name=${safeCorpName}`).catch(e => { warnings.push(`DART disclosures error: ${e.message}`); return { list: [] }; }),
-          this.internalFetch(`/api/data/dart-finance?corp_name=${safeCorpName}`).catch(e => { warnings.push(`DART finance error: ${e.message}`); return null; })
+          this.internalFetch(`/api/data/dart?corp_name=${safeCorpName}`, { signal }).catch(e => { warnings.push(`DART disclosures error: ${e.message}`); return { list: [] }; }),
+          this.internalFetch(`/api/data/dart-finance?corp_name=${safeCorpName}`, { signal }).catch(e => { warnings.push(`DART finance error: ${e.message}`); return null; })
         ]);
         result.disclosures = dRes.list?.map(d => ({ date: d.rcept_dt, title: d.report_nm })) || [];
         result.finance = fRes;
         this.state.raw.sources.push({ title: 'DART 전자공시시스템', uri: 'https://opendart.fss.or.kr/' });
       } else {
-        result.finance = await this.internalFetch(`/api/data/fmp-finance?ticker=${ticker}`).catch(e => { warnings.push(`FMP error: ${e.message}`); return null; });
+        result.finance = await this.internalFetch(`/api/data/fmp-finance?ticker=${ticker}`, { signal }).catch(e => { warnings.push(`FMP error: ${e.message}`); return null; });
         result.disclosures = [{ date: 'Current', title: `US SEC Filings for ${ticker}` }];
         this.state.raw.sources.push({ title: 'Financial Modeling Prep (FMP)', uri: 'https://financialmodelingprep.com/' });
       }
@@ -292,7 +318,7 @@ export class ServerOrchestrator {
   /**
    * STAGE 3: 웹 검색 (Search)
    */
-  async engineSearch(companyName, identity) {
+  async engineSearch(companyName, identity, signal) {
     this.onStatusUpdate?.('최신 뉴스 및 시장 동향 검색 중...');
     const today = new Date().toLocaleDateString('ko-KR');
     const searchPrompt = `Evaluate '${companyName}'. Today is ${today}. identity: ${JSON.stringify(identity)}.
@@ -311,7 +337,8 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
     try {
       const searchResult = await this.callGemini('gemini-2.5-flash', searchPrompt, { 
         tools: [{ googleSearch: {} }],
-        maxOutputTokens: 8192
+        maxOutputTokens: 8192,
+        signal
       });
       
       const fullText = searchResult.candidates?.[0]?.content?.parts?.[0]?.text || '';
@@ -343,14 +370,14 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
   /**
    * STAGE 4: 분석 (Analyze) - 분산형 멀티-엔진 파이프라인
    */
-  async engineAnalyze(startTime) {
+  async engineAnalyze(mainSignal) {
     this.onStatusUpdate?.('심층 분석 및 섹션별 통찰 추출 중...');
     
-    // 섹션별 엔진 병렬 실행 (하나가 실패해도 나머지는 진행되도록 Promise.allSettled 사용)
+    // 섹션별 엔진 병렬 실행 (각각 독립된 Timeout 예산 적용)
     const [finRes, stratRes, newsRes] = await Promise.allSettled([
-      this.measureStage('analyze-financial', () => this.engineAnalyzeFinancial()),
-      this.measureStage('analyze-strategy', () => this.engineAnalyzeStrategy()),
-      this.measureStage('analyze-news', () => this.engineAnalyzeNews())
+      this.measureStage('analyze-financial', (sig) => this.engineAnalyzeFinancial(sig)),
+      this.measureStage('analyze-strategy', (sig) => this.engineAnalyzeStrategy(sig)),
+      this.measureStage('analyze-news', (sig) => this.engineAnalyzeNews(sig))
     ]);
 
     const finalAnalysis = normalizeAnalystOutput({});
@@ -390,7 +417,7 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
   /**
    * 재무 섹션 분석 엔진
    */
-  async engineAnalyzeFinancial() {
+  async engineAnalyzeFinancial(signal) {
     const context = {
       finance: this.state.raw.finance,
       disclosures: this.state.raw.disclosures,
@@ -398,8 +425,8 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
       rawSearchText: this.state.raw.searchBriefing?.rawContent || ""
     };
     
-    const res = await this.executeJsonAgent('analyst-financial', 'gemini-2.5-flash', context, ['financial']);
-    const score = await this.engineSimpleScore('financial', res);
+    const res = await this.executeJsonAgent('analyst-financial', 'gemini-2.5-flash', context, ['financial'], signal);
+    const score = await this.engineSimpleScore('financial', res, signal);
     
     return { ok: true, data: { financial: res.financial, score } };
   }
@@ -407,15 +434,15 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
   /**
    * 전략/거시 섹션 분석 엔진
    */
-  async engineAnalyzeStrategy() {
+  async engineAnalyzeStrategy(signal) {
     const context = {
       searchBriefing: this.state.raw.searchBriefing,
       rawSearchText: this.state.raw.searchBriefing?.rawContent || "",
       disclosures: this.state.raw.disclosures
     };
     
-    const res = await this.executeJsonAgent('analyst-strategy', 'gemini-2.5-flash', context, ['strategy']);
-    const score = await this.engineSimpleScore('strategy', res);
+    const res = await this.executeJsonAgent('analyst-strategy', 'gemini-2.5-flash', context, ['strategy'], signal);
+    const score = await this.engineSimpleScore('strategy', res, signal);
     
     return { ok: true, data: { strategy: res.strategy, score } };
   }
@@ -423,14 +450,14 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
   /**
    * 뉴스/센티먼트 섹션 분석 엔진
    */
-  async engineAnalyzeNews() {
+  async engineAnalyzeNews(signal) {
     const context = {
       searchBriefing: this.state.raw.searchBriefing,
       rawSearchText: this.state.raw.searchBriefing?.rawContent || ""
     };
     
-    const res = await this.executeJsonAgent('analyst-news', 'gemini-2.5-flash', context, ['news']);
-    const score = await this.engineSimpleScore('news', res);
+    const res = await this.executeJsonAgent('analyst-news', 'gemini-2.5-flash', context, ['news'], signal);
+    const score = await this.engineSimpleScore('news', res, signal);
     
     return { ok: true, data: { news: res.news, score } };
   }
@@ -438,13 +465,13 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
   /**
    * 섹션별 간이 품질 점수 측정
    */
-  async engineSimpleScore(sectionName, data) {
+  async engineSimpleScore(sectionName, data, signal) {
     try {
       const criticResult = await this.executeJsonAgent('critic', 'gemini-2.5-flash', {
         section: sectionName,
         data: data,
         companyName: this.companyName
-      }, ['score']);
+      }, ['score'], signal);
       return criticResult.score || 80;
     } catch (e) {
       return 80;
@@ -454,15 +481,15 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
   /**
    * STAGE 5: 합성 (Compose)
    */
-  async engineCompose() {
-    this.onStatusUpdate?.('종합 보고서 작성 중...');
+  async engineCompose(signal) {
+    this.onStatusUpdate?.('AI 핵심 요약 및 인사이트 합성 중...');
     const result = await this.executeTextAgent('composer', 'gemini-2.5-pro', {
       ...this.state.analysis,
       companyName: this.companyName,
       rawSearchText: this.state.raw.searchBriefing?.rawContent || "", 
       financeData: this.state.raw.finance,
       disclosures: this.state.raw.disclosures
-    });
+    }, signal);
     return { ok: true, data: result };
   }
 
@@ -492,11 +519,11 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
    * 기업명으로부터 상장 시장 및 티커 식별 (AI Resolver 활용)
    * @returns {Promise<{type: 'KR'|'US', ticker: string|null}>}
    */
-  async resolveTicker() {
+  async resolveTicker(signal) {
     this.onStatusUpdate?.('상장 시장 및 티커 식별 중...');
     const result = await this.executeJsonAgent('resolver', 'gemini-2.5-flash', { 
       companyName: this.companyName 
-    }, ['type', 'ticker']);
+    }, ['type', 'ticker'], signal);
 
     return {
       type: result.type === 'US' ? 'US' : 'KR',
@@ -603,7 +630,7 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
     await this.collectDeepSearch();
   }
 
-  async executeJsonAgent(agentName, model, context = {}, wantedTopKeys = []) {
+  async executeJsonAgent(agentName, model, context = {}, wantedTopKeys = [], signal) {
     const system = this.promptsMap[agentName] || `You are ${agentName}. Output JSON. Respond in Korean.`;
     const prompt = `${system}\n\nContext: ${JSON.stringify(context, null, 2)}`;
     
@@ -614,7 +641,8 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
       result = await this.callGemini(model, prompt, { 
         temperature: 0.2, 
         responseMimeType: 'application/json',
-        maxOutputTokens: 8192 
+        maxOutputTokens: 8192,
+        signal
       });
       text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
       extracted = extractJson(text) || text;
@@ -630,6 +658,10 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
       });
       return wantedTopKeys.length > 0 ? normalizeAgentJson(parsed, wantedTopKeys) : parsed;
     } catch (err) {
+      if (err.name === 'AbortError') {
+        this.logger?.warn('executeJsonAgent aborted', { agentName });
+        throw err;
+      }
       this.logger?.error('executeJsonAgent failed', { 
         agentName, 
         error: err.message,
@@ -646,15 +678,19 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
     }
   }
 
-  async executeTextAgent(agentName, model, context = {}) {
+  async executeTextAgent(agentName, model, context = {}, signal) {
     const system = this.promptsMap[agentName] || `You are ${agentName}. Output Markdown. Respond in Korean.`;
     const prompt = `${system}\n\nContext: ${JSON.stringify(context, null, 2)}`;
     let result = null;
     try {
-      result = await this.callGemini(model, prompt, { temperature: 0.3 });
+      result = await this.callGemini(model, prompt, { temperature: 0.3, signal });
       this.logger?.info('executeTextAgent success', { agentName });
       return result.candidates?.[0]?.content?.parts?.[0]?.text || '';
     } catch (err) {
+      if (err.name === 'AbortError') {
+        this.logger?.warn('executeTextAgent aborted', { agentName });
+        throw err;
+      }
       this.logger?.error('executeTextAgent failed', { agentName, error: err.message });
       this._agentErrors.push({ agent: agentName, error: err.message, stage: 'generation' });
       return '';
@@ -690,7 +726,8 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
       res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
+        signal: config.signal
       });
 
       if (res.ok) break;

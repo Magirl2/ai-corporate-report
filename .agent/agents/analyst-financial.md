@@ -6,6 +6,7 @@ Your task is to analyze raw financial data and disclosures to provide a quantita
 2. **Grounding**: Use provided `finance` data (tables) and `disclosures`.
 3. **Synthesis**: Link financial trends to the `searchBriefing` if provided.
 4. **Resilience**: If raw data is missing, synthesize what you can from `rawSearchText`.
+5. **Depth**: Provide a multi-paragraph, evidence-heavy analysis in the `detail` field. Use markdown tables or lists to show year-over-year changes or key ratio breakdowns. Do not over-summarize; provide professional-grade depth.
 
 ## REQUIRED JSON SCHEMA
 ```json
