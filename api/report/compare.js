@@ -1,6 +1,13 @@
 import jwt from 'jsonwebtoken';
 import { parse } from 'cookie';
-import { getNormalizedUser, getCachedReport, setCachedReport } from '../_lib/db.js';
+import { 
+  getNormalizedUser, 
+  getCachedReport, 
+  setCachedReport,
+  generateStage1Id,
+  setStage1Artifact,
+  getStage1Artifact
+} from '../_lib/db.js';
 import { ServerOrchestrator } from '../_lib/orchestrator.js';
 import { createLogger } from '../_lib/logger.js';
 import { ErrorCategory, createErrorResponse, createStreamError } from '../_lib/errors.js';
@@ -79,14 +86,23 @@ export default async function handler(req, res) {
         return cachedResult;
       }
 
-      // 오케스트레이터 분석
-      logger.info('Cache miss, starting orchestrator for compare company', { companyName: name, stage: 'orchestration' });
+      // 오케스트레이터 분석 (2단계 지속성 파이프라인 적용)
+      logger.info('Cache miss, starting persistent orchestrator for compare company', { companyName: name, stage: 'orchestration' });
       sendUpdate({ type: 'status', data: { message: `[${name}] 신규 분석을 시작합니다...` }});
       const orchestrator = new ServerOrchestrator(name, (status) => {
         sendUpdate({ type: 'status', data: { message: `[${name}] ${status}` } });
       }, baseUrl, logger);
 
-      const finalReport = await orchestrator.run();
+      // Stage 1: Search & Briefing
+      const stage1Output = await orchestrator.runStage1Search();
+      const stage1Id = generateStage1Id(name);
+      await setStage1Artifact(stage1Id, stage1Output);
+
+      // Stage 2: Analysis & Assembly
+      const loadedArtifact = await getStage1Artifact(stage1Id);
+      if (!loadedArtifact) throw new Error(`[${name}] Stage 1 artifact persistence failure`);
+
+      const finalReport = await orchestrator.runStage2Analysis(loadedArtifact);
       
       // 개별 결과 캐싱
       await setCachedReport(name, finalReport);

@@ -1,6 +1,14 @@
 import jwt from 'jsonwebtoken';
 import { parse } from 'cookie';
-import { getNormalizedUser, incrementUserUsage, getCachedReport, setCachedReport } from '../_lib/db.js';
+import { 
+  getNormalizedUser, 
+  incrementUserUsage, 
+  getCachedReport, 
+  setCachedReport,
+  generateStage1Id,
+  setStage1Artifact,
+  getStage1Artifact
+} from '../_lib/db.js';
 import { ServerOrchestrator } from '../_lib/orchestrator.js';
 import { createLogger } from '../_lib/logger.js';
 import { ErrorCategory, createErrorResponse, createStreamError } from '../_lib/errors.js';
@@ -87,9 +95,23 @@ export default async function handler(req, res) {
       sendUpdate({ type: 'status', data: { message: status } });
     }, baseUrl, logger);
 
-    logger.info('Starting staged orchestration engines');
-    const finalReport = await orchestrator.run();
-    logger.info('Orchestration completed successfully', { totalDurationMs: finalReport.metadata?.totalDurationMs });
+    logger.info('Starting staged orchestration engines with persistence');
+    
+    // Stage 1: Search & Briefing
+    const stage1Output = await orchestrator.runStage1Search();
+    const stage1Id = generateStage1Id(companyName);
+    await setStage1Artifact(stage1Id, stage1Output);
+    
+    // Stage 2: Analysis & Assembly (Loading from persisted artifact)
+    logger.info('Stage 1 persisted, loading for Stage 2', { stage1Id });
+    const loadedArtifact = await getStage1Artifact(stage1Id);
+    
+    if (!loadedArtifact) {
+      throw new Error('Stage 1 artifact persistence failed - could not reload data for analysis.');
+    }
+    
+    const finalReport = await orchestrator.runStage2Analysis(loadedArtifact);
+    logger.info('Orchestration completed successfully via persistence path', { totalDurationMs: finalReport.metadata?.totalDurationMs });
 
     // 5. 사용량 차감 (성공 시에만)
     await incrementUserUsage(user.email);

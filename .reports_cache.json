@@ -1,0 +1,30 @@
+{
+  "s1:MICROSOFT": {
+    "data": {
+      "identity": {
+        "type": "KR",
+        "ticker": "005930"
+      },
+      "raw": {
+        "searchBriefing": {
+          "companyIdentity": "Mock Samsung",
+          "newsFindings": [
+            "News 1"
+          ],
+          "rawContent": "Raw text"
+        },
+        "finance": {
+          "yearly": []
+        },
+        "disclosures": [],
+        "sources": [
+          {
+            "title": "DART",
+            "uri": "http://dart.fss.or.kr"
+          }
+        ]
+      }
+    },
+    "expires": 1776670488744
+  }
+}

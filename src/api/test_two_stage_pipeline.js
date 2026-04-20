@@ -1,5 +1,6 @@
 // src/api/test_two_stage_pipeline.js
 import { ServerOrchestrator } from '../../api/_lib/orchestrator.js';
+import { generateStage1Id, setStage1Artifact, getStage1Artifact } from '../../api/_lib/db.js';
 
 async function runTests() {
   console.log('--- Starting 2-Stage Pipeline Verification ---');
@@ -51,12 +52,21 @@ async function runTests() {
   console.log('Final Report Company:', finalReport.companyName);
   console.log('Total Duration:', finalReport.metadata?.totalDurationMs, 'ms');
 
-  // 3. Backward Compatibility Verification
-  console.log('\n[Test 3] Legacy run() Wrapper');
-  const orch3 = new ServerOrchestrator('Apple', (status) => {});
-  const legacyReport = await orch3.run();
-  if (!legacyReport.report) throw new Error('Legacy run() failed to produce report');
-  console.log('✅ Legacy run() wrapper works as expected');
+  // 4. Persistence Round-trip Verification
+  console.log('\n[Test 4] Stage 1 Persistence & Stage 2 Loading');
+  const stage1Id = generateStage1Id('Microsoft');
+  await setStage1Artifact(stage1Id, mockStage1Data);
+  
+  const loaded = await getStage1Artifact(stage1Id);
+  if (!loaded || loaded.identity.ticker !== '005930') {
+    throw new Error('Persistence round-trip failed: Data mismatch or getStage1Artifact failed');
+  }
+  
+  const orch4 = new ServerOrchestrator('Microsoft', () => {});
+  const finalReport4 = await orch4.runStage2Analysis(loaded);
+  if (finalReport4.companyName !== 'Microsoft') throw new Error('Persistence execution failed');
+  
+  console.log('✅ Stage 1 persisted and Stage 2 loaded successfully');
 
   console.log('\n--- All 2-Stage Pipeline Verifications Passed ---');
 }

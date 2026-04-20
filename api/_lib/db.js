@@ -255,3 +255,45 @@ export async function setCachedReport(companyName, reportData) {
     saveLocalCache(cache);
   }
 }
+
+/**
+ * Stage 1 Artifact Persistence (Handoff data)
+ */
+
+export function generateStage1Id(companyName) {
+  const normalized = normalizeCorpName(companyName);
+  const target = ALIAS_MAP[normalized] || normalized;
+  return `s1:${target.toUpperCase()}`;
+}
+
+export async function getStage1Artifact(id) {
+  if (useRedis) {
+    try {
+      const raw = await redis.get(id);
+      return raw ? JSON.parse(raw) : null;
+    } catch (err) {
+      console.error('[Redis Artifact] Get error:', err);
+      return null;
+    }
+  } else {
+    const cache = getLocalCache();
+    const hit = cache[id];
+    if (hit && hit.expires > Date.now()) return hit.data;
+    return null;
+  }
+}
+
+export async function setStage1Artifact(id, data) {
+  const ttlSeconds = 3600; // 1 hour for intermediate artifacts
+  if (useRedis) {
+    try {
+      await redis.set(id, JSON.stringify(data), 'EX', ttlSeconds);
+    } catch (err) {
+      console.error('[Redis Artifact] Set error:', err);
+    }
+  } else {
+    const cache = getLocalCache();
+    cache[id] = { data, expires: Date.now() + ttlSeconds * 1000 };
+    saveLocalCache(cache);
+  }
+}
