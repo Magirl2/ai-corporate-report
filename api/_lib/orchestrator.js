@@ -229,16 +229,25 @@ export class ServerOrchestrator {
   // getRemainingBudget() 제거됨 (최고 품질을 위해 독립 예산 체제로 전환)
 
   async run() {
+    this.logger?.info('Orchestrator run (legacy wrapper) started');
+    const stage1Data = await this.runStage1Search();
+    return await this.runStage2Analysis(stage1Data);
+  }
+
+  /**
+   * Stage 1: 검색 및 브리핑 생성
+   * 기업 식별, 재무 데이터 수집, 웹 검색을 수행하여 분석을 위한 '원재료'를 준비합니다.
+   */
+  async runStage1Search() {
     this.startTime = Date.now();
-    this.onStatusUpdate?.('심층 분석 오케스트레이션 기동');
-    this.logger?.info('Orchestrator started');
+    this.onStatusUpdate?.('정보 수집 및 브리핑 생성 중 (Stage 1)');
+    this.logger?.info('Stage 1 Search started');
 
     // 1. Resolve Stage (Independent budget)
     const resolveRes = await this.measureStage('resolve', (sig) => this.engineResolve(this.companyName, sig));
     this.state.resolve = resolveRes.ok ? resolveRes.data : { type: 'KR', ticker: null };
 
     // 2. Data & Search (Parallel, Independent budgets)
-    // searchBriefing이 생성되어야 분석을 시작할 수 있음 (선후 관계 보존)
     const [dataRes, searchRes] = await Promise.all([
       this.measureStage('data', (sig) => this.engineData(this.state.resolve, this.companyName, sig)),
       this.measureStage('search', (sig) => this.engineSearch(this.companyName, this.state.resolve, sig))
@@ -252,8 +261,35 @@ export class ServerOrchestrator {
       this.state.raw.searchBriefing = searchRes.data.searchBriefing;
     }
 
-    // 3. Analyze Stage (Output engines run in parallel with independent budgets)
-    // upstream(search) 지연과 상관없이 각 엔진은 STAGE_TIMEOUTS에 정의된 예산을 풀로 사용함
+    return {
+      identity: this.state.resolve,
+      raw: {
+        searchBriefing: this.state.raw.searchBriefing,
+        finance: this.state.raw.finance,
+        disclosures: this.state.raw.disclosures,
+        sources: this.state.raw.sources
+      }
+    };
+  }
+
+  /**
+   * Stage 2: 분석 및 보고서 조립
+   * 준비된 브리핑 데이터를 바탕으로 섹션별 심층 분석을 수행하고 최종 보고서를 조립합니다.
+   */
+  async runStage2Analysis(stage1Data) {
+    if (stage1Data) {
+      // 외부에서 주입된 데이터로 상태 동기화 (Stage 1 건너뛰기 가능)
+      this.state.resolve = stage1Data.identity || this.state.resolve;
+      this.state.raw.searchBriefing = stage1Data.raw?.searchBriefing || this.state.raw.searchBriefing;
+      this.state.raw.finance = stage1Data.raw?.finance || this.state.raw.finance;
+      this.state.raw.disclosures = stage1Data.raw?.disclosures || this.state.raw.disclosures;
+      this.state.raw.sources = stage1Data.raw?.sources || this.state.raw.sources;
+    }
+
+    this.onStatusUpdate?.('심층 분석 및 보고서 생성 중 (Stage 2)');
+    this.logger?.info('Stage 2 Analysis started');
+
+    // 3. Analyze Stage (Output engines run in parallel)
     const analyzeRes = await this.measureStage('analyze', (sig) => this.engineAnalyze(sig));
     if (analyzeRes.ok) {
       this.state.analysis = analyzeRes.data.analysis;
@@ -261,13 +297,13 @@ export class ServerOrchestrator {
       this.state.iteration = analyzeRes.data.iteration;
     }
 
-    // 4. Summarize/Compose Stage (Produces a concise Executive Summary)
+    // 4. Summarize/Compose Stage
     const composeRes = await this.measureStage('compose', (sig) => this.engineCompose(sig));
     if (composeRes.ok) {
       this.state.composerMarkdown = composeRes.data;
     }
 
-    this.metadata.totalDurationMs = Date.now() - this.startTime;
+    this.metadata.totalDurationMs = Date.now() - (this.startTime || (Date.now() - 1));
     return this.assembleFinalReport();
   }
 
