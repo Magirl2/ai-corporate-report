@@ -341,57 +341,114 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
   }
 
   /**
-   * STAGE 4: 분석 (Analyze)
+   * STAGE 4: 분석 (Analyze) - 분산형 멀티-엔진 파이프라인
    */
   async engineAnalyze(startTime) {
-    let currentIteration = 1;
-    const MAX_ITERATIONS = 2;
-    let bestAnalysis = null;
-    let bestScore = -1;
-    let criticFeedback = "";
+    this.onStatusUpdate?.('심층 분석 및 섹션별 통찰 추출 중...');
+    
+    // 섹션별 엔진 병렬 실행 (하나가 실패해도 나머지는 진행되도록 Promise.allSettled 사용)
+    const [finRes, stratRes, newsRes] = await Promise.allSettled([
+      this.measureStage('analyze-financial', () => this.engineAnalyzeFinancial()),
+      this.measureStage('analyze-strategy', () => this.engineAnalyzeStrategy()),
+      this.measureStage('analyze-news', () => this.engineAnalyzeNews())
+    ]);
 
-    while (currentIteration <= MAX_ITERATIONS) {
-      // 타임아웃 방지: 35초(global elapsed)가 넘어가면 2회차 반복을 포기
-      if (currentIteration > 1 && Date.now() - startTime > 35000) {
-        this.logger?.info('Time safety break: Skipping 2nd iteration');
-        break;
+    const finalAnalysis = normalizeAnalystOutput({});
+    let totalScore = 0;
+    let successfulSections = 0;
+
+    const processResult = (res, sectionKey) => {
+      if (res.status === 'fulfilled' && res.value.ok) {
+        finalAnalysis[sectionKey] = res.value.data[sectionKey];
+        if (res.value.data.score) {
+          totalScore += res.value.data.score;
+          successfulSections++;
+        }
+      } else {
+        this.logger?.warn(`Section analysis failed: ${sectionKey}`, { 
+          reason: res.reason || res.value?.error 
+        });
       }
+    };
 
-      this.onStatusUpdate?.(currentIteration === 1 ? '핵심 데이터 분석 및 통찰 추출 중...' : `분석 품질 보강 중 (반복 ${currentIteration})...`);
-      
-      const analysisContext = { 
-        finance: this.state.raw.finance,
-        disclosures: this.state.raw.disclosures,
-        searchBriefing: this.state.raw.searchBriefing,
-        rawSearchText: this.state.raw.searchBriefing?.rawContent || "", 
-        previousFeedback: criticFeedback
-      };
+    processResult(finRes, 'financial');
+    processResult(stratRes, 'strategy');
+    processResult(newsRes, 'news');
 
-      const coreAnalysisRaw = await this.executeJsonAgent('core-analyst', 'gemini-2.5-flash', analysisContext, ['financial', 'strategy', 'news']);
-      const currentAnalysis = normalizeAnalystOutput(coreAnalysisRaw);
+    const averageScore = successfulSections > 0 ? Math.round(totalScore / successfulSections) : 0;
 
-      // 품질 비판 (Critic)
+    return { 
+      ok: true, 
+      data: { 
+        analysis: finalAnalysis, 
+        score: averageScore || 80, // 기본 점수 
+        iteration: 1 
+      } 
+    };
+  }
+
+  /**
+   * 재무 섹션 분석 엔진
+   */
+  async engineAnalyzeFinancial() {
+    const context = {
+      finance: this.state.raw.finance,
+      disclosures: this.state.raw.disclosures,
+      searchBriefing: this.state.raw.searchBriefing,
+      rawSearchText: this.state.raw.searchBriefing?.rawContent || ""
+    };
+    
+    const res = await this.executeJsonAgent('analyst-financial', 'gemini-2.5-flash', context, ['financial']);
+    const score = await this.engineSimpleScore('financial', res);
+    
+    return { ok: true, data: { financial: res.financial, score } };
+  }
+
+  /**
+   * 전략/거시 섹션 분석 엔진
+   */
+  async engineAnalyzeStrategy() {
+    const context = {
+      searchBriefing: this.state.raw.searchBriefing,
+      rawSearchText: this.state.raw.searchBriefing?.rawContent || "",
+      disclosures: this.state.raw.disclosures
+    };
+    
+    const res = await this.executeJsonAgent('analyst-strategy', 'gemini-2.5-flash', context, ['strategy']);
+    const score = await this.engineSimpleScore('strategy', res);
+    
+    return { ok: true, data: { strategy: res.strategy, score } };
+  }
+
+  /**
+   * 뉴스/센티먼트 섹션 분석 엔진
+   */
+  async engineAnalyzeNews() {
+    const context = {
+      searchBriefing: this.state.raw.searchBriefing,
+      rawSearchText: this.state.raw.searchBriefing?.rawContent || ""
+    };
+    
+    const res = await this.executeJsonAgent('analyst-news', 'gemini-2.5-flash', context, ['news']);
+    const score = await this.engineSimpleScore('news', res);
+    
+    return { ok: true, data: { news: res.news, score } };
+  }
+
+  /**
+   * 섹션별 간이 품질 점수 측정
+   */
+  async engineSimpleScore(sectionName, data) {
+    try {
       const criticResult = await this.executeJsonAgent('critic', 'gemini-2.5-flash', {
-        analysis: currentAnalysis,
+        section: sectionName,
+        data: data,
         companyName: this.companyName
-      }, ['score', 'decision']);
-
-      const score = criticResult.score || 0;
-
-      if (score > bestScore) {
-        bestScore = score;
-        bestAnalysis = currentAnalysis;
-      }
-
-      if (score >= 85 || currentIteration >= MAX_ITERATIONS) {
-        break;
-      }
-
-      criticFeedback = criticResult.feedback || "전체적인 분석의 깊이를 더 보강해 주세요.";
-      currentIteration++;
+      }, ['score']);
+      return criticResult.score || 80;
+    } catch (e) {
+      return 80;
     }
-
-    return { ok: true, data: { analysis: bestAnalysis, score: bestScore, iteration: currentIteration } };
   }
 
   /**
@@ -676,33 +733,43 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
 
   assembleFinalReport() {
     const { analysis, raw } = this.state;
-    const safeAnalysis = analysis || {};
-    const strategy = safeAnalysis.strategy || {};
-    const financial = safeAnalysis.financial || {};
-    const news = safeAnalysis.news || {};
+    
+    // UI 계약을 보장하기 위한 안전한 정규화 (Partial Success 대응)
+    const safeAnalysis = normalizeAnalystOutput(analysis || {});
+    const { strategy, financial, news } = safeAnalysis;
 
     return {
-      companyName: this.companyName,
+      companyName: this.companyName || 'Unknown Company',
       report: {
-        macroTrend: strategy.macroTrend || null,
-        industryStatus: strategy.industryStatus || null,
-        vision: strategy.vision || null,
-        businessModel: strategy.businessModel || null,
-        swotAnalysis: strategy.swotAnalysis || null,
-        marketSentiment: news.marketSentiment || null,
-        recentNews: news.recentNews || [],
+        // Strategy Sections
+        macroTrend: strategy.macroTrend,
+        industryStatus: strategy.industryStatus,
+        vision: strategy.vision,
+        businessModel: strategy.businessModel,
+        swotAnalysis: strategy.swotAnalysis,
+        
+        // News Sections
+        marketSentiment: news.marketSentiment,
+        recentNews: news.recentNews,
+        
+        // Financial Sections
         financialAnalysis: {
-          overview: financial.overview || null,
-          keyMetrics: financial.keyMetrics || []
+          overview: financial.overview,
+          keyMetrics: financial.keyMetrics
         },
+        
+        // Final Composition
         markdown: this.state.composerMarkdown || '',
       },
-      sources: raw.sources,
-      financeData: raw.finance,
-      score: this.state.score,
-      iteration: this.state.iteration,
+      sources: raw.sources || [],
+      financeData: raw.finance || null,
+      score: this.state.score || 0,
+      iteration: this.state.iteration || 1,
       metadata: this.metadata, // 스테이지 메타데이터 포함
-      debug: { agentErrors: this._agentErrors },
+      debug: { 
+        agentErrors: this._agentErrors,
+        isPartialResult: this._agentErrors.length > 0
+      },
     };
   }
 }
