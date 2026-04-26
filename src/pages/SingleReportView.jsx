@@ -210,10 +210,13 @@ export default function SingleReportView({ singleData }) {
     const aiScore = singleData.score;
     const aiIteration = singleData.iteration;
   
-    // 캐시 상태 및 품질 경고
+    // 캐시 상태 및 품질 플래그
     const cacheHit = singleData.metadata?.cacheHit;
     const cacheAgeMs = singleData.metadata?.cacheAgeMs;
-    const isPartial = singleData.debug?.isPartialResult || singleData.metadata?.qualityWarning;
+    const qualityWarning = singleData.metadata?.qualityWarning === true;
+    const isPartialResult = singleData.debug?.isPartialResult === true;
+    const agentErrors = Array.isArray(singleData.debug?.agentErrors) ? singleData.debug.agentErrors : [];
+    const hasAgentErrors = agentErrors.length > 0;
     const hasSentiment = !!(r?.marketSentiment?.status);
   
     const getCacheAgeText = (ms) => {
@@ -237,16 +240,33 @@ export default function SingleReportView({ singleData }) {
                 {sourceBadge}
               </span>
               
-              {/* 캐시 상태 배지 */}
+              {/* 배지 1: 캐시 vs 새 분석 */}
               <span className={`px-2.5 py-1 text-[10px] md:text-xs font-bold rounded-full border ${cacheHit ? 'bg-slate-50 text-slate-500 border-slate-200' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
-                {cacheHit ? `캐시된 보고서 (${getCacheAgeText(cacheAgeMs)})` : '새로 분석됨'}
+                {cacheHit ? `캐시된 보고서 (${getCacheAgeText(cacheAgeMs)})` : '새 분석'}
               </span>
 
-              {/* 품질 경고 배지 */}
-              {isPartial && (
+              {/* 배지 2: 품질 경고 */}
+              {qualityWarning && (
+                <span className="px-2.5 py-1 bg-orange-50 text-orange-600 border border-orange-100 text-[10px] md:text-xs font-bold rounded-full flex items-center gap-1">
+                  <span className="material-symbols-outlined !text-[14px]">shield_question</span>
+                  품질 경고
+                </span>
+              )}
+
+              {/* 배지 3: 일부 데이터 부족 */}
+              {isPartialResult && (
                 <span className="px-2.5 py-1 bg-amber-50 text-amber-600 border border-amber-100 text-[10px] md:text-xs font-bold rounded-full flex items-center gap-1">
                   <span className="material-symbols-outlined !text-[14px]">warning</span>
                   일부 데이터 부족
+                </span>
+              )}
+
+              {/* 배지 4: AI 분석 일부 실패 */}
+              {hasAgentErrors && (
+                <span className="px-2.5 py-1 bg-rose-50 text-rose-600 border border-rose-100 text-[10px] md:text-xs font-bold rounded-full flex items-center gap-1"
+                  title={agentErrors.map(e => `${e.agent || e.stage}: ${e.error}`).join(' | ')}>
+                  <span className="material-symbols-outlined !text-[14px]">error</span>
+                  AI 분석 일부 실패
                 </span>
               )}
 

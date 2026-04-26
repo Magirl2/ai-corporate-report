@@ -14,7 +14,7 @@ const STAGE_TIMEOUTS = {
   'analyze-financial': 45000,
   'analyze-strategy': 45000,
   'analyze-news': 45000,
-  compose: 35000
+  compose: 25000  // 보수적으로 25초 유지 (Vercel 60초 한계 내)
 };
 
 /**
@@ -311,13 +311,19 @@ export class ServerOrchestrator {
 
     this.metadata.totalDurationMs = Date.now() - (this.startTime || (Date.now() - 1));
     
-    // 분석 실패 섹션이 있거나 필수 데이터가 없으면 partial result로 표시
-    const criticalFailure = this._agentErrors.some(e => ['analyze-financial', 'analyze-strategy'].includes(e.stage));
-    if (criticalFailure) {
+    // 주요 분석 섹션이 하나라도 실패하면 partial result
+    const criticalSections = ['analyze-financial', 'analyze-strategy', 'analyze-news'];
+    const hasCriticalFailure = this._agentErrors.some(e => criticalSections.includes(e.stage));
+    // timeout 포함 모든 agent 에러를 partial 기준으로
+    const hasAnyAgentError = this._agentErrors.length > 0;
+    const isPartialResult = hasCriticalFailure || hasAnyAgentError;
+
+    if (isPartialResult) {
       this.metadata.qualityLevel = 'degraded';
       this.state.isPartialResult = true;
     } else {
-      this.metadata.qualityLevel = 'high';
+      this.metadata.qualityLevel = 'normal';
+      this.state.isPartialResult = false;
     }
 
     return this.assembleFinalReport();
@@ -546,17 +552,49 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
    * STAGE 5: 합성 (Compose)
    */
   async engineCompose(signal) {
-    this.onStatusUpdate?.('AI 핵심 요약 및 인사이트 합성 중...');
-    const isDeep = this.options.qualityMode === 'deep';
-    const result = await this.executeTextAgent('composer', 'gemini-2.5-pro', {
-      ...this.state.analysis,
+    this.onStatusUpdate?.('AI 종합 보고서 작성 중 (섹션형)...');
+    const briefing = this.state.raw.searchBriefing || {};
+    const analysis = this.state.analysis || {};
+
+    // composer에 전달할 풍부한 컨텍스트 구성
+    const composerContext = {
       companyName: this.companyName,
-      rawSearchText: this.state.raw.searchBriefing?.rawContent || "", 
-      financeData: this.state.raw.finance,
-      disclosures: this.state.raw.disclosures,
-      qualityMode: this.options.qualityMode
-    }, signal, { 
-      maxOutputTokens: isDeep ? 8192 : 2048 
+      qualityMode: this.options.qualityMode || 'deep',
+
+      // 기업 프로필 (검색 브리핑)
+      companyProfile: {
+        identity: briefing.companyIdentity || null,
+        marketContext: briefing.marketContext || null,
+        businessModel: briefing.businessModel || null,
+        sentiment: briefing.sentiment || 'Neutral',
+      },
+
+      // 뉴스/기회/리스크 (검색 브리핑에서 추출)
+      newsFindings: Array.isArray(briefing.newsFindings) ? briefing.newsFindings : [],
+      risks: Array.isArray(briefing.risks) ? briefing.risks : [],
+      opportunities: Array.isArray(briefing.opportunities) ? briefing.opportunities : [],
+
+      // 섹션별 분석 결과
+      financialAnalysis: analysis.financial || null,
+      strategyAnalysis: analysis.strategy || null,
+      newsAnalysis: analysis.news || null,
+
+      // 원본 재무 데이터
+      financeData: this.state.raw.finance || null,
+      disclosures: this.state.raw.disclosures || [],
+      sources: this.state.raw.sources || [],
+
+      // 메타데이터 및 오류 (데이터 한계 섹션 작성용)
+      dataLimitations: {
+        agentErrors: this._agentErrors,
+        hasFinancialData: !!(this.state.raw.finance),
+        hasDisclosures: (this.state.raw.disclosures || []).length > 0,
+        hasSearchData: !!(briefing.companyIdentity),
+      }
+    };
+
+    const result = await this.executeTextAgent('composer', 'gemini-2.5-pro', composerContext, signal, {
+      maxOutputTokens: 4096  // 섹션형 보고서 잘림 방지
     });
     return { ok: true, data: result };
   }
@@ -867,17 +905,17 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
           keyMetrics: financial.keyMetrics
         },
         
-        // Final Composition
+        // Final Composition (10-section Markdown)
         markdown: this.state.composerMarkdown || '',
       },
       sources: raw.sources || [],
       financeData: raw.finance || null,
       score: this.state.score || 0,
       iteration: this.state.iteration || 1,
-      metadata: this.metadata, // 스테이지 메타데이터 포함
+      metadata: this.metadata,
       debug: { 
         agentErrors: this._agentErrors,
-        isPartialResult: this._agentErrors.length > 0
+        isPartialResult: this.state.isPartialResult === true
       },
     };
   }

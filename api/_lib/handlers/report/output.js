@@ -94,30 +94,44 @@ export default async function handler(req, res) {
     // 5. 사용량 차감 (성공 시에만)
     await incrementUserUsage(user.email);
 
-    // 5.5 새롭게 생성된 리포트 캐시 저장 (품질 검사)
+    // 5.5 품질 게이트 검사 후 선택적 캐시 저장
     const isPartial = finalReport.debug?.isPartialResult === true;
     const hasAgentErrors = Array.isArray(finalReport.debug?.agentErrors) && finalReport.debug.agentErrors.length > 0;
     
-    // 품질 미달 조건: markdown 길이, 뉴스 개수 등
     const r = finalReport.report || {};
-    const lowQuality = (r.markdown || '').length < 300 || (r.recentNews || []).length < 2;
+    const markdownLen = (r.markdown || '').length;
+    const sourcesCount = (finalReport.sources || []).length;
+    
+    // 분석 섹션 누락 여부 (financial, strategy, news 중 2개 이상 없으면 경고)
+    const missingAnalysisSections = [
+      !r.financialAnalysis?.overview,
+      !r.macroTrend,
+      !r.marketSentiment,
+    ].filter(Boolean).length;
 
-    if (!isPartial && !hasAgentErrors && !lowQuality) {
+    const qualityWarning =
+      markdownLen < 1500 ||             // 마크다운 1500자 미만
+      sourcesCount === 0 ||              // 출처 없음
+      missingAnalysisSections >= 2;     // 주요 섹션 2개 이상 누락
+
+    if (!isPartial && !hasAgentErrors && !qualityWarning) {
       await setCachedReport(companyName, finalReport);
-      logger.info('Report cached (high quality)', { companyName });
+      logger.info('Report cached (high quality)', { companyName, markdownLen, sourcesCount });
     } else {
-      logger.warn('Report not cached due to low quality or partial results', { 
-        companyName, 
-        isPartial, 
+      logger.warn('Report not cached due to quality gate failure', {
+        companyName,
+        isPartial,
         hasAgentErrors,
-        markdownLen: (r.markdown || '').length,
-        newsCount: (r.recentNews || []).length
+        qualityWarning,
+        markdownLen,
+        sourcesCount,
+        missingAnalysisSections
       });
       if (!finalReport.metadata) finalReport.metadata = {};
       finalReport.metadata.qualityWarning = true;
     }
 
-    // 캐시 상태 추가 (새 분석이므로 false)
+    // 캐시 상태 플래그 (새 분석이므로 항상 false)
     if (!finalReport.metadata) finalReport.metadata = {};
     finalReport.metadata.cacheHit = false;
 
