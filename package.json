@@ -4,13 +4,14 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "node --no-warnings node_modules/vite/bin/vite.js",
+    "dev": "npx vercel dev --listen 3000",
+    "dev:vite": "node --no-warnings node_modules/vite/bin/vite.js",
     "build": "node --no-warnings node_modules/vite/bin/vite.js build",
     "lint": "node --no-warnings node_modules/eslint/bin/eslint.js .",
     "preview": "node --no-warnings node_modules/vite/bin/vite.js preview",
     "test": "node --no-warnings node_modules/vitest/vitest.mjs run",
-    "check": "npm run lint && npm run test && npm run build",
-    "check:functions": "node scripts/check-vercel-functions.js"
+    "check:functions": "node scripts/check-vercel-functions.js",
+    "check": "npm run lint && npm run test && npm run build && npm run check:functions"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.2.2",
