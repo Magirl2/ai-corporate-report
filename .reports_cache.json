@@ -26,5 +26,24 @@
       }
     },
     "expires": 1776670488744
+  },
+  "s1_split:2ce53d61-35a9-428e-b75a-6ead3fbcb906": {
+    "data": {
+      "companyName": "Test Corp",
+      "ownerEmail": "test@example.com",
+      "createdAt": "2026-04-26T10:06:52.398Z",
+      "data": {
+        "identity": {
+          "type": "US",
+          "ticker": "TEST"
+        },
+        "raw": {
+          "searchBriefing": {
+            "sentiment": "Positive"
+          }
+        }
+      }
+    },
+    "expires": 1777201612405
   }
 }

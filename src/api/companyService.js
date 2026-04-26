@@ -1,22 +1,63 @@
+/**
+ * NDJSON 스트림 응답을 처리하는 헬퍼 함수
+ */
+async function consumeNdjsonStream(response, onStatusUpdate) {
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let finalData = null;
+  let stage1Id = null;
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+
+    const chunk = decoder.decode(value);
+    const lines = chunk.split('\n').filter(Boolean);
+
+    for (const line of lines) {
+      try {
+        const payload = JSON.parse(line);
+        
+        if (payload.type === 'status') {
+          onStatusUpdate?.(payload.data?.message || '');
+        } else if (payload.type === 'success') {
+          finalData = payload.data;
+        } else if (payload.type === 'stage1') {
+          stage1Id = payload.data?.stage1Id;
+        } else if (payload.type === 'error') {
+          const errorObj = payload.error || { message: '알 수 없는 스트림 오류' };
+          const error = new Error(errorObj.message);
+          error.category = errorObj.category || 'UPSTREAM';
+          error.code = errorObj.code || 'STREAM_ERROR';
+          error.retryable = typeof errorObj.retryable === 'boolean' ? errorObj.retryable : false;
+          throw error;
+        }
+      } catch (e) {
+        if (e.code) throw e; // 우리가 던진 에러면 통과
+        console.warn('NDJSON 파싱 오류:', e, line);
+      }
+    }
+  }
+
+  return { finalData, stage1Id };
+}
 
 /**
  * 서버 사이드 오케스트레이션을 호출하고 NDJSON 스트림을 처리합니다.
  */
 export const fetchCompanyData = async (companyName, onStatusUpdate) => {
   try {
-    const response = await fetch('/api/report/generate', {
+    // 1. Stage 1: Search Endpoint 호출
+    const searchResponse = await fetch('/api/report/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ companyName })
     });
 
-    if (!response.ok) {
+    if (!searchResponse.ok) {
       let errResp = {};
-      try {
-        errResp = await response.json();
-      } catch (_) {}
-      
-      const errorObj = errResp.error || { message: `서버 오류 (${response.status})` };
+      try { errResp = await searchResponse.json(); } catch (_) {}
+      const errorObj = errResp.error || { message: `서버 오류 (${searchResponse.status})` };
       const error = new Error(errorObj.message);
       error.category = errorObj.category || 'INTERNAL';
       error.code = errorObj.code || 'HTTP_ERROR';
@@ -24,48 +65,48 @@ export const fetchCompanyData = async (companyName, onStatusUpdate) => {
       throw error;
     }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let finalReport = null;
-
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-
-      const chunk = decoder.decode(value);
-      const lines = chunk.split('\n').filter(Boolean);
-
-      for (const line of lines) {
-        try {
-          const payload = JSON.parse(line);
-          
-          if (payload.type === 'status') {
-            onStatusUpdate?.(payload.data?.message || '');
-          } else if (payload.type === 'success') {
-            finalReport = payload.data;
-          } else if (payload.type === 'error') {
-            const errorObj = payload.error || { message: '알 수 없는 스트림 오류' };
-            const error = new Error(errorObj.message);
-            error.category = errorObj.category || 'UPSTREAM';
-            error.code = errorObj.code || 'STREAM_ERROR';
-            error.retryable = typeof errorObj.retryable === 'boolean' ? errorObj.retryable : false;
-            throw error;
-          }
-        } catch (e) {
-          if (e.code) throw e; // 우리가 던진 에러면 통과
-          console.warn('NDJSON 파싱 오류:', e, line);
-        }
-      }
+    const searchResult = await consumeNdjsonStream(searchResponse, onStatusUpdate);
+    
+    // 캐시 히트 등 바로 success가 온 경우
+    if (searchResult.finalData) {
+      return searchResult.finalData;
     }
 
-    if (!finalReport) {
+    if (!searchResult.stage1Id) {
+      const error = new Error('Stage 1 처리 결과가 올바르지 않습니다.');
+      error.code = 'NO_STAGE1_ID';
+      error.retryable = false;
+      throw error;
+    }
+
+    // 2. Stage 2: Output Endpoint 호출
+    const outputResponse = await fetch('/api/report/output', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stage1Id: searchResult.stage1Id })
+    });
+
+    if (!outputResponse.ok) {
+      let errResp = {};
+      try { errResp = await outputResponse.json(); } catch (_) {}
+      const errorObj = errResp.error || { message: `서버 오류 (${outputResponse.status})` };
+      const error = new Error(errorObj.message);
+      error.category = errorObj.category || 'INTERNAL';
+      error.code = errorObj.code || 'HTTP_ERROR';
+      error.retryable = typeof errorObj.retryable === 'boolean' ? errorObj.retryable : false;
+      throw error;
+    }
+
+    const outputResult = await consumeNdjsonStream(outputResponse, onStatusUpdate);
+
+    if (!outputResult.finalData) {
       const error = new Error('보고서 생성 결과가 없습니다.');
       error.code = 'NO_REPORT_DATA';
       error.retryable = false;
       throw error;
     }
 
-    return finalReport;
+    return outputResult.finalData;
   } catch (error) {
     console.error('Report Generation Error:', error);
     throw error;

@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import Redis from 'ioredis';
 import { normalizeCorpName, ALIAS_MAP } from './dart-utils.js';
 
@@ -295,5 +296,41 @@ export async function setStage1Artifact(id, data) {
     const cache = getLocalCache();
     cache[id] = { data, expires: Date.now() + ttlSeconds * 1000 };
     saveLocalCache(cache);
+  }
+}
+
+export function generateUniqueStage1Id() {
+  return `s1_split:${crypto.randomUUID()}`;
+}
+
+export async function setUniqueStage1Artifact(id, metadataPayload) {
+  const ttlSeconds = 3600; // 1 hour
+  if (useRedis) {
+    try {
+      await redis.set(id, JSON.stringify(metadataPayload), 'EX', ttlSeconds);
+    } catch (err) {
+      console.error('[Redis Artifact] Set unique error:', err);
+    }
+  } else {
+    const cache = getLocalCache();
+    cache[id] = { data: metadataPayload, expires: Date.now() + ttlSeconds * 1000 };
+    saveLocalCache(cache);
+  }
+}
+
+export async function getUniqueStage1Artifact(id) {
+  if (useRedis) {
+    try {
+      const raw = await redis.get(id);
+      return raw ? JSON.parse(raw) : null;
+    } catch (err) {
+      console.error('[Redis Artifact] Get unique error:', err);
+      return null;
+    }
+  } else {
+    const cache = getLocalCache();
+    const hit = cache[id];
+    if (hit && hit.expires > Date.now()) return hit.data;
+    return null;
   }
 }

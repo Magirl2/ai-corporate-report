@@ -384,7 +384,7 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
       try {
         const parsed = JSON.parse(extracted);
         searchBriefing = { ...normalizeSearchBriefing(parsed), rawContent: fullText };
-      } catch (parseErr) {
+      } catch (_parseErr) {
         searchBriefing = { ...normalizeSearchBriefing({}), rawContent: fullText };
       }
       
@@ -406,7 +406,7 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
   /**
    * STAGE 4: 분석 (Analyze) - 분산형 멀티-엔진 파이프라인
    */
-  async engineAnalyze(mainSignal) {
+  async engineAnalyze(_mainSignal) {
     this.onStatusUpdate?.('심층 분석 및 섹션별 통찰 추출 중...');
     
     // 섹션별 엔진 병렬 실행 (각각 독립된 Timeout 예산 적용)
@@ -509,7 +509,7 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
         companyName: this.companyName
       }, ['score'], signal);
       return criticResult.score || 80;
-    } catch (e) {
+    } catch (_e) {
       return 80;
     }
   }
