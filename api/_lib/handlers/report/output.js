@@ -69,6 +69,7 @@ export default async function handler(req, res) {
     }
 
     const companyName = loadedArtifact.companyName;
+    const qualityMode = loadedArtifact.qualityMode || 'deep';
 
     // 4. 오케스트레이터 기동 (Stage 2 Analysis Only)
     const protocol = req.headers['x-forwarded-proto'] || 'http';
@@ -78,15 +79,47 @@ export default async function handler(req, res) {
     const orchestrator = new ServerOrchestrator(companyName, (status) => {
       sendUpdate({ type: 'status', data: { message: status } });
     }, baseUrl, logger);
+    
+    // QualityMode 주입
+    if (orchestrator.setOptions) {
+      orchestrator.setOptions({ qualityMode });
+    }
 
     const finalReport = await orchestrator.runStage2Analysis(loadedArtifact.data);
-    logger.info('Orchestration Stage 2 completed successfully', { totalDurationMs: finalReport.metadata?.totalDurationMs });
+    logger.info('Orchestration Stage 2 completed successfully', { 
+      totalDurationMs: finalReport.metadata?.totalDurationMs,
+      qualityLevel: finalReport.metadata?.qualityLevel 
+    });
 
     // 5. 사용량 차감 (성공 시에만)
     await incrementUserUsage(user.email);
 
-    // 5.5 새롭게 생성된 리포트 캐시 저장
-    await setCachedReport(companyName, finalReport);
+    // 5.5 새롭게 생성된 리포트 캐시 저장 (품질 검사)
+    const isPartial = finalReport.debug?.isPartialResult === true;
+    const hasAgentErrors = Array.isArray(finalReport.debug?.agentErrors) && finalReport.debug.agentErrors.length > 0;
+    
+    // 품질 미달 조건: markdown 길이, 뉴스 개수 등
+    const r = finalReport.report || {};
+    const lowQuality = (r.markdown || '').length < 300 || (r.recentNews || []).length < 2;
+
+    if (!isPartial && !hasAgentErrors && !lowQuality) {
+      await setCachedReport(companyName, finalReport);
+      logger.info('Report cached (high quality)', { companyName });
+    } else {
+      logger.warn('Report not cached due to low quality or partial results', { 
+        companyName, 
+        isPartial, 
+        hasAgentErrors,
+        markdownLen: (r.markdown || '').length,
+        newsCount: (r.recentNews || []).length
+      });
+      if (!finalReport.metadata) finalReport.metadata = {};
+      finalReport.metadata.qualityWarning = true;
+    }
+
+    // 캐시 상태 추가 (새 분석이므로 false)
+    if (!finalReport.metadata) finalReport.metadata = {};
+    finalReport.metadata.cacheHit = false;
 
     // 6. 최종 결과 전송
     sendUpdate({ type: 'success', data: finalReport });

@@ -206,39 +206,66 @@ export default function SingleReportView({ singleData }) {
   // 데이터 소스 뱃지 동적 결정
   const sourceBadge = getSourceBadge(singleData);
 
-  // AI 품질 점수
-  const aiScore = singleData.score;
-  const aiIteration = singleData.iteration;
+    // AI 품질 점수
+    const aiScore = singleData.score;
+    const aiIteration = singleData.iteration;
+  
+    // 캐시 상태 및 품질 경고
+    const cacheHit = singleData.metadata?.cacheHit;
+    const cacheAgeMs = singleData.metadata?.cacheAgeMs;
+    const isPartial = singleData.debug?.isPartialResult || singleData.metadata?.qualityWarning;
+    const hasSentiment = !!(r?.marketSentiment?.status);
+  
+    const getCacheAgeText = (ms) => {
+      if (!ms) return '';
+      const mins = Math.floor(ms / 60000);
+      if (mins < 1) return '방금 전';
+      if (mins < 60) return `${mins}분 전`;
+      const hours = Math.floor(mins / 60);
+      if (hours < 24) return `${hours}시간 전`;
+      return `${Math.floor(hours / 24)}일 전`;
+    };
 
-  // MarketSentimentBanner가 null이면 헤더 우측 공간 보정
-  const hasSentiment = !!(r?.marketSentiment?.status);
-
-  return (
-    <div className="mt-8 mx-auto w-full flex-1 animate-in fade-in slide-in-from-bottom-8">
-
-      {/* 리포트 헤더 */}
-      <div className="mb-8 flex flex-col lg:flex-row lg:items-center justify-between gap-6 px-1 md:px-0">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-2.5 flex-wrap">
-            <span className="px-2.5 py-1 bg-primary/10 text-primary text-[10px] md:text-xs font-bold rounded-full uppercase tracking-wider">
-              {sourceBadge}
-            </span>
-            <span className="text-on-surface-variant text-[11px] md:text-sm font-medium">{today}</span>
-            {aiScore != null && (
-              <span
-                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[10px] md:text-[11px] font-bold"
-                title={`Sisyphus Loop ${aiIteration}회 반복 후 확정`}
-                style={{
-                  background: aiScore >= 85 ? '#f0fdf4' : aiScore >= 70 ? '#fffbeb' : '#fff1f2',
-                  borderColor: aiScore >= 85 ? '#86efac' : aiScore >= 70 ? '#fcd34d' : '#fca5a5',
-                  color: aiScore >= 85 ? '#166534' : aiScore >= 70 ? '#92400e' : '#be123c',
-                }}
-              >
-                <span className="material-symbols-outlined !text-[12px] md:!text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
-                AI {aiScore}
+    return (
+      <div className="mt-8 mx-auto w-full flex-1 animate-in fade-in slide-in-from-bottom-8">
+  
+        {/* 리포트 헤더 */}
+        <div className="mb-8 flex flex-col lg:flex-row lg:items-center justify-between gap-6 px-1 md:px-0">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-2.5 flex-wrap">
+              <span className="px-2.5 py-1 bg-primary/10 text-primary text-[10px] md:text-xs font-bold rounded-full uppercase tracking-wider">
+                {sourceBadge}
               </span>
-            )}
-          </div>
+              
+              {/* 캐시 상태 배지 */}
+              <span className={`px-2.5 py-1 text-[10px] md:text-xs font-bold rounded-full border ${cacheHit ? 'bg-slate-50 text-slate-500 border-slate-200' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
+                {cacheHit ? `캐시된 보고서 (${getCacheAgeText(cacheAgeMs)})` : '새로 분석됨'}
+              </span>
+
+              {/* 품질 경고 배지 */}
+              {isPartial && (
+                <span className="px-2.5 py-1 bg-amber-50 text-amber-600 border border-amber-100 text-[10px] md:text-xs font-bold rounded-full flex items-center gap-1">
+                  <span className="material-symbols-outlined !text-[14px]">warning</span>
+                  일부 데이터 부족
+                </span>
+              )}
+
+              <span className="text-on-surface-variant text-[11px] md:text-sm font-medium ml-1">{today}</span>
+              {aiScore != null && (
+                <span
+                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[10px] md:text-[11px] font-bold"
+                  title={`Sisyphus Loop ${aiIteration}회 반복 후 확정`}
+                  style={{
+                    background: aiScore >= 85 ? '#f0fdf4' : aiScore >= 70 ? '#fffbeb' : '#fff1f2',
+                    borderColor: aiScore >= 85 ? '#86efac' : aiScore >= 70 ? '#fcd34d' : '#fca5a5',
+                    color: aiScore >= 85 ? '#166534' : aiScore >= 70 ? '#92400e' : '#be123c',
+                  }}
+                >
+                  <span className="material-symbols-outlined !text-[12px] md:!text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
+                  AI {aiScore}
+                </span>
+              )}
+            </div>
           <h2 className="text-2xl md:text-3xl font-extrabold text-on-surface tracking-tight font-headline break-keep">
             {singleData.companyName} 분석 보고서
           </h2>

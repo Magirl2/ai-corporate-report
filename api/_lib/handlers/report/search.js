@@ -44,13 +44,13 @@ export default async function handler(req, res) {
     return res.status(403).json(createErrorResponse(ErrorCategory.USAGE, 'QUOTA_EXCEEDED', '무료 분석 한도를 모두 사용했습니다. 플랜을 업그레이드하세요.', logger.reqId, false));
   }
 
-  const { companyName, forceRefresh } = req.body;
+  const { companyName, forceRefresh, qualityMode = 'deep' } = req.body;
   if (!companyName) {
     logger.warn('Missing companyName');
     return res.status(400).json(createErrorResponse(ErrorCategory.VALIDATION, 'BAD_REQUEST', '기업명이 필요합니다.', logger.reqId, false));
   }
 
-  logger.info('Generate report search stage start', { companyName, userEmail: user.email });
+  logger.info('Generate report search stage start', { companyName, userEmail: user.email, qualityMode });
 
   // 3. 스트리밍 응답 헤더 설정 (NDJSON)
   res.setHeader('Content-Type', 'text/event-stream');
@@ -72,6 +72,13 @@ export default async function handler(req, res) {
         // 캐시 히트라도 과금/사용량 차감 등 비즈니스 제약은 정상적으로 적용
         await incrementUserUsage(user.email);
         
+        // 캐시 메타데이터 추가
+        if (!cachedResult.metadata) cachedResult.metadata = {};
+        cachedResult.metadata.cacheHit = true;
+        if (cachedResult.createdAt) {
+          cachedResult.metadata.cacheAgeMs = Date.now() - new Date(cachedResult.createdAt).getTime();
+        }
+
         sendUpdate({ type: 'success', data: cachedResult });
         res.end();
         logger.info('Generate report search success (cached)', { companyName });
@@ -101,15 +108,16 @@ export default async function handler(req, res) {
       companyName,
       ownerEmail: user.email,
       createdAt: new Date().toISOString(),
+      qualityMode,
       data: stage1Output
     };
 
     await setUniqueStage1Artifact(stage1Id, artifactPayload);
     
-    logger.info('Stage 1 persisted, returning handoff payload', { stage1Id });
+    logger.info('Stage 1 persisted, returning handoff payload', { stage1Id, qualityMode });
 
     // 6. Stage 1 결과 전송 (Handoff payload)
-    sendUpdate({ type: 'stage1', data: { stage1Id, companyName } });
+    sendUpdate({ type: 'stage1', data: { stage1Id, companyName, metadata: { cacheHit: false } } });
     res.end();
     logger.info('Generate report search stage success', { companyName });
 

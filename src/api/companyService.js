@@ -66,7 +66,8 @@ export const fetchCompanyData = async (companyName, onStatusUpdate, options = {}
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
         companyName, 
-        forceRefresh: Boolean(options.forceRefresh) 
+        forceRefresh: Boolean(options.forceRefresh),
+        qualityMode: options.qualityMode || 'deep'
       })
     });
 

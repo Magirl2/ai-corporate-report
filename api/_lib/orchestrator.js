@@ -163,6 +163,12 @@ export class ServerOrchestrator {
       score: 0
     };
     this.startTime = 0;
+    this.options = { qualityMode: 'deep' };
+  }
+
+  setOptions(opts) {
+    this.options = { ...this.options, ...opts };
+    this.logger?.info('Orchestrator options updated', { options: this.options });
   }
 
   /**
@@ -304,6 +310,16 @@ export class ServerOrchestrator {
     }
 
     this.metadata.totalDurationMs = Date.now() - (this.startTime || (Date.now() - 1));
+    
+    // 분석 실패 섹션이 있거나 필수 데이터가 없으면 partial result로 표시
+    const criticalFailure = this._agentErrors.some(e => ['analyze-financial', 'analyze-strategy'].includes(e.stage));
+    if (criticalFailure) {
+      this.metadata.qualityLevel = 'degraded';
+      this.state.isPartialResult = true;
+    } else {
+      this.metadata.qualityLevel = 'high';
+    }
+
     return this.assembleFinalReport();
   }
 
@@ -357,17 +373,29 @@ export class ServerOrchestrator {
   async engineSearch(companyName, identity, signal) {
     this.onStatusUpdate?.('최신 뉴스 및 시장 동향 검색 중...');
     const today = new Date().toLocaleDateString('ko-KR');
+    const isDeep = this.options.qualityMode === 'deep';
+    const newsCount = isDeep ? '5-8' : '2-3';
+    
     const searchPrompt = `Evaluate '${companyName}'. Today is ${today}. identity: ${JSON.stringify(identity)}.
 Output a STRICT JSON object containing:
 {
   "companyIdentity": "Brief business area and vision",
   "marketContext": "Current industry and market trends",
   "businessModel": "How it creates value",
-  "newsFindings": ["recent news headline 1", "recent news headline 2"],
+  "newsFindings": [
+    {
+      "date": "YYYY-MM-DD",
+      "source": "News source name",
+      "headline": "Clear news title",
+      "summary": "1-2 sentence summary",
+      "impact": "Positive/Neutral/Negative impact on company"
+    }
+  ],
   "sentiment": "Positive/Neutral/Negative",
-  "risks": ["risk factor 1"],
-  "opportunities": ["opportunity 1"]
+  "risks": ["detailed risk factor with reason"],
+  "opportunities": ["detailed opportunity with reason"]
 }
+IMPORTANT: Please find at least ${newsCount} recent and relevant news items.
 DO NOT output markdown. Respond ONLY with valid JSON.`;
     
     try {
@@ -519,13 +547,17 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
    */
   async engineCompose(signal) {
     this.onStatusUpdate?.('AI 핵심 요약 및 인사이트 합성 중...');
+    const isDeep = this.options.qualityMode === 'deep';
     const result = await this.executeTextAgent('composer', 'gemini-2.5-pro', {
       ...this.state.analysis,
       companyName: this.companyName,
       rawSearchText: this.state.raw.searchBriefing?.rawContent || "", 
       financeData: this.state.raw.finance,
-      disclosures: this.state.raw.disclosures
-    }, signal);
+      disclosures: this.state.raw.disclosures,
+      qualityMode: this.options.qualityMode
+    }, signal, { 
+      maxOutputTokens: isDeep ? 8192 : 2048 
+    });
     return { ok: true, data: result };
   }
 
@@ -714,12 +746,16 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
     }
   }
 
-  async executeTextAgent(agentName, model, context = {}, signal) {
+  async executeTextAgent(agentName, model, context = {}, signal, config = {}) {
     const system = this.promptsMap[agentName] || `You are ${agentName}. Output Markdown. Respond in Korean.`;
     const prompt = `${system}\n\nContext: ${JSON.stringify(context, null, 2)}`;
     let result = null;
     try {
-      result = await this.callGemini(model, prompt, { temperature: 0.3, signal });
+      result = await this.callGemini(model, prompt, { 
+        temperature: 0.3, 
+        signal,
+        ...config
+      });
       this.logger?.info('executeTextAgent success', { agentName });
       return result.candidates?.[0]?.content?.parts?.[0]?.text || '';
     } catch (err) {

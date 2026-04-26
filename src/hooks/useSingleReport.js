@@ -62,7 +62,8 @@ export function useSingleReport({ auth, showToast, setTab }) {
     setStatusMessage('');
 
     try {
-      const data = await fetchCompanyData(query, setStatusMessage, options);
+      const searchOptions = { qualityMode: 'deep', ...options };
+      const data = await fetchCompanyData(query, setStatusMessage, searchOptions);
       setSingleData(data);
 
       const updatedHistory = addRecentSearch(auth.currentUser, query);
@@ -97,7 +98,7 @@ export function useSingleReport({ auth, showToast, setTab }) {
 
   const refreshSearch = (companyName) => {
     setSearchInput(companyName);
-    handleSearch(null, companyName, { forceRefresh: true });
+    handleSearch(null, companyName, { forceRefresh: true, qualityMode: 'deep' });
     showToast(`'${companyName}' 캐시를 무시하고 새 분석을 시작합니다.`, 'info');
   };
 
