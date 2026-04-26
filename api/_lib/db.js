@@ -257,6 +257,25 @@ export async function setCachedReport(companyName, reportData) {
   }
 }
 
+export async function deleteCachedReport(companyName) {
+  const normalized = normalizeCorpName(companyName);
+  const target = ALIAS_MAP[normalized] || normalized;
+  const key = `report:${target.toUpperCase()}`;
+  if (useRedis) {
+    try {
+      await redis.del(key);
+    } catch (err) {
+      console.error('[Redis Cache] Del error:', err);
+    }
+  } else {
+    const cache = getLocalCache();
+    if (cache[key]) {
+      delete cache[key];
+      saveLocalCache(cache);
+    }
+  }
+}
+
 /**
  * Stage 1 Artifact Persistence (Handoff data)
  */

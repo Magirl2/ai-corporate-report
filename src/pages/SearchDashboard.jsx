@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 
 // 상대 시간 포맷터
 function timeAgo(isoString) {
@@ -26,18 +26,18 @@ const FALLBACK_COMPANIES = [
   { name: '카카오' },
 ];
 
-export default function SearchDashboard({ searchInput, setSearchInput, onSearch, setTab }) {
+export default function SearchDashboard({ 
+  searchInput, 
+  setSearchInput, 
+  onSearch, 
+  setTab,
+  recentSearches = [],
+  onDeleteRecentSearch,
+  onClearRecentSearches,
+  onRefreshSearch
+}) {
   const d = new Date();
   const today = `${d.getFullYear()}년 ${String(d.getMonth() + 1).padStart(2, '0')}월 ${String(d.getDate()).padStart(2, '0')}일`;
-
-  // LocalStorage에서 최근 검색 기록 로드
-  const recentSearches = useMemo(() => {
-    try {
-      return JSON.parse(localStorage.getItem('ei_recent_searches') || '[]');
-    } catch {
-      return [];
-    }
-  }, []);
 
   const hasHistory = recentSearches.length > 0;
 
@@ -204,15 +204,27 @@ export default function SearchDashboard({ searchInput, setSearchInput, onSearch,
 
       {/* 최근 검색 기록 / 추천 기업 */}
       <div className="max-w-4xl mx-auto w-full mt-20 px-4 pb-16">
-        <h3
-          className="text-xs font-bold uppercase tracking-widest mb-5 flex items-center gap-2"
-          style={{ color: 'var(--color-on-surface-variant)' }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-            {hasHistory ? 'history' : 'star'}
-          </span>
-          {hasHistory ? '최근 검색 기업' : '추천 기업'}
-        </h3>
+        <div className="flex justify-between items-center mb-5">
+          <h3
+            className="text-xs font-bold uppercase tracking-widest flex items-center gap-2 m-0"
+            style={{ color: 'var(--color-on-surface-variant)' }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+              {hasHistory ? 'history' : 'star'}
+            </span>
+            {hasHistory ? '최근 검색 기업' : '추천 기업'}
+          </h3>
+          {hasHistory && (
+            <button
+              onClick={onClearRecentSearches}
+              aria-label="최근 검색 기록 전체 삭제"
+              className="text-xs font-semibold px-3 py-1.5 rounded-full hover:bg-slate-100 transition-colors"
+              style={{ color: 'var(--color-outline)' }}
+            >
+              전체 삭제
+            </button>
+          )}
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {(hasHistory ? recentSearches : FALLBACK_COMPANIES).map((item) => {
@@ -270,16 +282,41 @@ export default function SearchDashboard({ searchInput, setSearchInput, onSearch,
                     {hasHistory ? 'history' : 'arrow_forward'}
                   </span>
                 </div>
-                <div style={{
-                  display: 'inline-flex', alignItems: 'center', gap: '4px',
-                  padding: '2px 8px', borderRadius: '9999px',
-                  background: accentColor + '14',
-                  fontSize: '0.7rem', fontWeight: 700, color: accentColor,
-                }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: '11px', fontVariationSettings: "'FILL' 1" }}>
-                    analytics
-                  </span>
-                  {hasHistory ? 'AI 분석 완료' : '분석 가능'}
+                <div className="flex items-center justify-between mt-4">
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '4px',
+                    padding: '2px 8px', borderRadius: '9999px',
+                    background: accentColor + '14',
+                    fontSize: '0.7rem', fontWeight: 700, color: accentColor,
+                  }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '11px', fontVariationSettings: "'FILL' 1" }}>
+                      analytics
+                    </span>
+                    {hasHistory ? 'AI 분석 완료' : '분석 가능'}
+                  </div>
+                  
+                  {hasHistory && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onRefreshSearch(item.name); }}
+                        aria-label="새로 분석"
+                        className="flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors"
+                        style={{ width: '36px', height: '36px', color: 'var(--color-primary)' }}
+                        title="새로 분석 (캐시 무시)"
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>refresh</span>
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onDeleteRecentSearch(item.name); }}
+                        aria-label="기록 삭제"
+                        className="flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors"
+                        style={{ width: '36px', height: '36px', color: 'var(--color-outline)' }}
+                        title="기록 삭제"
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </button>
             );

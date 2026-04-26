@@ -63,6 +63,16 @@ export default function App() {
   const single = useSingleReport({ auth, showToast, setTab });
   const compare = useCompareReport({ auth, showToast, setTab });
 
+  // 로그아웃 시 단일 보고서 뷰 초기화 (검색 기록은 유지됨)
+  useEffect(() => {
+    if (!currentUser) {
+      single.resetSearch();
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (tab === 'single') setTab('search');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser]);
+
   const navigateToSearch = () => {
     setTab('search');
     single.resetSearch();
@@ -104,6 +114,10 @@ export default function App() {
                 setSearchInput={single.setSearchInput}
                 onSearch={single.handleSearch}
                 setTab={setTab}
+                recentSearches={single.recentSearches}
+                onDeleteRecentSearch={single.removeRecentSearchItem}
+                onClearRecentSearches={single.clearRecentSearchHistory}
+                onRefreshSearch={single.refreshSearch}
               />
             )}
 

@@ -1,5 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { fetchCompanyData } from '../api/companyService';
+import { 
+  migrateLegacySearchHistory, 
+  getRecentSearches, 
+  addRecentSearch, 
+  removeRecentSearch, 
+  clearRecentSearches 
+} from '../utils/searchHistory';
 
 export function useSingleReport({ auth, showToast, setTab }) {
   const [searchInput, setSearchInput] = useState('');
@@ -7,6 +14,16 @@ export function useSingleReport({ auth, showToast, setTab }) {
   const [error, setError] = useState(null);
   const [statusMessage, setStatusMessage] = useState('');
   const [singleData, setSingleData] = useState(null);
+  const [recentSearches, setRecentSearches] = useState([]);
+
+  useEffect(() => {
+    if (auth.currentUser) {
+      migrateLegacySearchHistory(auth.currentUser);
+      setRecentSearches(getRecentSearches(auth.currentUser));
+    } else {
+      setRecentSearches(getRecentSearches(null)); // guest
+    }
+  }, [auth.currentUser]);
 
   const resetSearch = () => {
     setSingleData(null);
@@ -14,7 +31,7 @@ export function useSingleReport({ auth, showToast, setTab }) {
     setError(null);
   };
 
-  const handleSearch = async (e, keyword) => {
+  const handleSearch = async (e, keyword, options = {}) => {
     if (e) e.preventDefault();
     const query = keyword || searchInput;
     if (!query.trim()) {
@@ -45,17 +62,11 @@ export function useSingleReport({ auth, showToast, setTab }) {
     setStatusMessage('');
 
     try {
-      const data = await fetchCompanyData(query, setStatusMessage);
+      const data = await fetchCompanyData(query, setStatusMessage, options);
       setSingleData(data);
 
-      try {
-        const prev = JSON.parse(localStorage.getItem('ei_recent_searches') || '[]');
-        const updated = [
-          { name: query, date: new Date().toISOString() },
-          ...prev.filter(r => r.name !== query)
-        ].slice(0, 5);
-        localStorage.setItem('ei_recent_searches', JSON.stringify(updated));
-      } catch (_) {}
+      const updatedHistory = addRecentSearch(auth.currentUser, query);
+      setRecentSearches(updatedHistory);
     } catch (err) {
       if (err.category === 'AUTH') {
         showToast('로그인이 필요합니다.', 'info');
@@ -74,6 +85,22 @@ export function useSingleReport({ auth, showToast, setTab }) {
     }
   };
 
+  const removeRecentSearchItem = (companyName) => {
+    const updated = removeRecentSearch(auth.currentUser, companyName);
+    setRecentSearches(updated);
+  };
+
+  const clearRecentSearchHistory = () => {
+    const updated = clearRecentSearches(auth.currentUser);
+    setRecentSearches(updated);
+  };
+
+  const refreshSearch = (companyName) => {
+    setSearchInput(companyName);
+    handleSearch(null, companyName, { forceRefresh: true });
+    showToast(`'${companyName}' 캐시를 무시하고 새 분석을 시작합니다.`, 'info');
+  };
+
   return {
     searchInput,
     setSearchInput,
@@ -81,7 +108,11 @@ export function useSingleReport({ auth, showToast, setTab }) {
     error,
     statusMessage,
     singleData,
+    recentSearches,
     handleSearch,
-    resetSearch
+    resetSearch,
+    removeRecentSearchItem,
+    clearRecentSearchHistory,
+    refreshSearch
   };
 }

@@ -7,14 +7,18 @@ async function consumeNdjsonStream(response, onStatusUpdate) {
   let finalData = null;
   let stage1Id = null;
 
+  let buffer = '';
+
   while (true) {
     const { value, done } = await reader.read();
     if (done) break;
 
-    const chunk = decoder.decode(value);
-    const lines = chunk.split('\n').filter(Boolean);
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop(); // 마지막 요소는 불완전할 수 있으므로 버퍼에 남김
 
     for (const line of lines) {
+      if (!line.trim()) continue;
       try {
         const payload = JSON.parse(line);
         
@@ -39,19 +43,31 @@ async function consumeNdjsonStream(response, onStatusUpdate) {
     }
   }
 
+  if (buffer.trim()) {
+    try {
+      const payload = JSON.parse(buffer);
+      if (payload.type === 'success') finalData = payload.data;
+    } catch (e) {
+      console.warn('NDJSON 잔여 버퍼 파싱 오류:', e, buffer);
+    }
+  }
+
   return { finalData, stage1Id };
 }
 
 /**
  * 서버 사이드 오케스트레이션을 호출하고 NDJSON 스트림을 처리합니다.
  */
-export const fetchCompanyData = async (companyName, onStatusUpdate) => {
+export const fetchCompanyData = async (companyName, onStatusUpdate, options = {}) => {
   try {
     // 1. Stage 1: Search Endpoint 호출
     const searchResponse = await fetch('/api/report/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ companyName })
+      body: JSON.stringify({ 
+        companyName, 
+        forceRefresh: Boolean(options.forceRefresh) 
+      })
     });
 
     if (!searchResponse.ok) {
@@ -182,6 +198,28 @@ export const fetchCompareData = async (companyA, companyB, onStatusUpdate) => {
     return finalCompareData;
   } catch (error) {
     console.error('Compare Generation Error:', error);
+    throw error;
+  }
+};
+
+/**
+ * 기업의 보고서 캐시를 강제로 삭제합니다.
+ */
+export const deleteCompanyReportCache = async (companyName) => {
+  try {
+    const response = await fetch('/api/report/cache', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ companyName })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`캐시 삭제 실패 (${response.status})`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Cache Deletion Error:', error);
     throw error;
   }
 };
