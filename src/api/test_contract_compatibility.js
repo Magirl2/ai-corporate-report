@@ -1,6 +1,6 @@
 // src/api/test_contract_compatibility.js
-import { ServerOrchestrator, normalizeAnalystOutput } from '../../api/_lib/orchestrator.js';
-
+/* global process */
+import { ServerOrchestrator } from '../../api/_lib/orchestrator.js';
 /**
  * UI가 기대하는 보고서 스키마 정의 (Contract)
  */

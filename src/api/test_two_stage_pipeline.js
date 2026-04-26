@@ -1,4 +1,5 @@
 // src/api/test_two_stage_pipeline.js
+/* global process */
 import { ServerOrchestrator } from '../../api/_lib/orchestrator.js';
 import { generateStage1Id, setStage1Artifact, getStage1Artifact } from '../../api/_lib/db.js';
 

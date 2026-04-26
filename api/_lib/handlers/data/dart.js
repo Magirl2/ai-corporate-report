@@ -1,5 +1,5 @@
 // api/dart.js — 기업 공시 목록 조회 (유사 기업명 자동 매칭)
-import { resolveCorpCode, normalizeCorpName, extractKeyword } from '../_lib/dart-utils.js';
+import { resolveCorpCode, normalizeCorpName, extractKeyword } from '../../dart-utils.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');

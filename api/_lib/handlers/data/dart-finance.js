@@ -1,5 +1,5 @@
 // api/dart-finance.js
-import { resolveCorpCode } from '../_lib/dart-utils.js';
+import { resolveCorpCode } from '../../dart-utils.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');

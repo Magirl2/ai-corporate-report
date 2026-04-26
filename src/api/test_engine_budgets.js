@@ -1,4 +1,5 @@
 // src/api/test_engine_budgets.js
+/* global process */
 import { ServerOrchestrator } from '../../api/_lib/orchestrator.js';
 
 /**
@@ -28,14 +29,14 @@ class BudgetTestOrchestrator extends ServerOrchestrator {
   }
 
   // 전략 분석은 빠르게 완료
-  async engineAnalyzeStrategy(signal) {
+  async engineAnalyzeStrategy(_signal) {
     console.log('[Test] Strategy engine started (Simulating 2s work...)');
     await new Promise(r => setTimeout(r, 2000));
     return { ok: true, data: { strategy: { macroTrend: { summary: 'Strategy Success' } }, score: 90 } };
   }
 
   // 뉴스 분석은 빠르게 완료
-  async engineAnalyzeNews(signal) {
+  async engineAnalyzeNews(_signal) {
     console.log('[Test] News engine started (Simulating 1s work...)');
     await new Promise(r => setTimeout(r, 1000));
     return { ok: true, data: { news: { marketSentiment: { status: 'Positive' } }, score: 85 } };

@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { parse } from 'cookie';
-import { findUserByEmail, updateUser, toSafeUser } from '../_lib/db.js';
-import { createErrorResponse, ErrorCategory } from '../_lib/errors.js';
+import { findUserByEmail, updateUser, toSafeUser } from '../../db.js';
+import { createErrorResponse, ErrorCategory } from '../../errors.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'ei_mock_secret_key_123';
 

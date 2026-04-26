@@ -5,10 +5,10 @@ import {
   incrementUserUsage, 
   setCachedReport,
   getUniqueStage1Artifact
-} from '../_lib/db.js';
-import { ServerOrchestrator } from '../_lib/orchestrator.js';
-import { createLogger } from '../_lib/logger.js';
-import { ErrorCategory, createErrorResponse, createStreamError } from '../_lib/errors.js';
+} from '../../db.js';
+import { ServerOrchestrator } from '../../orchestrator.js';
+import { createLogger } from '../../logger.js';
+import { ErrorCategory, createErrorResponse, createStreamError } from '../../errors.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'ei_mock_secret_key_123';
 
