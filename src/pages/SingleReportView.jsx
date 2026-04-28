@@ -9,13 +9,15 @@ import { getYearlyMetrics, getSourceBadge, getSafeItems } from '../utils/reportS
 const NewsItem = ({ news }) => {
   const [open, setOpen] = useState(false);
   const hasDetail = !!(news.summary || news.detail || news.impactAnalysis);
+  const url = news.url || news.sourceUrl;
 
   return (
     <div className={`p-4 rounded-xl border border-slate-100 transition-all ${open ? 'bg-slate-50/80 shadow-sm border-primary/20' : 'bg-white hover:bg-slate-50'}`}>
-      <div className="flex items-start justify-between gap-4 cursor-pointer" onClick={() => hasDetail && setOpen(!open)}>
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1.5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 cursor-pointer" onClick={() => hasDetail && setOpen(!open)}>
+          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1.5 py-0.5 bg-slate-100 rounded">RECENT NEWS</span>
+            {news.source && <span className="text-[10px] font-bold text-slate-500">{news.source}</span>}
             {news.sourceDate && <span className="text-[10px] text-slate-400">{news.sourceDate}</span>}
           </div>
           <h4 className={`text-sm font-bold leading-snug transition-colors ${open ? 'text-primary' : 'text-slate-800'}`}>
@@ -23,14 +25,22 @@ const NewsItem = ({ news }) => {
           </h4>
         </div>
         {hasDetail && (
-          <span className={`material-symbols-outlined text-slate-300 transition-transform duration-300 ${open ? 'rotate-180 text-primary' : ''}`}>
-            expand_more
-          </span>
+          <button
+            onClick={() => setOpen(!open)}
+            aria-expanded={open}
+            aria-controls="news-detail-panel"
+            className={`shrink-0 flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-bold transition-all duration-200 border ${open ? 'bg-primary/5 border-primary/20 text-primary' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'}`}
+          >
+            {open ? '접기' : '상세보기'}
+            <span className={`material-symbols-outlined transition-transform duration-300 ${open ? 'rotate-180' : ''}`} style={{ fontSize: '18px' }}>
+              expand_more
+            </span>
+          </button>
         )}
       </div>
 
       {open && hasDetail && (
-        <div className="mt-4 pt-4 border-t border-slate-200/60 animate-in fade-in slide-in-from-top-1 duration-300">
+        <div id="news-detail-panel" className="mt-4 pt-4 border-t border-slate-200/60 animate-in fade-in slide-in-from-top-1 duration-300">
           <div className="space-y-4">
             {news.summary && (
               <div>
@@ -38,12 +48,28 @@ const NewsItem = ({ news }) => {
                 <p className="text-[13px] text-slate-600 leading-relaxed font-medium">{news.summary}</p>
               </div>
             )}
-            {(news.detail || news.impactAnalysis) && (
+            {news.detail && (
               <div className="p-3 bg-white rounded-lg border border-slate-100 shadow-sm">
-                <p className="text-xs font-black text-primary/70 uppercase tracking-tighter mb-1.5">심층 분석 및 기업 영향</p>
+                <p className="text-xs font-black text-primary/70 uppercase tracking-tighter mb-1.5">상세 분석</p>
                 <div className="text-[13px] text-slate-700 leading-relaxed">
-                  {renderMarkdown(news.detail || news.impactAnalysis)}
+                  {renderMarkdown(news.detail)}
                 </div>
+              </div>
+            )}
+            {news.impactAnalysis && (
+              <div className="p-3 bg-white rounded-lg border border-slate-100 shadow-sm">
+                <p className="text-xs font-black text-primary/70 uppercase tracking-tighter mb-1.5">기업 영향</p>
+                <div className="text-[13px] text-slate-700 leading-relaxed">
+                  {renderMarkdown(news.impactAnalysis)}
+                </div>
+              </div>
+            )}
+            {url && (
+              <div className="pt-2">
+                <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline">
+                  <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>open_in_new</span>
+                  원문 보기
+                </a>
               </div>
             )}
           </div>
@@ -431,10 +457,10 @@ export default function SingleReportView({ singleData }) {
           </BentoCard>
 
           {/* 주요 뉴스 — 레이아웃 강제 확장 */}
-          <BentoCard icon="newspaper" title="주요 뉴스" color="slate" className="col-span-full w-full">
+          <BentoCard icon="newspaper" title={r?.recentNews?.length > 0 ? `주요 뉴스 ${Math.min(r.recentNews.length, 8)}건` : "주요 뉴스"} color="slate" className="col-span-full w-full">
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {r?.recentNews?.length > 0 ? (
-                r.recentNews.slice(0, 5).map((news, idx) => (
+                r.recentNews.slice(0, 8).map((news, idx) => (
                   <NewsItem key={idx} news={news} idx={idx} />
                 ))
               ) : <p style={{ color: '#94a3b8', fontSize: '0.875rem' }}>뉴스 정보가 없습니다.</p>}

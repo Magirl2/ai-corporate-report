@@ -594,7 +594,7 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
     };
 
     const result = await this.executeTextAgent('composer', 'gemini-2.5-pro', composerContext, signal, {
-      maxOutputTokens: 4096  // 섹션형 보고서 잘림 방지
+      maxOutputTokens: 8192  // 긴 종합 보고서 생성을 위해 8192 사용
     });
     return { ok: true, data: result };
   }
