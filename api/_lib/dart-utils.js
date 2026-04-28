@@ -2,6 +2,14 @@
  * api/_lib/dart-utils.js
  * DART 기업 매칭 및 정규화 공통 유틸리티
  */
+import AdmZip from 'adm-zip';
+import { XMLParser } from 'fast-xml-parser';
+
+// 글로벌 캐시 변수 (Vercel 서버리스 환경에서 인스턴스 생존 시 유지)
+global.CORP_CODE_CACHE = global.CORP_CODE_CACHE || null;
+global.CORP_CODE_CACHE_TIME = global.CORP_CODE_CACHE_TIME || 0;
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24시간
+
 
 // 1. 브랜드명/서비스명 -> 공식 법인명 매핑 (DART 검색 성능 향상용)
 export const ALIAS_MAP = {
@@ -93,81 +101,116 @@ export function scoreCorpMatch(item, targetNormalized, targetKeyword) {
 }
 
 /**
- * 6. 통합 corp_code 검색 로직
+ * 6. OpenDART corpCode.xml 다운로드 및 캐싱
+ */
+export async function loadCorpCodes(apiKey) {
+  const now = Date.now();
+  if (global.CORP_CODE_CACHE && (now - global.CORP_CODE_CACHE_TIME < CACHE_TTL)) {
+    return global.CORP_CODE_CACHE;
+  }
+
+  try {
+    const response = await fetch(`https://opendart.fss.or.kr/api/corpCode.xml?crtfc_key=${apiKey}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch corpCode.xml: ${response.status}`);
+    }
+    
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    
+    const zip = new AdmZip(buffer);
+    const zipEntries = zip.getEntries();
+    const xmlEntry = zipEntries.find(entry => entry.entryName === 'CORPCODE.xml');
+    
+    if (!xmlEntry) {
+      throw new Error('CORPCODE.xml not found in the downloaded zip');
+    }
+    
+    const xmlString = xmlEntry.getData().toString('utf8');
+    const parser = new XMLParser();
+    const jsonObj = parser.parse(xmlString);
+    
+    const list = jsonObj.result?.list || [];
+    
+    // list is an array of { corp_code, corp_name, stock_code, modify_date }
+    // Some companies don't have stock_code (represented as empty string or spaces in XML)
+    global.CORP_CODE_CACHE = list.map(item => ({
+      corpCode: item.corp_code ? String(item.corp_code).padStart(8, '0') : null,
+      corpName: item.corp_name,
+      stockCode: item.stock_code ? String(item.stock_code).trim() : null,
+      normalizedName: normalizeCorpName(item.corp_name, false),
+      keywordName: extractKeyword(item.corp_name)
+    })).filter(i => i.corpCode); // 유효한 corp_code가 있는 항목만
+    
+    global.CORP_CODE_CACHE_TIME = now;
+    console.log(`[dart-utils] Successfully loaded and cached ${global.CORP_CODE_CACHE.length} corp codes.`);
+    
+    return global.CORP_CODE_CACHE;
+  } catch (error) {
+    console.error('[dart-utils] Error loading corp codes:', error);
+    // 폴백: 이전 캐시가 있으면 그대로 사용
+    if (global.CORP_CODE_CACHE) return global.CORP_CODE_CACHE;
+    return null;
+  }
+}
+
+/**
+ * 7. 통합 corp_code 검색 로직 (XML 기반)
  */
 export async function resolveCorpCode(userInput, apiKey) {
   if (!userInput) return null;
 
-  // STEP 1: Alias / Common 매핑 우선 확인
+  // STEP 1: Alias 매핑 확인
   const aliasResolved = ALIAS_MAP[userInput] || ALIAS_MAP[normalizeCorpName(userInput)];
   const targetName = aliasResolved || userInput;
   
-  const normalized = normalizeCorpName(targetName, false); // 공백 제거 버전
-  const spaced = normalizeCorpName(targetName, true);     // 공백 보존 버전
+  const normalized = normalizeCorpName(targetName, false);
   const keyword = extractKeyword(normalized);
-  const firstToken = targetName.trim().split(/\s+/)[0];
 
+  // STEP 2: corpCode.xml 로드 및 캐시 검색
+  const corpList = await loadCorpCodes(apiKey);
+  
+  if (corpList) {
+    // 1순위: 정확한 종목명(stock_name) 매칭 또는 정확한 법인명 매칭
+    // 비나텍 같은 경우, 입력이 '비나텍'이면 corp_name='비나텍'으로 매칭됨
+    let match = corpList.find(c => c.corpName === targetName || c.normalizedName === normalized);
+    
+    // 2순위: 키워드 기반 포함 매칭 (주식 코드가 있는 상장사 우선)
+    if (!match) {
+      const candidates = corpList.filter(c => 
+        c.normalizedName.includes(normalized) || 
+        (keyword.length >= 2 && c.normalizedName.includes(keyword))
+      );
+      
+      // 상장사(stockCode 존재) 우선, 길이가 가장 짧은 것(더 정확한 이름) 우선
+      if (candidates.length > 0) {
+        match = candidates.sort((a, b) => {
+          if (a.stockCode && !b.stockCode) return -1;
+          if (!a.stockCode && b.stockCode) return 1;
+          return a.corpName.length - b.corpName.length;
+        })[0];
+      }
+    }
+
+    if (match) {
+      return { 
+        corpCode: match.corpCode, 
+        corpName: match.corpName, 
+        stockCode: match.stockCode,
+        method: 'xml_cache'
+      };
+    }
+  }
+
+  // STEP 3: Fallback - COMMON_CORPS 하드코딩 확인
   let corpCode = 
     COMMON_CORPS[targetName] || 
     COMMON_CORPS[normalized] || 
     COMMON_CORPS[keyword] || 
     null;
     
-  if (corpCode) return { corpCode, corpName: targetName, method: 'hardcoded' };
-
-  // STEP 2: DART API를 통한 후보군 검색
-  try {
-    const today = new Date();
-    const formatDate = (d) => d.toISOString().split('T')[0].replace(/-/g, '');
-    
-    // 후보군 생성 (공백 제거 버전, 공백 보존 버전, 키워드 버전, 첫 단어 버전, 원본 트림 버전)
-    const originalTrimmed = targetName.trim();
-    const candidates = [...new Set([normalized, spaced, keyword, firstToken, originalTrimmed])].filter(s => s && s.length >= 2);
-    
-    // 최근 1년(4개 윈도우) 조회
-    const windows = [0, 1, 2, 3].map(i => {
-      const end = new Date(today);
-      end.setMonth(today.getMonth() - i * 3);
-      const start = new Date(end);
-      start.setMonth(end.getMonth() - 3);
-      return { bgn: formatDate(start), end: formatDate(end) };
-    });
-
-    const allSearches = candidates.flatMap(c => windows.map(w => ({ c, w })));
-    const allResults = await Promise.all(
-      allSearches.map(({ c, w }) =>
-        fetch(
-          `https://opendart.fss.or.kr/api/list.json?crtfc_key=${apiKey}` +
-          `&corp_name=${encodeURIComponent(c)}&bgn_de=${w.bgn}&end_de=${w.end}&page_count=100`,
-          { headers: { 'User-Agent': 'Mozilla/5.0' } }
-        ).then(r => r.json()).catch(() => ({ status: 'error' }))
-      )
-    );
-
-    let bestScore = 0;
-    let bestCorp = null;
-
-    for (const result of allResults) {
-      if (result.status !== '000' || !result.list?.length) continue;
-      for (const item of result.list) {
-        const s = scoreCorpMatch(item, normalized, keyword);
-        if (s > bestScore) {
-          bestScore = s;
-          bestCorp = item;
-        }
-      }
-    }
-
-    if (bestCorp && bestScore >= 2) {
-      return { 
-        corpCode: bestCorp.corp_code, 
-        corpName: bestCorp.corp_name, 
-        method: 'api_search',
-        score: bestScore
-      };
-    }
-  } catch (err) {
-    console.error('[resolveCorpCode] Search failed:', err);
+  if (corpCode) {
+    return { corpCode, corpName: targetName, stockCode: null, method: 'hardcoded' };
   }
 
   return null;

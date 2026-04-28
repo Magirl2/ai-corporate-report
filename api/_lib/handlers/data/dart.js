@@ -13,16 +13,20 @@ export default async function handler(req, res) {
     const queryString = req.url.split('?')[1] || '';
     const searchParams = new URLSearchParams(queryString);
     const corpName     = searchParams.get('corp_name') || '';
+    const corpCodeParam = searchParams.get('corp_code') || '';
     const pageCount    = searchParams.get('page_count') || '5';
 
-    if (!corpName) {
-      return res.status(400).json({ error: 'corp_name 파라미터가 필요합니다.' });
+    if (!corpName && !corpCodeParam) {
+      return res.status(400).json({ error: 'corp_name 또는 corp_code 파라미터가 필요합니다.' });
     }
 
     // ─── STEP 1: 통합 유틸리티를 통한 기업 코드 탐색 ────────────────────────────
-    const resolution = await resolveCorpCode(corpName, DART_API_KEY);
+    let resolvedCorpCode = corpCodeParam || null;
     
-    let resolvedCorpCode = resolution?.corpCode || null;
+    if (!resolvedCorpCode && corpName) {
+      const resolution = await resolveCorpCode(corpName, DART_API_KEY);
+      resolvedCorpCode = resolution?.corpCode || null;
+    }
 
     // ─── STEP 2: corpCode로 공시 목록 조회 ──────────────────────────────────
     const today = new Date();

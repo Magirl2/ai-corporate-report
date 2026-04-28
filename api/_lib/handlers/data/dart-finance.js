@@ -15,22 +15,27 @@ export default async function handler(req, res) {
   try {
     const queryString = req.url.split('?')[1] || '';
     const searchParams = new URLSearchParams(queryString);
-    const corpName = searchParams.get('corp_name');
+    const corpName = searchParams.get('corp_name') || '';
+    const corpCodeParam = searchParams.get('corp_code') || '';
 
-    if (!corpName) {
-      return res.status(400).json({ error: 'corp_name 파라미터가 필요합니다.' });
+    if (!corpName && !corpCodeParam) {
+      return res.status(400).json({ error: 'corp_name 또는 corp_code 파라미터가 필요합니다.' });
     }
 
     // ─── STEP 1: 통합 유틸리티를 통한 기업 코드 탐색 ────────────────────────────
-    const resolution = await resolveCorpCode(corpName, DART_API_KEY);
+    let corpCode = corpCodeParam || null;
     
-    if (!resolution?.corpCode) {
+    if (!corpCode && corpName) {
+      const resolution = await resolveCorpCode(corpName, DART_API_KEY);
+      corpCode = resolution?.corpCode || null;
+    }
+    
+    if (!corpCode) {
       return res.status(404).json({
         error: `'${corpName}'의 DART 공시 정보를 찾지 못했습니다. 정확한 기업명을 입력하거나 한국 상장사인지 확인해 주세요.`
       });
     }
 
-    const corpCode = resolution.corpCode;
     const today = new Date();
 
     // ─── STEP 2: 최근 5개 연도 재무제표 병렬 조회 ───────────────────────────

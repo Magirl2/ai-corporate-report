@@ -1,5 +1,6 @@
 // api/_lib/orchestrator.js
 import { loadAgentPrompts } from './prompts.js';
+import { resolveCorpCode } from './dart-utils.js';
 
 const DEBUG = process.env.NODE_ENV !== 'production';
 
@@ -381,6 +382,19 @@ export class ServerOrchestrator {
   async engineResolve(companyName, signal) {
     try {
       const resolveInfo = await this.resolveTicker(signal);
+      
+      if (resolveInfo.type === 'KR') {
+        const dartApiToken = process.env.DART_API_KEY || '98c7f5eef7673f915ae614cb61a339afa5684fa3';
+        const corpCodeRes = await resolveCorpCode(companyName, dartApiToken);
+        
+        if (corpCodeRes) {
+          resolveInfo.resolvedCorpCode = corpCodeRes.corpCode;
+          resolveInfo.resolvedCorpName = corpCodeRes.corpName;
+          resolveInfo.stockCode = corpCodeRes.stockCode;
+          resolveInfo.resolutionMethod = corpCodeRes.method;
+        }
+      }
+      
       this.onStatusUpdate?.(`기업 식별 완료: ${resolveInfo.type === 'KR' ? '한국' : '미국 ' + resolveInfo.ticker}`);
       return { ok: true, data: resolveInfo };
     } catch (err) {
@@ -396,14 +410,19 @@ export class ServerOrchestrator {
     const warnings = [];
     
     this.onStatusUpdate?.('DART/FMP 데이터 수집 중...');
-    const { type, ticker } = identity;
+    const { type, ticker, resolvedCorpCode } = identity;
     
     try {
       if (type === 'KR') {
-        const safeCorpName = encodeURIComponent(companyName.replace(/\s+/g, ''));
+        if (!resolvedCorpCode) {
+          warnings.push('정형 재무제표 데이터를 가져오지 못함 (corp_code 매칭 실패)');
+          return { ok: true, data: result, warnings };
+        }
+        
+        const safeCorpCode = encodeURIComponent(resolvedCorpCode);
         const [dRes, fRes] = await Promise.all([
-          this.internalFetch(`/api/data/dart?corp_name=${safeCorpName}`, { signal }).catch(e => { warnings.push(`DART disclosures error: ${e.message}`); return { list: [] }; }),
-          this.internalFetch(`/api/data/dart-finance?corp_name=${safeCorpName}`, { signal }).catch(e => { warnings.push(`DART finance error: ${e.message}`); return null; })
+          this.internalFetch(`/api/data/dart?corp_code=${safeCorpCode}`, { signal }).catch(e => { warnings.push(`DART disclosures error: ${e.message}`); return { list: [] }; }),
+          this.internalFetch(`/api/data/dart-finance?corp_code=${safeCorpCode}`, { signal }).catch(e => { warnings.push(`DART finance error: ${e.message}`); return null; })
         ]);
         result.disclosures = dRes.list?.map(d => ({ date: d.rcept_dt, title: d.report_nm })) || [];
         result.finance = fRes;
@@ -742,18 +761,26 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
    */
   async collectFinancialData() {
     this.onStatusUpdate?.('DART/FMP 데이터 수집 중...');
-    const { type, ticker } = this.state.resolve;
+    const { type, ticker, resolvedCorpCode } = this.state.resolve;
     
     if (type === 'KR') {
       this.logger?.info('Fetching KR data from DART', { companyName: this.companyName });
-      const safeCorpName = encodeURIComponent(this.companyName.replace(/\s+/g, '')); // RESTORED
+      
+      if (!resolvedCorpCode) {
+        this.logger?.warn('DART corp_code matching failed. Skipping finance fetch.');
+        this.state.raw.disclosures = [];
+        this.state.raw.finance = null;
+        return;
+      }
+      
+      const safeCorpCode = encodeURIComponent(resolvedCorpCode);
       const [dRes, fRes] = await Promise.all([
-        this.internalFetch(`/api/data/dart?corp_name=${safeCorpName}`)
+        this.internalFetch(`/api/data/dart?corp_code=${safeCorpCode}`)
           .catch(err => {
             this.logger?.warn('DART disclosures fetch failed', { error: err.message });
             return { list: [] };
           }),
-        this.internalFetch(`/api/data/dart-finance?corp_name=${safeCorpName}`)
+        this.internalFetch(`/api/data/dart-finance?corp_code=${safeCorpCode}`)
           .catch(err => {
             this.logger?.warn('DART finance fetch failed', { error: err.message });
             return null;
