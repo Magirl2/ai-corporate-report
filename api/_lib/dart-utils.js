@@ -168,12 +168,22 @@ export async function resolveCorpCode(userInput, apiKey) {
   const normalized = normalizeCorpName(targetName, false);
   const keyword = extractKeyword(normalized);
 
-  // STEP 2: corpCode.xml 로드 및 캐시 검색
+  // STEP 2: Fast Path - COMMON_CORPS 하드코딩 확인
+  let commonCorpCode = 
+    COMMON_CORPS[targetName] || 
+    COMMON_CORPS[normalized] || 
+    COMMON_CORPS[keyword] || 
+    null;
+    
+  if (commonCorpCode) {
+    return { corpCode: commonCorpCode, corpName: targetName, stockCode: null, method: 'hardcoded' };
+  }
+
+  // STEP 3: corpCode.xml 로드 및 캐시 검색
   const corpList = await loadCorpCodes(apiKey);
   
   if (corpList) {
     // 1순위: 정확한 종목명(stock_name) 매칭 또는 정확한 법인명 매칭
-    // 비나텍 같은 경우, 입력이 '비나텍'이면 corp_name='비나텍'으로 매칭됨
     let match = corpList.find(c => c.corpName === targetName || c.normalizedName === normalized);
     
     // 2순위: 키워드 기반 포함 매칭 (주식 코드가 있는 상장사 우선)
@@ -183,7 +193,6 @@ export async function resolveCorpCode(userInput, apiKey) {
         (keyword.length >= 2 && c.normalizedName.includes(keyword))
       );
       
-      // 상장사(stockCode 존재) 우선, 길이가 가장 짧은 것(더 정확한 이름) 우선
       if (candidates.length > 0) {
         match = candidates.sort((a, b) => {
           if (a.stockCode && !b.stockCode) return -1;
@@ -201,17 +210,6 @@ export async function resolveCorpCode(userInput, apiKey) {
         method: 'xml_cache'
       };
     }
-  }
-
-  // STEP 3: Fallback - COMMON_CORPS 하드코딩 확인
-  let corpCode = 
-    COMMON_CORPS[targetName] || 
-    COMMON_CORPS[normalized] || 
-    COMMON_CORPS[keyword] || 
-    null;
-    
-  if (corpCode) {
-    return { corpCode, corpName: targetName, stockCode: null, method: 'hardcoded' };
   }
 
   return null;
