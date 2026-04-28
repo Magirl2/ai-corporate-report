@@ -391,40 +391,60 @@ export default function SingleReportView({ singleData }) {
               detail={r?.financialAnalysis?.overview?.detail}
             />
             {(() => {
-              const rows = (yearly?.length > 0)
-                ? yearly
-                : (r?.financialAnalysis?.keyMetrics?.length > 0 ? r.financialAnalysis.keyMetrics : null);
-              if (!rows) return (
-                <div className="flex items-center gap-2 py-4">
-                  <span className="material-symbols-outlined text-slate-300" style={{ fontSize: '20px' }}>info</span>
-                  <p className="text-slate-400 text-sm italic">정형화된 재무 제표 데이터가 확인되지 않아 정성적 분석만 제공됩니다.</p>
-                </div>
-              );
+              const hasYearly = yearly?.length > 0;
+              const hasKeyMetrics = r?.financialAnalysis?.keyMetrics?.length > 0;
+
               return (
-                <div className="overflow-x-auto rounded-xl border border-slate-100">
-                  <table className="w-full text-left border-collapse text-sm">
-                    <thead>
-                      <tr className="bg-surface-container-low">
-                        <th className="p-3 font-bold text-slate-500 text-xs uppercase tracking-wide w-32">구분</th>
-                        {rows.map((y, i) => (
-                          <th key={y.year ?? i} className={`p-3 font-bold text-xs ${i === rows.length - 1 ? 'text-primary' : 'text-slate-500'}`}>{y.year ?? '-'}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {[
-                        { label: '매출 성장률', key: 'revenueGrowth' },
-                        { label: '영업이익률',  key: 'operatingMargin' },
-                        { label: '부채비율',    key: 'debtRatio' },
-                        { label: 'ROE',         key: 'roe' },
-                      ].map(({ label, key }) => (
-                        <tr key={key} className="hover:bg-slate-50 transition-colors">
-                          <td className="p-3 font-medium text-slate-500 text-xs">{label}</td>
-                          {rows.map((y, i) => <td key={i} className="p-3 text-sm text-on-surface">{y[key] ?? '-'}</td>)}
-                        </tr>
+                <div className="space-y-6">
+                  {/* 정형 데이터 테이블 */}
+                  {hasYearly ? (
+                    <div className="overflow-x-auto rounded-xl border border-slate-100">
+                      <table className="w-full text-left border-collapse text-sm">
+                        <thead>
+                          <tr className="bg-surface-container-low">
+                            <th className="p-3 font-bold text-slate-500 text-xs uppercase tracking-wide w-32">구분</th>
+                            {yearly.map((y, i) => (
+                              <th key={y.year ?? i} className={`p-3 font-bold text-xs ${i === yearly.length - 1 ? 'text-primary' : 'text-slate-500'}`}>{y.year ?? '-'}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                          {[
+                            { label: '매출 성장률', key: 'revenueGrowth' },
+                            { label: '영업이익률',  key: 'operatingMargin' },
+                            { label: '부채비율',    key: 'debtRatio' },
+                            { label: 'ROE',         key: 'roe' },
+                          ].map(({ label, key }) => (
+                            <tr key={key} className="hover:bg-slate-50 transition-colors">
+                              <td className="p-3 font-medium text-slate-500 text-xs">{label}</td>
+                              {yearly.map((y, i) => <td key={i} className="p-3 text-sm text-on-surface">{y[key] ?? '-'}</td>)}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 py-4">
+                      <span className="material-symbols-outlined text-slate-300" style={{ fontSize: '20px' }}>info</span>
+                      <p className="text-slate-400 text-sm italic">정형 재무제표 데이터를 가져오지 못해 AI 정성 분석만 제공합니다.</p>
+                    </div>
+                  )}
+
+                  {/* 정성 분석 데이터 (keyMetrics 등) */}
+                  {hasKeyMetrics && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                      {r.financialAnalysis.keyMetrics.map((metric, idx) => (
+                        <div key={idx} className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                          <div className="flex justify-between items-start mb-2">
+                            <h4 className="text-sm font-bold text-slate-700">{metric.name || '주요 지표'}</h4>
+                            <span className="text-primary font-bold text-sm">{metric.value}</span>
+                          </div>
+                          {metric.trend && <p className="text-xs text-slate-500 mb-2">추세: <span className="font-semibold text-slate-700">{metric.trend}</span></p>}
+                          {metric.description && <p className="text-xs text-slate-600 leading-relaxed">{metric.description}</p>}
+                        </div>
                       ))}
-                    </tbody>
-                  </table>
+                    </div>
+                  )}
                 </div>
               );
             })()}
