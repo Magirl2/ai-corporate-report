@@ -6,6 +6,7 @@ async function consumeNdjsonStream(response, onStatusUpdate) {
   const decoder = new TextDecoder();
   let finalData = null;
   let stage1Id = null;
+  let stage2Id = null;
 
   let buffer = '';
 
@@ -28,6 +29,8 @@ async function consumeNdjsonStream(response, onStatusUpdate) {
           finalData = payload.data;
         } else if (payload.type === 'stage1') {
           stage1Id = payload.data?.stage1Id;
+        } else if (payload.type === 'stage2') {
+          stage2Id = payload.data?.stage2Id;
         } else if (payload.type === 'error') {
           const errorObj = payload.error || { message: '알 수 없는 스트림 오류' };
           const error = new Error(errorObj.message);
@@ -52,7 +55,7 @@ async function consumeNdjsonStream(response, onStatusUpdate) {
     }
   }
 
-  return { finalData, stage1Id };
+  return { finalData, stage1Id, stage2Id };
 }
 
 /**
@@ -116,14 +119,41 @@ export const fetchCompanyData = async (companyName, onStatusUpdate, options = {}
 
     const outputResult = await consumeNdjsonStream(outputResponse, onStatusUpdate);
 
-    if (!outputResult.finalData) {
+    if (!outputResult.stage2Id) {
+      const error = new Error('Stage 2 처리 결과가 올바르지 않습니다.');
+      error.code = 'NO_STAGE2_ID';
+      error.retryable = false;
+      throw error;
+    }
+
+    // 3. Stage 3: Compose Endpoint 호출
+    const composeResponse = await fetch('/api/report/compose', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stage2Id: outputResult.stage2Id })
+    });
+
+    if (!composeResponse.ok) {
+      let errResp = {};
+      try { errResp = await composeResponse.json(); } catch (_) {}
+      const errorObj = errResp.error || { message: `서버 오류 (${composeResponse.status})` };
+      const error = new Error(errorObj.message);
+      error.category = errorObj.category || 'INTERNAL';
+      error.code = errorObj.code || 'HTTP_ERROR';
+      error.retryable = typeof errorObj.retryable === 'boolean' ? errorObj.retryable : false;
+      throw error;
+    }
+
+    const composeResult = await consumeNdjsonStream(composeResponse, onStatusUpdate);
+
+    if (!composeResult.finalData) {
       const error = new Error('보고서 생성 결과가 없습니다.');
       error.code = 'NO_REPORT_DATA';
       error.retryable = false;
       throw error;
     }
 
-    return outputResult.finalData;
+    return composeResult.finalData;
   } catch (error) {
     console.error('Report Generation Error:', error);
     throw error;

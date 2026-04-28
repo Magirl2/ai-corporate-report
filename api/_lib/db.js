@@ -353,3 +353,39 @@ export async function getUniqueStage1Artifact(id) {
     return null;
   }
 }
+
+export function generateUniqueStage2Id() {
+  return `s2_split:${crypto.randomUUID()}`;
+}
+
+export async function setUniqueStage2Artifact(id, metadataPayload) {
+  const ttlSeconds = 3600; // 1 hour
+  if (useRedis) {
+    try {
+      await redis.set(id, JSON.stringify(metadataPayload), 'EX', ttlSeconds);
+    } catch (err) {
+      console.error('[Redis Artifact] Set unique stage2 error:', err);
+    }
+  } else {
+    const cache = getLocalCache();
+    cache[id] = { data: metadataPayload, expires: Date.now() + ttlSeconds * 1000 };
+    saveLocalCache(cache);
+  }
+}
+
+export async function getUniqueStage2Artifact(id) {
+  if (useRedis) {
+    try {
+      const raw = await redis.get(id);
+      return raw ? JSON.parse(raw) : null;
+    } catch (err) {
+      console.error('[Redis Artifact] Get unique stage2 error:', err);
+      return null;
+    }
+  } else {
+    const cache = getLocalCache();
+    const hit = cache[id];
+    if (hit && hit.expires > Date.now()) return hit.data;
+    return null;
+  }
+}

@@ -2,9 +2,9 @@ import jwt from 'jsonwebtoken';
 import { parse } from 'cookie';
 import { 
   getNormalizedUser, 
-  incrementUserUsage, 
-  setCachedReport,
-  getUniqueStage1Artifact
+  getUniqueStage1Artifact,
+  generateUniqueStage2Id,
+  setUniqueStage2Artifact
 } from '../../db.js';
 import { ServerOrchestrator } from '../../orchestrator.js';
 import { createLogger } from '../../logger.js';
@@ -71,7 +71,7 @@ export default async function handler(req, res) {
     const companyName = loadedArtifact.companyName;
     const qualityMode = loadedArtifact.qualityMode || 'deep';
 
-    // 4. 오케스트레이터 기동 (Stage 2 Analysis Only)
+    // 4. 오케스트레이터 기동 (Stage 2 Analyze Only)
     const protocol = req.headers['x-forwarded-proto'] || 'http';
     const host = req.headers.host;
     const baseUrl = `${protocol}://${host}`;
@@ -85,64 +85,33 @@ export default async function handler(req, res) {
       orchestrator.setOptions({ qualityMode });
     }
 
-    const finalReport = await orchestrator.runStage2Analysis(loadedArtifact.data);
-    logger.info('Orchestration Stage 2 completed successfully', { 
-      totalDurationMs: finalReport.metadata?.totalDurationMs,
-      qualityLevel: finalReport.metadata?.qualityLevel 
+    const stage2Data = await orchestrator.runStage2Analyze(loadedArtifact.data);
+    logger.info('Orchestration Stage 2 analyze completed successfully');
+
+    // 5. Stage 2 데이터 저장
+    const stage2Id = generateUniqueStage2Id();
+    await setUniqueStage2Artifact(stage2Id, {
+      companyName,
+      ownerEmail: user.email,
+      qualityMode,
+      data: stage2Data
     });
 
-    // 5. 사용량 차감 (성공 시에만)
-    await incrementUserUsage(user.email);
-
-    // 5.5 품질 게이트 검사 후 선택적 캐시 저장
-    const isPartial = finalReport.debug?.isPartialResult === true;
-    const hasAgentErrors = Array.isArray(finalReport.debug?.agentErrors) && finalReport.debug.agentErrors.length > 0;
-    
-    const r = finalReport.report || {};
-    const markdownLen = (r.markdown || '').length;
-    const sourcesCount = (finalReport.sources || []).length;
-    
-    // 분석 섹션 누락 여부 (financial, strategy, news 중 2개 이상 없으면 경고)
-    const missingAnalysisSections = [
-      !r.financialAnalysis?.overview,
-      !r.macroTrend,
-      !r.marketSentiment,
-    ].filter(Boolean).length;
-
-    const qualityWarning =
-      markdownLen < 1500 ||             // 마크다운 1500자 미만
-      sourcesCount === 0 ||              // 출처 없음
-      missingAnalysisSections >= 2;     // 주요 섹션 2개 이상 누락
-
-    if (!isPartial && !hasAgentErrors && !qualityWarning) {
-      await setCachedReport(companyName, finalReport);
-      logger.info('Report cached (high quality)', { companyName, markdownLen, sourcesCount });
-    } else {
-      logger.warn('Report not cached due to quality gate failure', {
+    // 6. 최종 결과 전송 (stage2Id)
+    sendUpdate({ 
+      type: 'stage2', 
+      data: { 
+        stage2Id, 
         companyName,
-        isPartial,
-        hasAgentErrors,
-        qualityWarning,
-        markdownLen,
-        sourcesCount,
-        missingAnalysisSections
-      });
-      if (!finalReport.metadata) finalReport.metadata = {};
-      finalReport.metadata.qualityWarning = true;
-    }
-
-    // 캐시 상태 플래그 (새 분석이므로 항상 false)
-    if (!finalReport.metadata) finalReport.metadata = {};
-    finalReport.metadata.cacheHit = false;
-
-    // 6. 최종 결과 전송
-    sendUpdate({ type: 'success', data: finalReport });
+        metadata: { cacheHit: false }
+      } 
+    });
     res.end();
-    logger.info('Generate report output stage success', { companyName });
+    logger.info('Generate report output stage success', { companyName, stage2Id });
 
   } catch (err) {
     logger.error('Generate report output stage failed', { stage1Id, error: err.message, stack: err.stack, code: err.code });
-    sendUpdate(createStreamError(ErrorCategory.INTERNAL, 'INTERNAL_ERROR', err.message || '보고서 출력 중 알 수 없는 에러가 발생했습니다.', logger.reqId, true));
+    sendUpdate(createStreamError(ErrorCategory.INTERNAL, 'INTERNAL_ERROR', err.message || '보고서 심층 분석 중 오류가 발생했습니다.', logger.reqId, true));
     res.end();
   }
 }

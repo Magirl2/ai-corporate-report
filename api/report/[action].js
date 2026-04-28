@@ -1,5 +1,6 @@
 import searchHandler from '../_lib/handlers/report/search.js';
 import outputHandler from '../_lib/handlers/report/output.js';
+import composeHandler from '../_lib/handlers/report/compose.js';
 import compareHandler from '../_lib/handlers/report/compare.js';
 import cacheHandler from '../_lib/handlers/report/cache.js';
 import { createErrorResponse, ErrorCategory } from '../_lib/errors.js';
@@ -9,6 +10,7 @@ export default async function handler(req, res) {
   switch (action) {
     case 'search': return searchHandler(req, res);
     case 'output': return outputHandler(req, res);
+    case 'compose': return composeHandler(req, res);
     case 'compare': return compareHandler(req, res);
     case 'cache': return cacheHandler(req, res);
     default:

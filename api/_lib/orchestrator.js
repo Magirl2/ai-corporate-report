@@ -14,7 +14,7 @@ const STAGE_TIMEOUTS = {
   'analyze-financial': 45000,
   'analyze-strategy': 45000,
   'analyze-news': 45000,
-  compose: 25000  // 보수적으로 25초 유지 (Vercel 60초 한계 내)
+  compose: 45000  // 보수적으로 45초 유지 (Vercel 한계 내)
 };
 
 /**
@@ -279,10 +279,10 @@ export class ServerOrchestrator {
   }
 
   /**
-   * Stage 2: 분석 및 보고서 조립
-   * 준비된 브리핑 데이터를 바탕으로 섹션별 심층 분석을 수행하고 최종 보고서를 조립합니다.
+   * Stage 2: 분석 (Analyze Only)
+   * 준비된 브리핑 데이터를 바탕으로 섹션별 심층 분석만 수행합니다.
    */
-  async runStage2Analysis(stage1Data) {
+  async runStage2Analyze(stage1Data) {
     if (stage1Data) {
       // 외부에서 주입된 데이터로 상태 동기화 (Stage 1 건너뛰기 가능)
       this.state.resolve = stage1Data.identity || this.state.resolve;
@@ -292,8 +292,8 @@ export class ServerOrchestrator {
       this.state.raw.sources = stage1Data.raw?.sources || this.state.raw.sources;
     }
 
-    this.onStatusUpdate?.('심층 분석 및 보고서 생성 중 (Stage 2)');
-    this.logger?.info('Stage 2 Analysis started');
+    this.onStatusUpdate?.('심층 분석 중 (Stage 2)');
+    this.logger?.info('Stage 2 Analyze started');
 
     // 3. Analyze Stage (Output engines run in parallel)
     const analyzeRes = await this.measureStage('analyze', (sig) => this.engineAnalyze(sig));
@@ -302,6 +302,43 @@ export class ServerOrchestrator {
       this.state.score = analyzeRes.data.score;
       this.state.iteration = analyzeRes.data.iteration;
     }
+
+    return {
+      companyName: this.companyName,
+      identity: this.state.resolve,
+      raw: this.state.raw,
+      analysis: this.state.analysis,
+      score: this.state.score,
+      iteration: this.state.iteration,
+      metadata: this.metadata,
+      agentErrors: this._agentErrors,
+      qualityMode: this.options.qualityMode || 'deep',
+      createdAt: new Date().toISOString()
+    };
+  }
+
+  /**
+   * Stage 3: 종합 보고서 조립 (Compose Only)
+   * Stage 2의 분석 결과를 바탕으로 최종 보고서를 조립합니다.
+   */
+  async runStage3Compose(stage2Data) {
+    if (stage2Data) {
+      // Stage 2 데이터 복원
+      this.companyName = stage2Data.companyName || this.companyName;
+      this.state.resolve = stage2Data.identity || this.state.resolve;
+      this.state.raw = stage2Data.raw || this.state.raw;
+      this.state.analysis = stage2Data.analysis || this.state.analysis;
+      this.state.score = stage2Data.score || this.state.score;
+      this.state.iteration = stage2Data.iteration || this.state.iteration;
+      this.metadata = { ...this.metadata, ...stage2Data.metadata };
+      this._agentErrors = stage2Data.agentErrors || this._agentErrors;
+      if (stage2Data.qualityMode) {
+        this.options.qualityMode = stage2Data.qualityMode;
+      }
+    }
+
+    this.onStatusUpdate?.('AI 종합 보고서 작성 중 (Stage 3)');
+    this.logger?.info('Stage 3 Compose started');
 
     // 4. Summarize/Compose Stage
     const composeRes = await this.measureStage('compose', (sig) => this.engineCompose(sig));
@@ -327,6 +364,15 @@ export class ServerOrchestrator {
     }
 
     return this.assembleFinalReport();
+  }
+
+  /**
+   * 하위 호환성 및 테스트용 래퍼
+   * Stage 2 분석 및 보고서 조립을 모두 수행합니다.
+   */
+  async runStage2Analysis(stage1Data) {
+    const stage2Data = await this.runStage2Analyze(stage1Data);
+    return await this.runStage3Compose(stage2Data);
   }
 
   /**
