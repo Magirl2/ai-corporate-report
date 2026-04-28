@@ -86,6 +86,12 @@ export default async function handler(req, res) {
     }
 
     const finalReport = await orchestrator.runStage3Compose(loadedArtifact.data);
+    
+    // Markdown 검증 (한 번 더)
+    if (!finalReport.report?.markdown || finalReport.report.markdown.trim() === '') {
+      throw new Error('종합 보고서 내용이 비어 있습니다.');
+    }
+
     logger.info('Orchestration Stage 3 completed successfully', { 
       totalDurationMs: finalReport.metadata?.totalDurationMs,
       qualityLevel: finalReport.metadata?.qualityLevel 

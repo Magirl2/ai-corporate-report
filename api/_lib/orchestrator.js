@@ -343,7 +343,16 @@ export class ServerOrchestrator {
 
     // 4. Summarize/Compose Stage
     const composeRes = await this.measureStage('compose', (sig) => this.engineCompose(sig));
-    if (composeRes.ok) {
+    
+    if (!composeRes.ok || !composeRes.data || composeRes.data.trim() === '') {
+      const errorMsg = composeRes.error || 'Composer returned empty markdown';
+      this._agentErrors.push({
+        agent: 'composer',
+        stage: 'compose',
+        error: errorMsg
+      });
+      this.state.composerMarkdown = '';
+    } else {
       this.state.composerMarkdown = composeRes.data;
     }
 
@@ -364,7 +373,11 @@ export class ServerOrchestrator {
       this.state.isPartialResult = false;
     }
 
-    return this.assembleFinalReport();
+    const report = this.assembleFinalReport();
+    if (!report.report.markdown || report.report.markdown.trim() === '') {
+      throw new Error('AI 종합 보고서 생성에 실패했습니다 (Markdown empty).');
+    }
+    return report;
   }
 
   /**
@@ -410,10 +423,28 @@ export class ServerOrchestrator {
     const warnings = [];
     
     this.onStatusUpdate?.('DART/FMP 데이터 수집 중...');
-    const { type, ticker, corpCode } = identity;
+    let { type, ticker, corpCode } = identity;
+    const dartApiToken = process.env.DART_API_KEY || '98c7f5eef7673f915ae614cb61a339afa5684fa3';
     
     try {
       if (type === 'KR') {
+        // corpCode가 없으면 재해석 시도
+        if (!corpCode) {
+          this.logger?.info('corpCode missing in engineData, attempting resolution', { companyName });
+          const res = await resolveCorpCode(companyName, dartApiToken);
+          if (res) {
+            corpCode = res.corpCode;
+            // state.resolve 동기화 (Stage 1 결과물에 반영되도록)
+            this.state.resolve = {
+              ...this.state.resolve,
+              corpCode: res.corpCode,
+              corpName: res.corpName,
+              stockCode: res.stockCode,
+              resolutionMethod: res.method
+            };
+          }
+        }
+
         if (!corpCode) {
           warnings.push('정형 재무제표 데이터를 가져오지 못함 (corp_code 매칭 실패)');
           return { ok: true, data: result, warnings };

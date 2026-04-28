@@ -27,6 +27,14 @@ export default async function handler(req, res) {
     if (!resolvedCorpCode && corpName) {
       resolutionInfo = await resolveCorpCode(corpName, DART_API_KEY);
       resolvedCorpCode = resolutionInfo?.corpCode || null;
+    } else if (resolvedCorpCode) {
+      // corp_code가 직접 전달된 경우
+      resolutionInfo = {
+        corpCode: resolvedCorpCode,
+        corpName: null,
+        stockCode: null,
+        method: 'direct'
+      };
     }
 
     // ─── STEP 2: corpCode로 공시 목록 조회 ──────────────────────────────────
@@ -81,12 +89,14 @@ export default async function handler(req, res) {
       }
     }
 
-    // 응답에 resolvedCorpCode 포함
-    if (resolvedCorpCode) {
-      data.resolvedCorpCode = resolvedCorpCode;
-    }
-
-    return res.status(200).json(data);
+    // 응답에 메타데이터 포함
+    return res.status(200).json({
+      ...data,
+      resolvedCorpCode: resolutionInfo?.corpCode || resolvedCorpCode,
+      resolvedCorpName: resolutionInfo?.corpName || null,
+      stockCode: resolutionInfo?.stockCode || null,
+      resolutionMethod: resolutionInfo?.method || (corpCodeParam ? 'direct' : null)
+    });
 
   } catch (error) {
     console.error('DART proxy error:', error);

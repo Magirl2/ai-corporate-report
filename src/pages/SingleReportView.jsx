@@ -6,7 +6,7 @@ import { getYearlyMetrics, getSourceBadge, getSafeItems } from '../utils/reportS
 /**
  * NewsItem 컴포넌트 — 개별 뉴스 토글 및 심층 분석 지원
  */
-const NewsItem = ({ news }) => {
+const NewsItem = ({ news, idx }) => {
   const [open, setOpen] = useState(false);
   const hasDetail = !!(news.summary || news.detail || news.impactAnalysis);
   const url = news.url || news.sourceUrl;
@@ -28,7 +28,7 @@ const NewsItem = ({ news }) => {
           <button
             onClick={() => setOpen(!open)}
             aria-expanded={open}
-            aria-controls="news-detail-panel"
+            aria-controls={`news-detail-${idx}`}
             className={`shrink-0 flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-bold transition-all duration-200 border ${open ? 'bg-primary/5 border-primary/20 text-primary' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'}`}
           >
             {open ? '접기' : '상세보기'}
@@ -40,7 +40,7 @@ const NewsItem = ({ news }) => {
       </div>
 
       {open && hasDetail && (
-        <div id="news-detail-panel" className="mt-4 pt-4 border-t border-slate-200/60 animate-in fade-in slide-in-from-top-1 duration-300">
+        <div id={`news-detail-${idx}`} className="mt-4 pt-4 border-t border-slate-200/60 animate-in fade-in slide-in-from-top-1 duration-300">
           <div className="space-y-4">
             {news.summary && (
               <div>
