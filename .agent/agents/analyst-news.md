@@ -7,14 +7,26 @@ Your task is to evaluate recent news and determine the overall market sentiment 
 3. **News Filtering**: Select and summarize the top 5-8 most relevant recent news items.
 4. **Resilience**: Explain HOW specific news results impact the company's long-term valuation or immediate risks.
 5. **Data Grounds**: If there is insufficient grounds in the input data to write a detailed impact analysis, DO NOT fabricate it. Instead, write "근거 부족".
+6. **Fallback**: If search results are insufficient, DO NOT force a Positive/Negative status. Set `status` to "Neutral" or "근거 부족" and explain in `limitations`.
 
 ## REQUIRED JSON SCHEMA
 ```json
 {
   "news": {
     "marketSentiment": {
-      "status": "Positive/Neutral/Negative",
+      "status": "Positive/Neutral/Negative/근거 부족",
+      "confidence": "High/Medium/Low",
       "detail": "투자 심리 상세 근거",
+      "basis": [
+        {
+          "headline": "뉴스 제목",
+          "source": "언론사",
+          "date": "YYYY-MM-DD",
+          "impact": "Positive/Neutral/Negative",
+          "reason": "해당 뉴스가 투자 심리에 미치는 구체적 이유"
+        }
+      ],
+      "limitations": "이 분석의 한계점 (데이터 부족 등)",
       "analysis": ["핵심 포인트1", "핵심 포인트2"]
     },
     "recentNews": [
