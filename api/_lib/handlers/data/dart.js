@@ -22,10 +22,11 @@ export default async function handler(req, res) {
 
     // ─── STEP 1: 통합 유틸리티를 통한 기업 코드 탐색 ────────────────────────────
     let resolvedCorpCode = corpCodeParam || null;
+    let resolutionInfo = null;
     
     if (!resolvedCorpCode && corpName) {
-      const resolution = await resolveCorpCode(corpName, DART_API_KEY);
-      resolvedCorpCode = resolution?.corpCode || null;
+      resolutionInfo = await resolveCorpCode(corpName, DART_API_KEY);
+      resolvedCorpCode = resolutionInfo?.corpCode || null;
     }
 
     // ─── STEP 2: corpCode로 공시 목록 조회 ──────────────────────────────────
@@ -78,6 +79,11 @@ export default async function handler(req, res) {
           data.message = `'${corpName}'의 최근 공시 정보가 없습니다.`;
         }
       }
+    }
+
+    // 응답에 resolvedCorpCode 포함
+    if (resolvedCorpCode) {
+      data.resolvedCorpCode = resolvedCorpCode;
     }
 
     return res.status(200).json(data);

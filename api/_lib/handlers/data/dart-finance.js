@@ -24,11 +24,19 @@ export default async function handler(req, res) {
 
     // ─── STEP 1: 통합 유틸리티를 통한 기업 코드 탐색 ────────────────────────────
     let corpCode = corpCodeParam || null;
+    let resolutionInfo = null;
     
     if (!corpCode && corpName) {
-      const resolution = await resolveCorpCode(corpName, DART_API_KEY);
-      corpCode = resolution?.corpCode || null;
+      resolutionInfo = await resolveCorpCode(corpName, DART_API_KEY);
+      corpCode = resolutionInfo?.corpCode || null;
     }
+
+    const metadata = {
+      resolvedCorpCode: corpCode,
+      resolvedCorpName: resolutionInfo?.corpName || (corpCodeParam ? null : corpName),
+      stockCode: resolutionInfo?.stockCode || null,
+      resolutionMethod: resolutionInfo?.method || (corpCodeParam ? 'direct' : null)
+    };
     
     if (!corpCode) {
       return res.status(404).json({
@@ -128,6 +136,10 @@ export default async function handler(req, res) {
     return res.status(200).json({
       corpName,
       bsnsYear:    String(displayYears[0]),
+      resolvedCorpCode: metadata.resolvedCorpCode,
+      resolvedCorpName: metadata.resolvedCorpName,
+      stockCode: metadata.stockCode,
+      resolutionMethod: metadata.resolutionMethod,
       keyMetrics: {
         revenueGrowth:   yearlyMetrics[0].revenueGrowth,
         operatingMargin: yearlyMetrics[0].operatingMargin,

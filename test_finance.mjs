@@ -1,0 +1,1 @@
+import handler from './api/_lib/handlers/data/dart-finance.js'; const req = { method: 'GET', url: '/api/data/dart-finance?corp_code=00563518' }; const res = { setHeader: () =, status: (code) = json: (data) =, code, JSON.stringify(data, null, 2)) }) }; handler(req, res).catch(console.error);  

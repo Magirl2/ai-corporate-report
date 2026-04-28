@@ -9,7 +9,7 @@ const DEBUG = process.env.NODE_ENV !== 'production';
  */
 const STAGE_TIMEOUTS = {
   resolve: 15000,
-  data: 15000,
+  data: 30000,
   search: 40000,
   analyze: 50000,
   'analyze-financial': 45000,
@@ -388,8 +388,8 @@ export class ServerOrchestrator {
         const corpCodeRes = await resolveCorpCode(companyName, dartApiToken);
         
         if (corpCodeRes) {
-          resolveInfo.resolvedCorpCode = corpCodeRes.corpCode;
-          resolveInfo.resolvedCorpName = corpCodeRes.corpName;
+          resolveInfo.corpCode = corpCodeRes.corpCode;
+          resolveInfo.corpName = corpCodeRes.corpName;
           resolveInfo.stockCode = corpCodeRes.stockCode;
           resolveInfo.resolutionMethod = corpCodeRes.method;
         }
@@ -410,16 +410,16 @@ export class ServerOrchestrator {
     const warnings = [];
     
     this.onStatusUpdate?.('DART/FMP 데이터 수집 중...');
-    const { type, ticker, resolvedCorpCode } = identity;
+    const { type, ticker, corpCode } = identity;
     
     try {
       if (type === 'KR') {
-        if (!resolvedCorpCode) {
+        if (!corpCode) {
           warnings.push('정형 재무제표 데이터를 가져오지 못함 (corp_code 매칭 실패)');
           return { ok: true, data: result, warnings };
         }
         
-        const safeCorpCode = encodeURIComponent(resolvedCorpCode);
+        const safeCorpCode = encodeURIComponent(corpCode);
         const [dRes, fRes] = await Promise.all([
           this.internalFetch(`/api/data/dart?corp_code=${safeCorpCode}`, { signal }).catch(e => { warnings.push(`DART disclosures error: ${e.message}`); return { list: [] }; }),
           this.internalFetch(`/api/data/dart-finance?corp_code=${safeCorpCode}`, { signal }).catch(e => { warnings.push(`DART finance error: ${e.message}`); return null; })
@@ -761,19 +761,19 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
    */
   async collectFinancialData() {
     this.onStatusUpdate?.('DART/FMP 데이터 수집 중...');
-    const { type, ticker, resolvedCorpCode } = this.state.resolve;
+    const { type, ticker, corpCode } = this.state.resolve;
     
     if (type === 'KR') {
       this.logger?.info('Fetching KR data from DART', { companyName: this.companyName });
       
-      if (!resolvedCorpCode) {
+      if (!corpCode) {
         this.logger?.warn('DART corp_code matching failed. Skipping finance fetch.');
         this.state.raw.disclosures = [];
         this.state.raw.finance = null;
         return;
       }
       
-      const safeCorpCode = encodeURIComponent(resolvedCorpCode);
+      const safeCorpCode = encodeURIComponent(corpCode);
       const [dRes, fRes] = await Promise.all([
         this.internalFetch(`/api/data/dart?corp_code=${safeCorpCode}`)
           .catch(err => {
