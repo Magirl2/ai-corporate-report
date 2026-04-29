@@ -15,7 +15,7 @@ const STAGE_TIMEOUTS = {
   'analyze-financial': 45000,
   'analyze-strategy': 45000,
   'analyze-news': 45000,
-  compose: 45000  // 보수적으로 45초 유지 (Vercel 한계 내)
+  compose: 55000  // compose.js maxDuration=60초 내에서 최대한 확보
 };
 
 /**
@@ -175,6 +175,37 @@ export function validateNewsSection(section) {
   const hasMarketSentiment = !!(section.marketSentiment?.status || section.marketSentiment?.detail);
   const hasRecentNews = Array.isArray(section.recentNews);
   return hasMarketSentiment && hasRecentNews;
+}
+
+/**
+ * Fallback 섹션 생성 함수 — 분석 실패 시 최소한의 구조화된 데이터를 반환합니다.
+ */
+export function fallbackFinancialSection(reason = '') {
+  return {
+    overview: {
+      summary: '정형 재무 분석을 충분히 생성하지 못했습니다.',
+      detail: reason || '수집된 재무 데이터가 부족하거나 AI 분석 결과가 올바른 JSON 스키마를 충족하지 못했습니다.'
+    },
+    keyMetrics: []
+  };
+}
+
+export function fallbackStrategySection(reason = '') {
+  const defaultDetail = reason || '검색 브리핑 또는 분석 결과가 부족합니다.';
+  return {
+    macroTrend: { summary: '거시 환경 분석을 생성하지 못했습니다.', detail: defaultDetail },
+    industryStatus: { summary: '산업 현황 분석을 생성하지 못했습니다.', detail: defaultDetail },
+    vision: { summary: '비전 분석을 생성하지 못했습니다.', detail: defaultDetail },
+    businessModel: { summary: '비즈니스 모델 분석을 생성하지 못했습니다.', detail: defaultDetail },
+    swotAnalysis: { strengths: [], weaknesses: [], opportunities: [], threats: [] }
+  };
+}
+
+export function fallbackNewsSection(reason = '') {
+  return {
+    marketSentiment: { status: 'Neutral', detail: reason || '뉴스 분석 결과를 생성하지 못했습니다.', analysis: [] },
+    recentNews: []
+  };
 }
 
 export class ServerOrchestrator {
@@ -350,6 +381,9 @@ export class ServerOrchestrator {
       missingSections.push('news');
     }
 
+    if (missingSections.length > 0) {
+      this.metadata.missingSections = missingSections;
+    }
     if (missingSections.length >= 2) {
       this.metadata.qualityWarning = true;
       this._agentErrors.push({ 
@@ -399,12 +433,13 @@ export class ServerOrchestrator {
     // 4. Summarize/Compose Stage
     const composeRes = await this.measureStage('compose', (sig) => this.engineCompose(sig));
     
-    if (!composeRes.ok || !composeRes.data || composeRes.data.trim() === '') {
+    if (!composeRes.ok || !composeRes.data || (typeof composeRes.data === 'string' && composeRes.data.trim() === '')) {
       const errorMsg = composeRes.error || 'Composer returned empty markdown';
       this._agentErrors.push({
         agent: 'composer',
         stage: 'compose',
-        error: errorMsg
+        error: errorMsg,
+        isTimeout: composeRes.isTimeout || false
       });
       this.state.composerMarkdown = '';
     } else {
@@ -414,7 +449,7 @@ export class ServerOrchestrator {
     this.metadata.totalDurationMs = Date.now() - (this.startTime || (Date.now() - 1));
     
     // 주요 분석 섹션이 하나라도 실패하면 partial result
-    const criticalSections = ['analyze-financial', 'analyze-strategy', 'analyze-news'];
+    const criticalSections = ['analyze-financial', 'analyze-strategy', 'analyze-news', 'compose'];
     const hasCriticalFailure = this._agentErrors.some(e => criticalSections.includes(e.stage));
     // timeout 포함 모든 agent 에러를 partial 기준으로
     const hasAnyAgentError = this._agentErrors.length > 0;
@@ -430,7 +465,10 @@ export class ServerOrchestrator {
 
     const report = this.assembleFinalReport();
     if (!report.report.markdown || report.report.markdown.trim() === '') {
-      throw new Error('AI 종합 보고서 생성에 실패했습니다 (Markdown empty).');
+      // 실제 실패 원인을 포함한 에러 메시지 생성
+      const composerErrors = this._agentErrors.filter(e => e.stage === 'compose' || e.agent === 'composer');
+      const causeDetail = composerErrors.length > 0 ? composerErrors.map(e => e.error).join('; ') : 'Unknown cause';
+      throw new Error(`AI 종합 보고서 생성에 실패했습니다: ${causeDetail}`);
     }
     return report;
   }
@@ -623,24 +661,13 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
         });
 
         // fallback section 생성
+        const failReason = res.reason?.message || res.value?.error || 'AI 분석 결과 스키마 불일치';
         if (sectionKey === 'financial') {
-          finalAnalysis.financial = {
-            overview: { summary: '정형 재무 분석을 충분히 생성하지 못했습니다.', detail: '수집된 재무 데이터가 부족하거나 AI 분석 결과가 올바른 JSON 스키마를 충족하지 못했습니다.' },
-            keyMetrics: []
-          };
+          finalAnalysis.financial = fallbackFinancialSection(failReason);
         } else if (sectionKey === 'strategy') {
-          finalAnalysis.strategy = {
-            macroTrend: { summary: '거시 환경 분석을 생성하지 못했습니다.', detail: '검색 브리핑 또는 분석 결과가 부족합니다.' },
-            industryStatus: { summary: '산업 현황 분석을 생성하지 못했습니다.', detail: '검색 브리핑 또는 분석 결과가 부족합니다.' },
-            vision: { summary: '비전 분석을 생성하지 못했습니다.', detail: '검색 브리핑 또는 분석 결과가 부족합니다.' },
-            businessModel: { summary: '비즈니스 모델 분석을 생성하지 못했습니다.', detail: '검색 브리핑 또는 분석 결과가 부족합니다.' },
-            swotAnalysis: { strengths: [], weaknesses: [], opportunities: [], threats: [] }
-          };
+          finalAnalysis.strategy = fallbackStrategySection(failReason);
         } else if (sectionKey === 'news') {
-          finalAnalysis.news = {
-            marketSentiment: { status: 'Neutral', detail: '뉴스 분석 결과를 생성하지 못했습니다.', analysis: [] },
-            recentNews: []
-          };
+          finalAnalysis.news = fallbackNewsSection(failReason);
         }
       }
     };
@@ -683,7 +710,8 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
     }
     
     if (res.__empty || res.__error || !validateFinancialSection(financialData)) {
-      return { ok: false, error: 'Section analysis returned empty or invalid schema', data: { financial: null } };
+      financialData = fallbackFinancialSection('2회 시도 후에도 유효한 결과를 얻지 못했습니다.');
+      return { ok: true, data: { financial: financialData, score: 0 } };
     }
     
     const score = await this.engineSimpleScore('financial', { financial: financialData }, signal);
@@ -711,7 +739,8 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
     }
     
     if (res.__empty || res.__error || !validateStrategySection(strategyData)) {
-      return { ok: false, error: 'Section analysis returned empty or invalid schema', data: { strategy: null } };
+      strategyData = fallbackStrategySection('2회 시도 후에도 유효한 결과를 얻지 못했습니다.');
+      return { ok: true, data: { strategy: strategyData, score: 0 } };
     }
     
     const score = await this.engineSimpleScore('strategy', { strategy: strategyData }, signal);
@@ -738,7 +767,8 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
     }
     
     if (res.__empty || res.__error || !validateNewsSection(newsData)) {
-      return { ok: false, error: 'Section analysis returned empty or invalid schema', data: { news: null } };
+      newsData = fallbackNewsSection('2회 시도 후에도 유효한 결과를 얻지 못했습니다.');
+      return { ok: true, data: { news: newsData, score: 0 } };
     }
     
     const score = await this.engineSimpleScore('news', { news: newsData }, signal);
@@ -806,10 +836,35 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
       }
     };
 
-    const result = await this.executeTextAgent('composer', 'gemini-2.5-pro', composerContext, signal, {
-      maxOutputTokens: 8192  // 긴 종합 보고서 생성을 위해 8192 사용
-    });
-    return { ok: true, data: result };
+    // 1차 시도: gemini-2.5-pro
+    try {
+      const result = await this.executeTextAgent('composer', 'gemini-2.5-pro', composerContext, signal, {
+        maxOutputTokens: 8192
+      });
+      if (result && result.trim() !== '') {
+        return { ok: true, data: result };
+      }
+      this.logger?.warn('Composer primary attempt returned empty, falling back to flash');
+    } catch (primaryErr) {
+      this.logger?.warn('Composer primary attempt failed, falling back to flash', { error: primaryErr.message });
+    }
+
+    // 2차 시도 (fallback): gemini-2.5-flash
+    try {
+      this.onStatusUpdate?.('AI 보고서 생성 모델 전환 중 (fallback)...');
+      const fallbackResult = await this.executeTextAgent('composer', 'gemini-2.5-flash', composerContext, signal, {
+        maxOutputTokens: 8192
+      });
+      if (fallbackResult && fallbackResult.trim() !== '') {
+        this.metadata.composerFallbackUsed = true;
+        return { ok: true, data: fallbackResult };
+      }
+    } catch (fallbackErr) {
+      this.logger?.error('Composer fallback also failed', { error: fallbackErr.message });
+    }
+
+    // 양쪽 모두 실패
+    return { ok: false, error: 'Composer failed on both gemini-2.5-pro and gemini-2.5-flash', data: '' };
   }
 
   // --- Helpers ---
@@ -1024,15 +1079,22 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
         signal,
         ...config
       });
-      this.logger?.info('executeTextAgent success', { agentName });
+      this.logger?.info('executeTextAgent success', { agentName, model });
       return result.candidates?.[0]?.content?.parts?.[0]?.text || '';
     } catch (err) {
-      if (err.name === 'AbortError') {
-        this.logger?.warn('executeTextAgent aborted', { agentName });
+      const isTimeout = err.name === 'AbortError' || err.message?.includes('exceeded');
+      this.logger?.error('executeTextAgent failed', { agentName, model, error: err.message, isTimeout });
+      this._agentErrors.push({ 
+        agent: agentName, 
+        error: err.message, 
+        stage: 'generation',
+        model,
+        isTimeout 
+      });
+      // composer는 반드시 에러를 전파 — 상위에서 fallback 처리
+      if (agentName === 'composer') {
         throw err;
       }
-      this.logger?.error('executeTextAgent failed', { agentName, error: err.message });
-      this._agentErrors.push({ agent: agentName, error: err.message, stage: 'generation' });
       return '';
     }
   }
@@ -1142,7 +1204,10 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
       financeData: raw.finance || null,
       score: this.state.score || 0,
       iteration: this.state.iteration || 1,
-      metadata: this.metadata,
+      metadata: {
+        ...this.metadata,
+        missingSections: this.metadata.missingSections || []
+      },
       debug: { 
         agentErrors: this._agentErrors,
         isPartialResult: this.state.isPartialResult === true
