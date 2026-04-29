@@ -779,6 +779,11 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
    * 섹션별 간이 품질 점수 측정
    */
   async engineSimpleScore(sectionName, data, signal) {
+    // signal이 이미 abort된 경우 critic scoring 생략 (timeout 예산 절약)
+    if (signal?.aborted) {
+      this.logger?.info('Skipping critic scoring — signal already aborted', { sectionName });
+      return 80;
+    }
     try {
       const criticResult = await this.executeJsonAgent('critic', 'gemini-2.5-flash', {
         section: sectionName,
@@ -836,35 +841,39 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
       }
     };
 
-    // 1차 시도: gemini-2.5-pro
-    try {
-      const result = await this.executeTextAgent('composer', 'gemini-2.5-pro', composerContext, signal, {
-        maxOutputTokens: 8192
-      });
-      if (result && result.trim() !== '') {
-        return { ok: true, data: result };
+    // Composer 모델 fallback 체인: pro → flash → flash-lite
+    const composerModels = ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+    
+    for (let i = 0; i < composerModels.length; i++) {
+      const currentModel = composerModels[i];
+      if (signal?.aborted) break;
+      
+      try {
+        if (i > 0) {
+          this.onStatusUpdate?.(`AI 보고서 생성 모델 전환 중 (${currentModel})...`);
+        }
+        const result = await this.executeTextAgent('composer', currentModel, composerContext, signal, {
+          maxOutputTokens: 8192
+        });
+        if (result && result.trim() !== '') {
+          if (i > 0) {
+            this.metadata.composerFallbackUsed = true;
+            this.metadata.composerModel = currentModel;
+          }
+          return { ok: true, data: result };
+        }
+        this.logger?.warn(`Composer attempt with ${currentModel} returned empty`, { attemptIndex: i });
+      } catch (err) {
+        this.logger?.warn(`Composer attempt with ${currentModel} failed`, { error: err.message, attemptIndex: i });
+        // 마지막 모델이 아니면 다음 fallback 시도
+        if (i === composerModels.length - 1) {
+          this.logger?.error('All composer model attempts exhausted');
+        }
       }
-      this.logger?.warn('Composer primary attempt returned empty, falling back to flash');
-    } catch (primaryErr) {
-      this.logger?.warn('Composer primary attempt failed, falling back to flash', { error: primaryErr.message });
     }
 
-    // 2차 시도 (fallback): gemini-2.5-flash
-    try {
-      this.onStatusUpdate?.('AI 보고서 생성 모델 전환 중 (fallback)...');
-      const fallbackResult = await this.executeTextAgent('composer', 'gemini-2.5-flash', composerContext, signal, {
-        maxOutputTokens: 8192
-      });
-      if (fallbackResult && fallbackResult.trim() !== '') {
-        this.metadata.composerFallbackUsed = true;
-        return { ok: true, data: fallbackResult };
-      }
-    } catch (fallbackErr) {
-      this.logger?.error('Composer fallback also failed', { error: fallbackErr.message });
-    }
-
-    // 양쪽 모두 실패
-    return { ok: false, error: 'Composer failed on both gemini-2.5-pro and gemini-2.5-flash', data: '' };
+    // 모든 모델 실패
+    return { ok: false, error: `Composer failed on all models: ${composerModels.join(', ')}`, data: '' };
   }
 
   // --- Helpers ---
@@ -1024,7 +1033,8 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
         temperature: 0.2, 
         responseMimeType: 'application/json',
         maxOutputTokens: 8192,
-        signal
+        signal,
+        fallbackModels: model === 'gemini-2.5-flash' ? ['gemini-2.5-flash-lite'] : []
       });
       text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
       extracted = extractJson(text) || text;
@@ -1101,73 +1111,83 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
 
   async callGemini(model, prompt, config = {}) {
     const apiKey = process.env.GEMINI_API_KEY;
-    let retries = 3;
-    let res;
-    while (retries > 0) {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      
-      // Gemini REST API 규격에 맞춰 페이로드 구조를 재구성합니다.
-      const body = {
-        contents: [{ parts: [{ text: prompt }] }]
-      };
+    // 안전한 fallback 체인 (deprecated 모델 절대 사용 금지)
+    const fallbackModels = config.fallbackModels || [];
+    const allModels = [model, ...fallbackModels];
+    let lastRes;
+    let lastError;
 
-      if (config.tools) {
-        body.tools = config.tools;
+    for (const currentModel of allModels) {
+      // signal이 이미 abort된 경우 즉시 중단
+      if (config.signal?.aborted) {
+        throw new Error(`Aborted before attempting model ${currentModel}`);
       }
 
-      const generationConfig = {
-        temperature: config.temperature ?? 0.2,
-        topP: 0.95,
-        topK: 40,
-        maxOutputTokens: config.maxOutputTokens ?? 2048,
-      };
-      if (config.responseMimeType) generationConfig.responseMimeType = config.responseMimeType;
-      
-      body.generationConfig = generationConfig;
+      let retries = 2; // 503/429 재시도는 최대 2회
+      let res;
 
-      res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: config.signal
-      });
+      while (retries > 0) {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${apiKey}`;
+        
+        const body = {
+          contents: [{ parts: [{ text: prompt }] }]
+        };
 
-      if (res.ok) break;
+        if (config.tools) {
+          body.tools = config.tools;
+        }
 
-      if (res.status === 503 || res.status === 429) {
-        retries--;
-        if (retries === 0) {
-          if (model === 'gemini-2.5-flash') {
-            this.logger?.warn(`Falling back from 2.5-flash to 2.0-flash.`);
-            model = 'gemini-2.0-flash';
-            retries = 1;
-            // URL 업데이트가 필요하므로 루프 계속
-          } else if (model === 'gemini-2.5-pro') {
-            this.logger?.warn(`Falling back from 2.5-pro to 1.5-pro.`);
-            model = 'gemini-1.5-pro';
-            retries = 1;
+        const generationConfig = {
+          temperature: config.temperature ?? 0.2,
+          topP: 0.95,
+          topK: 40,
+          maxOutputTokens: config.maxOutputTokens ?? 2048,
+        };
+        if (config.responseMimeType) generationConfig.responseMimeType = config.responseMimeType;
+        
+        body.generationConfig = generationConfig;
+
+        try {
+          res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            signal: config.signal
+          });
+        } catch (fetchErr) {
+          // AbortError 등 네트워크 오류
+          throw fetchErr;
+        }
+
+        if (res.ok) return res.json();
+
+        if (res.status === 503 || res.status === 429) {
+          retries--;
+          if (retries > 0) {
+            this.logger?.warn(`API ${res.status} for ${currentModel}. Retrying in 1s... (${retries} left)`);
+            await new Promise(r => setTimeout(r, 1000));
           } else {
-             break;
+            this.logger?.warn(`API ${res.status} for ${currentModel} exhausted retries, trying next fallback`);
           }
         } else {
-          this.logger?.warn(`API ${res.status} error. Retrying in 1s... (${retries} attempts left)`);
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          // 400, 401, 404 등은 즉시 이 모델 포기
+          this.logger?.warn(`API ${res.status} for ${currentModel}, skipping to next fallback`);
+          break;
         }
-      } else {
-        break; // 400, 401, 404 등은 즉시 중단
       }
+      lastRes = res;
+      lastError = `${currentModel} returned ${res?.status}`;
     }
     
-    if (!res.ok) {
-      const errorText = await res.text().catch(() => 'No body');
-      console.error("\n\n[FATAL API ERROR DUMP]");
-      console.error("Status:", res.status);
-      console.error("Model:", model);
-      console.error("Response:", errorText, "\n\n");
-      this.logger?.error('Gemini API Failure', { status: res.status, model, body: errorText });
-      throw new Error(`Gemini API error (${res.status}): ${errorText}`);
-    }
-    return res.json();
+    // 모든 모델 실패
+    const errorText = await lastRes?.text().catch(() => 'No body') || 'No response';
+    const lastModel = allModels[allModels.length - 1];
+    console.error("\n\n[FATAL API ERROR DUMP]");
+    console.error("Status:", lastRes?.status);
+    console.error("Models tried:", allModels.join(', '));
+    console.error("Response:", errorText, "\n\n");
+    this.logger?.error('Gemini API Failure (all models)', { status: lastRes?.status, modelsTried: allModels, body: errorText });
+    throw new Error(`Gemini API error (${lastRes?.status}) after trying [${allModels.join(', ')}]: ${errorText.substring(0, 200)}`);
   }
 
   assembleFinalReport() {
