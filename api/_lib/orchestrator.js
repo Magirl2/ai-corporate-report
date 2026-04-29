@@ -18,6 +18,9 @@ const STAGE_TIMEOUTS = {
   compose: 55000  // compose.js maxDuration=60초 내에서 최대한 확보
 };
 
+// 배포 디버깅: 실제 배포된 코드와 GitHub main의 일치 여부 확인
+console.info(`[orchestrator] STAGE_TIMEOUTS.compose=${STAGE_TIMEOUTS.compose}ms, BUILD_SHA=${process.env.VERCEL_GIT_COMMIT_SHA || 'local'}`);
+
 /**
  * 텍스트에서 JSON 블록을 추출합니다.
  */
@@ -804,12 +807,25 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
     const briefing = this.state.raw.searchBriefing || {};
     const analysis = this.state.analysis || {};
 
-    // composer에 전달할 풍부한 컨텍스트 구성
+    // --- composerContext 압축: 토큰 절약 및 timeout 위험 감소 ---
+    const safeSlice = (arr, max) => (Array.isArray(arr) ? arr.slice(0, max) : []);
+
+    // financeData 축약: yearlyMetrics/keyMetrics/overview 중심
+    let compactFinance = null;
+    const rawFinance = this.state.raw.finance;
+    if (rawFinance && typeof rawFinance === 'object') {
+      compactFinance = {
+        yearlyMetrics: safeSlice(rawFinance.yearlyMetrics || rawFinance.yearly, 5),
+        keyMetrics: safeSlice(rawFinance.keyMetrics, 8),
+        overview: rawFinance.overview || rawFinance.summary || null,
+      };
+    }
+
     const composerContext = {
       companyName: this.companyName,
       qualityMode: this.options.qualityMode || 'deep',
 
-      // 기업 프로필 (검색 브리핑)
+      // 기업 프로필 (검색 브리핑 — rawContent 제외)
       companyProfile: {
         identity: briefing.companyIdentity || null,
         marketContext: briefing.marketContext || null,
@@ -817,35 +833,39 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
         sentiment: briefing.sentiment || 'Neutral',
       },
 
-      // 뉴스/기회/리스크 (검색 브리핑에서 추출)
-      newsFindings: Array.isArray(briefing.newsFindings) ? briefing.newsFindings : [],
-      risks: Array.isArray(briefing.risks) ? briefing.risks : [],
-      opportunities: Array.isArray(briefing.opportunities) ? briefing.opportunities : [],
+      // 배열 상한 적용
+      newsFindings: safeSlice(briefing.newsFindings, 8),
+      risks: safeSlice(briefing.risks, 8),
+      opportunities: safeSlice(briefing.opportunities, 8),
 
       // 섹션별 분석 결과
       financialAnalysis: analysis.financial || null,
       strategyAnalysis: analysis.strategy || null,
       newsAnalysis: analysis.news || null,
 
-      // 원본 재무 데이터
-      financeData: this.state.raw.finance || null,
-      disclosures: this.state.raw.disclosures || [],
-      sources: this.state.raw.sources || [],
+      // 원본 재무 데이터 (축약)
+      financeData: compactFinance,
+      disclosures: safeSlice(this.state.raw.disclosures, 10),
+      sources: safeSlice(this.state.raw.sources, 10),
 
       // 메타데이터 및 오류 (데이터 한계 섹션 작성용)
       dataLimitations: {
-        agentErrors: this._agentErrors,
+        agentErrors: safeSlice(this._agentErrors, 5),
         hasFinancialData: !!(this.state.raw.finance),
         hasDisclosures: (this.state.raw.disclosures || []).length > 0,
         hasSearchData: !!(briefing.companyIdentity),
       }
     };
 
-    // Composer 모델 fallback 체인: pro → flash → flash-lite
-    const composerModels = ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+    // Composer fallback 체인: pro → flash → flash-lite (stage-level timeout 공유)
+    const composerModels = [
+      { model: 'gemini-2.5-pro',        maxTokens: 8192 },
+      { model: 'gemini-2.5-flash',      maxTokens: 4096 },
+      { model: 'gemini-2.5-flash-lite', maxTokens: 3072 },
+    ];
     
     for (let i = 0; i < composerModels.length; i++) {
-      const currentModel = composerModels[i];
+      const { model: currentModel, maxTokens } = composerModels[i];
       if (signal?.aborted) break;
       
       try {
@@ -853,19 +873,18 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
           this.onStatusUpdate?.(`AI 보고서 생성 모델 전환 중 (${currentModel})...`);
         }
         const result = await this.executeTextAgent('composer', currentModel, composerContext, signal, {
-          maxOutputTokens: 8192
+          maxOutputTokens: maxTokens
         });
         if (result && result.trim() !== '') {
           if (i > 0) {
             this.metadata.composerFallbackUsed = true;
-            this.metadata.composerModel = currentModel;
           }
+          this.metadata.composerModel = currentModel;
           return { ok: true, data: result };
         }
         this.logger?.warn(`Composer attempt with ${currentModel} returned empty`, { attemptIndex: i });
       } catch (err) {
         this.logger?.warn(`Composer attempt with ${currentModel} failed`, { error: err.message, attemptIndex: i });
-        // 마지막 모델이 아니면 다음 fallback 시도
         if (i === composerModels.length - 1) {
           this.logger?.error('All composer model attempts exhausted');
         }
@@ -873,7 +892,7 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
     }
 
     // 모든 모델 실패
-    return { ok: false, error: `Composer failed on all models: ${composerModels.join(', ')}`, data: '' };
+    return { ok: false, error: `Composer failed on all models: ${composerModels.map(m => m.model).join(', ')}`, data: '' };
   }
 
   // --- Helpers ---
