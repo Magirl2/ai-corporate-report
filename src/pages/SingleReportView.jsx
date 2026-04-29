@@ -343,6 +343,12 @@ export default function SingleReportView({ singleData }) {
       {/* ── 분석 탭 ── */}
       {reportSubTab === 'analysis' && (
         <div className="bento-grid">
+          {(qualityWarning || isPartialResult) && (
+            <div className="col-span-full mb-2 p-4 bg-orange-50 text-orange-800 border border-orange-200 rounded-xl flex items-center gap-3">
+              <span className="material-symbols-outlined text-orange-500">warning</span>
+              <p className="text-sm font-medium">일부 섹션 분석 결과가 부족합니다. 종합보고서는 사용 가능한 원천 데이터를 기반으로 생성되었습니다.</p>
+            </div>
+          )}
 
           {/* PESTLE */}
           <BentoCard

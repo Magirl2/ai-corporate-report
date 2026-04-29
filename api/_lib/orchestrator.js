@@ -143,6 +143,40 @@ export function normalizeAgentJson(parsed, wantedTopKeys) {
   return recursiveSearch(parsed) || {};
 }
 
+/**
+ * 섹션별 데이터 검증 함수
+ */
+export function validateFinancialSection(section) {
+  if (!section) return false;
+  const hasOverview = !!(section.overview?.summary || section.overview?.detail);
+  const hasKeyMetrics = Array.isArray(section.keyMetrics);
+  return hasOverview && hasKeyMetrics;
+}
+
+export function validateStrategySection(section) {
+  if (!section) return false;
+  let count = 0;
+  if (section.macroTrend?.summary || section.macroTrend?.detail) count++;
+  if (section.industryStatus?.summary || section.industryStatus?.detail) count++;
+  if (section.vision?.summary || section.vision?.detail) count++;
+  if (section.businessModel?.summary || section.businessModel?.detail) count++;
+  
+  const hasSwot = section.swotAnalysis && 
+                  Array.isArray(section.swotAnalysis.strengths) && 
+                  Array.isArray(section.swotAnalysis.weaknesses) &&
+                  Array.isArray(section.swotAnalysis.opportunities) &&
+                  Array.isArray(section.swotAnalysis.threats);
+  
+  return count >= 2 && hasSwot;
+}
+
+export function validateNewsSection(section) {
+  if (!section) return false;
+  const hasMarketSentiment = !!(section.marketSentiment?.status || section.marketSentiment?.detail);
+  const hasRecentNews = Array.isArray(section.recentNews);
+  return hasMarketSentiment && hasRecentNews;
+}
+
 export class ServerOrchestrator {
   constructor(companyName, onStatusUpdate, baseUrl = 'http://localhost:3000', logger = null) {
     this.companyName = companyName;
@@ -302,6 +336,27 @@ export class ServerOrchestrator {
       this.state.analysis = analyzeRes.data.analysis;
       this.state.score = analyzeRes.data.score;
       this.state.iteration = analyzeRes.data.iteration;
+    }
+
+    // Stage 2 quality gate 추가
+    let missingSections = [];
+    if (!validateFinancialSection(this.state.analysis?.financial) || this.state.analysis?.financial?.overview?.summary?.includes('충분히 생성하지 못했습니다')) {
+      missingSections.push('financial');
+    }
+    if (!validateStrategySection(this.state.analysis?.strategy) || this.state.analysis?.strategy?.macroTrend?.summary?.includes('생성하지 못했습니다')) {
+      missingSections.push('strategy');
+    }
+    if (!validateNewsSection(this.state.analysis?.news) || this.state.analysis?.news?.marketSentiment?.detail?.includes('생성하지 못했습니다')) {
+      missingSections.push('news');
+    }
+
+    if (missingSections.length >= 2) {
+      this.metadata.qualityWarning = true;
+      this._agentErrors.push({ 
+        stage: 'quality-gate', 
+        error: `Multiple missing sections: ${missingSections.join(', ')}` 
+      });
+      this.onStatusUpdate?.("일부 섹션 분석 결과 부족. 분석을 마무리합니다...");
     }
 
     return {
@@ -551,7 +606,7 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
     let successfulSections = 0;
 
     const processResult = (res, sectionKey) => {
-      if (res.status === 'fulfilled' && res.value.ok) {
+      if (res.status === 'fulfilled' && res.value.ok && res.value.data[sectionKey]) {
         finalAnalysis[sectionKey] = res.value.data[sectionKey];
         if (res.value.data.score) {
           totalScore += res.value.data.score;
@@ -561,6 +616,32 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
         this.logger?.warn(`Section analysis failed: ${sectionKey}`, { 
           reason: res.reason || res.value?.error 
         });
+        this._agentErrors.push({
+          agent: `analyst-${sectionKey}`,
+          stage: `analyze-${sectionKey}`,
+          error: 'Section analysis returned empty or invalid schema'
+        });
+
+        // fallback section 생성
+        if (sectionKey === 'financial') {
+          finalAnalysis.financial = {
+            overview: { summary: '정형 재무 분석을 충분히 생성하지 못했습니다.', detail: '수집된 재무 데이터가 부족하거나 AI 분석 결과가 올바른 JSON 스키마를 충족하지 못했습니다.' },
+            keyMetrics: []
+          };
+        } else if (sectionKey === 'strategy') {
+          finalAnalysis.strategy = {
+            macroTrend: { summary: '거시 환경 분석을 생성하지 못했습니다.', detail: '검색 브리핑 또는 분석 결과가 부족합니다.' },
+            industryStatus: { summary: '산업 현황 분석을 생성하지 못했습니다.', detail: '검색 브리핑 또는 분석 결과가 부족합니다.' },
+            vision: { summary: '비전 분석을 생성하지 못했습니다.', detail: '검색 브리핑 또는 분석 결과가 부족합니다.' },
+            businessModel: { summary: '비즈니스 모델 분석을 생성하지 못했습니다.', detail: '검색 브리핑 또는 분석 결과가 부족합니다.' },
+            swotAnalysis: { strengths: [], weaknesses: [], opportunities: [], threats: [] }
+          };
+        } else if (sectionKey === 'news') {
+          finalAnalysis.news = {
+            marketSentiment: { status: 'Neutral', detail: '뉴스 분석 결과를 생성하지 못했습니다.', analysis: [] },
+            recentNews: []
+          };
+        }
       }
     };
 
@@ -591,10 +672,22 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
       rawSearchText: this.state.raw.searchBriefing?.rawContent || ""
     };
     
-    const res = await this.executeJsonAgent('analyst-financial', 'gemini-2.5-flash', context, ['financial'], signal);
-    const score = await this.engineSimpleScore('financial', res, signal);
+    let res = await this.executeJsonAgent('analyst-financial', 'gemini-2.5-flash', context, ['financial'], signal);
+    let financialData = res.financial || ((res.overview || res.keyMetrics) ? { overview: res.overview, keyMetrics: res.keyMetrics } : null);
     
-    return { ok: true, data: { financial: res.financial, score } };
+    if (res.__empty || res.__error || !validateFinancialSection(financialData)) {
+      this.logger?.warn('Retrying financial analysis due to invalid schema');
+      const retryContext = { ...context, _RETRY_NOTE: "이전 시도에서 JSON 스키마를 따르지 않았습니다. 반드시 REQUIRED JSON SCHEMA 최상위 키('financial')를 포함하여 반환하세요." };
+      res = await this.executeJsonAgent('analyst-financial', 'gemini-2.5-flash', retryContext, ['financial'], signal);
+      financialData = res.financial || ((res.overview || res.keyMetrics) ? { overview: res.overview, keyMetrics: res.keyMetrics } : null);
+    }
+    
+    if (res.__empty || res.__error || !validateFinancialSection(financialData)) {
+      return { ok: false, error: 'Section analysis returned empty or invalid schema', data: { financial: null } };
+    }
+    
+    const score = await this.engineSimpleScore('financial', { financial: financialData }, signal);
+    return { ok: true, data: { financial: financialData, score } };
   }
 
   /**
@@ -607,10 +700,22 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
       disclosures: this.state.raw.disclosures
     };
     
-    const res = await this.executeJsonAgent('analyst-strategy', 'gemini-2.5-flash', context, ['strategy'], signal);
-    const score = await this.engineSimpleScore('strategy', res, signal);
+    let res = await this.executeJsonAgent('analyst-strategy', 'gemini-2.5-flash', context, ['strategy'], signal);
+    let strategyData = res.strategy || ((res.macroTrend || res.industryStatus || res.vision || res.businessModel || res.swotAnalysis) ? { macroTrend: res.macroTrend, industryStatus: res.industryStatus, vision: res.vision, businessModel: res.businessModel, swotAnalysis: res.swotAnalysis } : null);
     
-    return { ok: true, data: { strategy: res.strategy, score } };
+    if (res.__empty || res.__error || !validateStrategySection(strategyData)) {
+      this.logger?.warn('Retrying strategy analysis due to invalid schema');
+      const retryContext = { ...context, _RETRY_NOTE: "이전 시도에서 JSON 스키마를 따르지 않았습니다. 반드시 REQUIRED JSON SCHEMA 최상위 키('strategy')를 포함하여 반환하세요." };
+      res = await this.executeJsonAgent('analyst-strategy', 'gemini-2.5-flash', retryContext, ['strategy'], signal);
+      strategyData = res.strategy || ((res.macroTrend || res.industryStatus || res.vision || res.businessModel || res.swotAnalysis) ? { macroTrend: res.macroTrend, industryStatus: res.industryStatus, vision: res.vision, businessModel: res.businessModel, swotAnalysis: res.swotAnalysis } : null);
+    }
+    
+    if (res.__empty || res.__error || !validateStrategySection(strategyData)) {
+      return { ok: false, error: 'Section analysis returned empty or invalid schema', data: { strategy: null } };
+    }
+    
+    const score = await this.engineSimpleScore('strategy', { strategy: strategyData }, signal);
+    return { ok: true, data: { strategy: strategyData, score } };
   }
 
   /**
@@ -622,10 +727,22 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
       rawSearchText: this.state.raw.searchBriefing?.rawContent || ""
     };
     
-    const res = await this.executeJsonAgent('analyst-news', 'gemini-2.5-flash', context, ['news'], signal);
-    const score = await this.engineSimpleScore('news', res, signal);
+    let res = await this.executeJsonAgent('analyst-news', 'gemini-2.5-flash', context, ['news'], signal);
+    let newsData = res.news || ((res.marketSentiment || res.recentNews) ? { marketSentiment: res.marketSentiment, recentNews: res.recentNews } : null);
     
-    return { ok: true, data: { news: res.news, score } };
+    if (res.__empty || res.__error || !validateNewsSection(newsData)) {
+      this.logger?.warn('Retrying news analysis due to invalid schema');
+      const retryContext = { ...context, _RETRY_NOTE: "이전 시도에서 JSON 스키마를 따르지 않았습니다. 반드시 REQUIRED JSON SCHEMA 최상위 키('news')를 포함하여 반환하세요." };
+      res = await this.executeJsonAgent('analyst-news', 'gemini-2.5-flash', retryContext, ['news'], signal);
+      newsData = res.news || ((res.marketSentiment || res.recentNews) ? { marketSentiment: res.marketSentiment, recentNews: res.recentNews } : null);
+    }
+    
+    if (res.__empty || res.__error || !validateNewsSection(newsData)) {
+      return { ok: false, error: 'Section analysis returned empty or invalid schema', data: { news: null } };
+    }
+    
+    const score = await this.engineSimpleScore('news', { news: newsData }, signal);
+    return { ok: true, data: { news: newsData, score } };
   }
 
   /**
@@ -859,6 +976,14 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
 
       if (!extracted || extracted === '{}') {
         this.logger?.warn('executeJsonAgent returned empty result', { agentName, rawText: text.substring(0, 100) });
+        this._agentErrors.push({
+          agent: agentName,
+          stage: 'parsing',
+          error: 'executeJsonAgent returned empty result',
+          extractedSnippet: extracted ? extracted.substring(0, 300) : 'EMPTY',
+          rawText: text.substring(0, 300)
+        });
+        return { __empty: true };
       }
 
       const parsed = JSON.parse(extracted || '{}');
@@ -882,9 +1007,10 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
         agent: agentName, 
         error: err.message,
         stage: 'parsing',
-        extractedSnippet: extracted ? extracted.substring(0, 300) : 'EMPTY'
+        extractedSnippet: extracted ? extracted.substring(0, 300) : 'EMPTY',
+        rawText: (result?.candidates?.[0]?.content?.parts?.[0]?.text || '').substring(0, 300)
       });
-      return {};
+      return { __error: true };
     }
   }
 
