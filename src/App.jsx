@@ -253,9 +253,9 @@ export default function App() {
             {tab === 'pricing' && <Pricing setTab={setTab} />}
 
             {/* 법적 고지 / 정책 페이지 */}
-            {tab === 'data-notice' && <DataNotice />}
-            {tab === 'privacy-policy' && <PrivacyPolicy />}
-            {tab === 'terms' && <Terms />}
+            {tab === 'data-notice' && <DataNotice setTab={setTab} />}
+            {tab === 'privacy-policy' && <PrivacyPolicy setTab={setTab} />}
+            {tab === 'terms' && <Terms setTab={setTab} />}
 
           </main>
         )}
