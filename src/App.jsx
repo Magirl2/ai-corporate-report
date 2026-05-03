@@ -9,6 +9,9 @@ import CompareFinancials from './components/CompareFinancials';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Pricing from './pages/Pricing';
+import DataNotice from './pages/DataNotice';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import Terms from './pages/Terms';
 import { useAuth } from './contexts/AuthContext';
 import { useSingleReport } from './hooks/useSingleReport';
 import { useCompareReport } from './hooks/useCompareReport';
@@ -80,7 +83,7 @@ export default function App() {
 
 
   const isSearchFocus = tab === 'search';
-  const showSidebar = !isSearchFocus && !['login', 'signup', 'pricing'].includes(tab);
+  const showSidebar = !isSearchFocus && !['login', 'signup', 'pricing', 'data-notice', 'privacy-policy', 'terms'].includes(tab);
 
   return (
     <div style={{ background: 'var(--color-surface)', color: 'var(--color-on-surface)', minHeight: '100vh', display: 'flex' }}>
@@ -249,10 +252,15 @@ export default function App() {
             {tab === 'signup'  && <Signup setTab={setTab} />}
             {tab === 'pricing' && <Pricing setTab={setTab} />}
 
+            {/* 법적 고지 / 정책 페이지 */}
+            {tab === 'data-notice' && <DataNotice />}
+            {tab === 'privacy-policy' && <PrivacyPolicy />}
+            {tab === 'terms' && <Terms />}
+
           </main>
         )}
 
-        <Footer />
+        <Footer onNavigate={setTab} />
       </div>
 
       {/* 모바일 하단 네비게이션 */}
