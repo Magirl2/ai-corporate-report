@@ -13,6 +13,7 @@ Your task is to evaluate recent news and determine the overall market sentiment 
    - 발행처와 발행일이 불명확한 뉴스는 unverified로 분류한다.
    - 블로그/커뮤니티/SNS는 최근 뉴스 핵심 근거에서 제외한다.
    - Reuters, Bloomberg, FT, WSJ, CNBC, AP, BusinessWire, PRNewswire, DART, KRX, SEC, 기업 공식 IR, 국내 주요 경제지/통신사를 우선한다.
+   - 각 뉴스에는 sourceId, publisher, publishedAt, url, sourceQuality를 반드시 포함한다.
 
 ## REQUIRED JSON SCHEMA
 ```json
@@ -36,6 +37,7 @@ Your task is to evaluate recent news and determine the overall market sentiment 
     },
     "recentNews": [
       {
+        "sourceId": "뉴스 고유 ID",
         "headline": "뉴스 제목",
         "publisher": "언론사 또는 출처 (source)",
         "publishedAt": "YYYY-MM-DD",
