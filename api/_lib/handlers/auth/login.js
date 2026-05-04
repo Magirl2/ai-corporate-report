@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 import { findUserByEmail, toSafeUser } from '../../db.js';
 import { createErrorResponse, ErrorCategory } from '../../errors.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'ei_mock_secret_key_123';
+import { getJwtSecret } from '../../env.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -35,7 +35,7 @@ export default async function handler(req, res) {
       name: userRecord.name
     };
 
-    const token = jwt.sign(userPayload, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign(userPayload, getJwtSecret(), { expiresIn: '7d' });
 
     res.setHeader('Set-Cookie', serialize('ei_session', token, {
       httpOnly: true,

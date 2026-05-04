@@ -81,6 +81,16 @@ export default function App() {
     single.resetSearch();
   };
 
+  const allowedTabs = ['search', 'single', 'compare', 'login', 'signup', 'pricing', 'data-notice', 'privacy-policy', 'terms'];
+  const navigateTab = (target) => {
+    if (target === 'single' && !single.singleData) {
+      setTab('search');
+    } else if (allowedTabs.includes(target)) {
+      setTab(target);
+    } else {
+      setTab('search');
+    }
+  };
 
   const isSearchFocus = tab === 'search';
   const showSidebar = !isSearchFocus && !['login', 'signup', 'pricing', 'data-notice', 'privacy-policy', 'terms'].includes(tab);
@@ -94,10 +104,7 @@ export default function App() {
       >
         <TopNavBar
           tab={tab === 'search' ? 'single' : tab}
-          setTab={(t) => {
-            if (t === 'single' && !single.singleData) setTab('search');
-            else setTab(t);
-          }}
+          setTab={navigateTab}
           onSearch={single.handleSearch}
           searchInput={single.searchInput}
           setSearchInput={single.setSearchInput}
@@ -260,7 +267,7 @@ export default function App() {
           </main>
         )}
 
-        <Footer onNavigate={setTab} />
+        <Footer onNavigate={navigateTab} />
       </div>
 
       {/* 모바일 하단 네비게이션 */}
@@ -269,21 +276,21 @@ export default function App() {
       >
         <button
           style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', background: 'none', border: 'none', cursor: 'pointer', color: isSearchFocus ? 'var(--color-primary)' : '#94a3b8' }}
-          onClick={navigateToSearch}
+          onClick={() => navigateTab('search')}
         >
           <span className="material-symbols-outlined" style={{ fontSize: '22px', fontVariationSettings: isSearchFocus ? "'FILL' 1" : "'FILL' 0" }}>dashboard</span>
           <span style={{ fontSize: '10px', fontWeight: 600 }}>홈</span>
         </button>
         <button
           style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', background: 'none', border: 'none', cursor: 'pointer', color: tab === 'single' ? 'var(--color-primary)' : '#94a3b8' }}
-          onClick={() => setTab('single')}
+          onClick={() => navigateTab('single')}
         >
           <span className="material-symbols-outlined" style={{ fontSize: '22px', fontVariationSettings: tab === 'single' ? "'FILL' 1" : "'FILL' 0" }}>analytics</span>
           <span style={{ fontSize: '10px', fontWeight: 600 }}>분석</span>
         </button>
         <div style={{ position: 'relative', top: '-20px' }}>
           <button
-            onClick={() => setTab('pricing')}
+            onClick={() => navigateTab('pricing')}
             style={{
               width: '52px', height: '52px', borderRadius: '50%',
               backgroundColor: 'var(--color-primary)', color: '#fff',
@@ -297,14 +304,14 @@ export default function App() {
         </div>
         <button
           style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', background: 'none', border: 'none', cursor: 'pointer', color: tab === 'compare' ? 'var(--color-primary)' : '#94a3b8' }}
-          onClick={() => setTab('compare')}
+          onClick={() => navigateTab('compare')}
         >
           <span className="material-symbols-outlined" style={{ fontSize: '22px', fontVariationSettings: tab === 'compare' ? "'FILL' 1" : "'FILL' 0" }}>psychology</span>
           <span style={{ fontSize: '10px', fontWeight: 600 }}>비교</span>
         </button>
         <button
           style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', background: 'none', border: 'none', cursor: 'pointer', color: ['login','signup'].includes(tab) ? 'var(--color-primary)' : '#94a3b8' }}
-          onClick={() => setTab(currentUser ? 'search' : 'login')}
+          onClick={() => navigateTab(currentUser ? 'search' : 'login')}
         >
           <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>person</span>
           <span style={{ fontSize: '10px', fontWeight: 600 }}>{currentUser ? '내 정보' : '로그인'}</span>

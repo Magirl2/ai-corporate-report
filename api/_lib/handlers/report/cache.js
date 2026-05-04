@@ -4,7 +4,7 @@ import { getNormalizedUser, deleteCachedReport } from '../../db.js';
 import { createErrorResponse, ErrorCategory } from '../../errors.js';
 import { createLogger } from '../../logger.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'ei_mock_secret_key_123';
+import { getJwtSecret } from '../../env.js';
 
 export default async function handler(req, res) {
   const logger = createLogger('/api/report/cache');
@@ -20,7 +20,7 @@ export default async function handler(req, res) {
 
   let user;
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, getJwtSecret());
     user = await getNormalizedUser(decoded.email);
   } catch (_err) {
     return res.status(401).json(createErrorResponse(ErrorCategory.AUTH, 'INVALID_SESSION', '유효하지 않은 세션입니다.', logger.reqId, false));

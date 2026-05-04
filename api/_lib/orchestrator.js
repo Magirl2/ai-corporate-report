@@ -1,6 +1,8 @@
 // api/_lib/orchestrator.js
 import { loadAgentPrompts } from './prompts.js';
 import { resolveCorpCode } from './dart-utils.js';
+import { getOptionalEnv } from './env.js';
+import { normalizeSourceWithQuality, filterReportSources } from './sourceQuality.js';
 
 const DEBUG = process.env.NODE_ENV !== 'production';
 
@@ -493,14 +495,18 @@ export class ServerOrchestrator {
       const resolveInfo = await this.resolveTicker(signal);
       
       if (resolveInfo.type === 'KR') {
-        const dartApiToken = process.env.DART_API_KEY || '98c7f5eef7673f915ae614cb61a339afa5684fa3';
-        const corpCodeRes = await resolveCorpCode(companyName, dartApiToken);
-        
-        if (corpCodeRes) {
-          resolveInfo.corpCode = corpCodeRes.corpCode;
-          resolveInfo.corpName = corpCodeRes.corpName;
-          resolveInfo.stockCode = corpCodeRes.stockCode;
-          resolveInfo.resolutionMethod = corpCodeRes.method;
+        const dartApiToken = getOptionalEnv('DART_API_KEY');
+        if (dartApiToken) {
+          const corpCodeRes = await resolveCorpCode(companyName, dartApiToken);
+          
+          if (corpCodeRes) {
+            resolveInfo.corpCode = corpCodeRes.corpCode;
+            resolveInfo.corpName = corpCodeRes.corpName;
+            resolveInfo.stockCode = corpCodeRes.stockCode;
+            resolveInfo.resolutionMethod = corpCodeRes.method;
+          }
+        } else {
+          this.logger?.warn('DART_API_KEY missing, skipping resolveCorpCode for ' + companyName);
         }
       }
       
@@ -520,10 +526,16 @@ export class ServerOrchestrator {
     
     this.onStatusUpdate?.('DART/FMP 데이터 수집 중...');
     let { type, ticker, corpCode } = identity;
-    const dartApiToken = process.env.DART_API_KEY || '98c7f5eef7673f915ae614cb61a339afa5684fa3';
+    const dartApiToken = getOptionalEnv('DART_API_KEY');
     
     try {
       if (type === 'KR') {
+        if (!dartApiToken) {
+          warnings.push('DART API 키가 설정되지 않아 DART 공시 및 재무 데이터를 가져올 수 없습니다.');
+          this.logger?.warn('DART_API_KEY missing, skipping engineData for KR');
+          return { ok: true, data: result, warnings };
+        }
+        
         // corpCode가 없으면 재해석 시도
         if (!corpCode) {
           this.logger?.info('corpCode missing in engineData, attempting resolution', { companyName });
@@ -575,23 +587,37 @@ export class ServerOrchestrator {
     const newsCount = isDeep ? '5-8' : '2-3';
     
     const searchPrompt = `Evaluate '${companyName}'. Today is ${today}. identity: ${JSON.stringify(identity)}.
+- Prefer primary and professional sources.
+- First prioritize official filings, stock exchange disclosures, company IR pages, earnings releases, and reputable financial news.
+- Avoid blogs, forums, social media, content farms, and unsourced aggregators.
+- Each news item must include sourceId, publisher, publishedAt, url, sourceQuality, and whyThisSource.
+- If no reliable source is available, mark the item as unverified and do not use it as a core claim.
+- Do not cite low-quality sources for financial claims.
+- Use official filings or company IR for financial facts whenever possible.
+
 Output a STRICT JSON object containing:
 {
-  "companyIdentity": "Brief business area and vision",
-  "marketContext": "Current industry and market trends",
-  "businessModel": "How it creates value",
+  "companyIdentity": "...",
+  "marketContext": "...",
+  "businessModel": "...",
   "newsFindings": [
     {
-      "date": "YYYY-MM-DD",
-      "source": "News source name",
-      "headline": "Clear news title",
-      "summary": "1-2 sentence summary",
-      "impact": "Positive/Neutral/Negative impact on company"
+      "sourceId": "NEWS-1",
+      "headline": "...",
+      "publisher": "...",
+      "publishedAt": "YYYY-MM-DD or unknown",
+      "url": "https://... or null",
+      "summary": "...",
+      "impact": "Positive|Neutral|Negative",
+      "sourceQuality": "high|medium|low|unverified",
+      "whyThisSource": "이 출처를 사용한 이유",
+      "usedIn": ["recentNews", "marketContext"]
     }
   ],
-  "sentiment": "Positive/Neutral/Negative",
-  "risks": ["detailed risk factor with reason"],
-  "opportunities": ["detailed opportunity with reason"]
+  "sentiment": "...",
+  "risks": ["..."],
+  "opportunities": ["..."],
+  "limitations": ["..."]
 }
 IMPORTANT: Please find at least ${newsCount} recent and relevant news items.
 DO NOT output markdown. Respond ONLY with valid JSON.`;
@@ -616,12 +642,18 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
       
       const groundingMetadata = searchResult.candidates?.[0]?.groundingMetadata;
       if (groundingMetadata?.groundingChunks) {
-        groundingMetadata.groundingChunks.forEach(chunk => {
-          if (chunk.web?.uri && !this.state.raw.sources.some(s => s.uri === chunk.web.uri)) {
-            this.state.raw.sources.push({ title: chunk.web.title || chunk.web.uri, uri: chunk.web.uri });
+        groundingMetadata.groundingChunks.forEach((chunk, idx) => {
+          if (chunk.web?.uri) {
+            const rawSource = { title: chunk.web.title || chunk.web.uri, uri: chunk.web.uri, url: chunk.web.uri };
+            this.state.raw.sources.push(normalizeSourceWithQuality(rawSource, idx));
           }
         });
       }
+      
+      // Process all sources through dedupe and quality check
+      this.state.raw.sources = filterReportSources(this.state.raw.sources.map((s, idx) => {
+        return s.qualityScore ? s : normalizeSourceWithQuality(s, idx);
+      }));
       
       return { ok: true, data: { searchBriefing } };
     } catch (e) {
@@ -1215,6 +1247,32 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
     // UI 계약을 보장하기 위한 안전한 정규화 (Partial Success 대응)
     const safeAnalysis = normalizeAnalystOutput(analysis || {});
     const { strategy, financial, news } = safeAnalysis;
+
+    const sources = raw.sources || [];
+    const highQualitySources = sources.filter(s => s.qualityTier === 'high').length;
+    const mediumQualitySources = sources.filter(s => s.qualityTier === 'medium').length;
+    const lowQualitySources = sources.filter(s => s.qualityTier === 'low').length;
+    const blockedSources = sources.filter(s => s.qualityTier === 'blocked').length;
+    const totalSources = sources.length;
+    
+    const sourceQualitySummary = {
+      totalSources,
+      highQualitySources,
+      mediumQualitySources,
+      lowQualitySources,
+      blockedSources,
+      preferredSourceRatio: totalSources > 0 ? ((highQualitySources + mediumQualitySources) / totalSources).toFixed(2) : 0,
+      hasPrimarySources: highQualitySources > 0,
+      warning: totalSources > 0 && (highQualitySources + mediumQualitySources) === 0 ? "신뢰도 높은 출처가 제한적으로 확인됨" : null
+    };
+    
+    this.metadata.sourceQualitySummary = sourceQualitySummary;
+    if (sourceQualitySummary.warning) {
+      if (!this.metadata.warnings) this.metadata.warnings = [];
+      if (!this.metadata.warnings.includes(sourceQualitySummary.warning)) {
+        this.metadata.warnings.push(sourceQualitySummary.warning);
+      }
+    }
 
     return {
       companyName: this.companyName || 'Unknown Company',

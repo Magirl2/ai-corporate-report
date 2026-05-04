@@ -2,7 +2,7 @@ import jwt from 'jsonwebtoken';
 import { parse } from 'cookie';
 import { getNormalizedUser, toSafeUser } from '../../db.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'ei_mock_secret_key_123';
+import { getJwtSecret } from '../../env.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method Not Allowed' });
@@ -15,7 +15,7 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: '인증되지 않은 사용자입니다.' });
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, getJwtSecret());
     
     // DB에서 실시간 유저 정보 조회 (플랜/사용량 동기화)
     const dbUser = await getNormalizedUser(decoded.email);

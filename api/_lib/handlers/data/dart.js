@@ -1,5 +1,6 @@
 // api/dart.js — 기업 공시 목록 조회 (유사 기업명 자동 매칭)
 import { resolveCorpCode, normalizeCorpName, extractKeyword } from '../../dart-utils.js';
+import { getRequiredEnv } from '../../env.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -7,8 +8,7 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
-    const DART_API_KEY = process.env.DART_API_KEY || '98c7f5eef7673f915ae614cb61a339afa5684fa3';
-    if (!DART_API_KEY) throw new Error('DART_API_KEY is missing');
+    const DART_API_KEY = getRequiredEnv('DART_API_KEY');
 
     const queryString = req.url.split('?')[1] || '';
     const searchParams = new URLSearchParams(queryString);

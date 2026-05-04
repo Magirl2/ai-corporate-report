@@ -193,7 +193,7 @@ export default function Terms({ setTab }) {
         {/* 12. 시행일 */}
         <section className="text-center py-8 border-t border-slate-200 mt-12">
           <p className="text-slate-400 text-xs font-bold uppercase tracking-widest bg-slate-100 inline-block px-3 py-1 rounded-full">
-            시행일: 2026년 5월 3일
+            시행일: 2026년 5월 4일
           </p>
         </section>
 

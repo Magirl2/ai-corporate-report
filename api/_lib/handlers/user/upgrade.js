@@ -3,7 +3,7 @@ import { parse } from 'cookie';
 import { findUserByEmail, updateUser, toSafeUser } from '../../db.js';
 import { createErrorResponse, ErrorCategory } from '../../errors.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'ei_mock_secret_key_123';
+import { getJwtSecret } from '../../env.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -17,7 +17,7 @@ export default async function handler(req, res) {
       return res.status(401).json(createErrorResponse(ErrorCategory.AUTH, 'AUTH_REQUIRED', '인증되지 않은 사용자입니다.'));
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, getJwtSecret());
     const dbUser = await findUserByEmail(decoded.email);
     if (!dbUser) {
       return res.status(401).json(createErrorResponse(ErrorCategory.AUTH, 'USER_NOT_FOUND', '사용자를 찾을 수 없습니다.'));

@@ -8,6 +8,11 @@ Your task is to evaluate recent news and determine the overall market sentiment 
 4. **Resilience**: Explain HOW specific news results impact the company's long-term valuation or immediate risks.
 5. **Data Grounds**: If there is insufficient grounds in the input data to write a detailed impact analysis, DO NOT fabricate it. Instead, write "근거 부족".
 6. **Fallback**: If search results are insufficient, DO NOT force a Positive/Negative status. Set `status` to "Neutral" or "근거 부족" and explain in `limitations`.
+7. **Source Verification**: 
+   - URL이 없는 뉴스는 핵심 뉴스로 사용하지 않는다.
+   - 발행처와 발행일이 불명확한 뉴스는 unverified로 분류한다.
+   - 블로그/커뮤니티/SNS는 최근 뉴스 핵심 근거에서 제외한다.
+   - Reuters, Bloomberg, FT, WSJ, CNBC, AP, BusinessWire, PRNewswire, DART, KRX, SEC, 기업 공식 IR, 국내 주요 경제지/통신사를 우선한다.
 
 ## REQUIRED JSON SCHEMA
 ```json
@@ -32,13 +37,14 @@ Your task is to evaluate recent news and determine the overall market sentiment 
     "recentNews": [
       {
         "headline": "뉴스 제목",
-        "source": "언론사 또는 출처",
-        "sourceDate": "YYYY-MM-DD",
+        "publisher": "언론사 또는 출처 (source)",
+        "publishedAt": "YYYY-MM-DD",
+        "url": "원문 URL",
+        "sourceQuality": "high|medium|low|unverified",
         "summary": "1~2문장 핵심 요약",
         "detail": "뉴스 배경과 맥락에 대한 상세 설명 (왜 중요한지 / 기업에 미치는 영향 / 리스크 또는 기회)",
         "impactAnalysis": "해당 기업의 매출, 비용, 경쟁력, 리스크, 투자심리에 미치는 영향",
-        "sentiment": "Positive | Neutral | Negative",
-        "url": "가능한 경우 원문 URL (또는 sourceUrl)"
+        "sentiment": "Positive | Neutral | Negative"
       }
     ]
   }
