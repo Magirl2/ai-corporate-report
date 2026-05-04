@@ -97,7 +97,7 @@ export default function App() {
 
   return (
     <div style={{ background: 'var(--color-surface)', color: 'var(--color-on-surface)', minHeight: '100vh', display: 'flex' }}>
-      {showSidebar && <SideNavBar tab={tab} setTab={setTab} navigateToSearch={navigateToSearch} />}
+      {showSidebar && <SideNavBar tab={tab} setTab={navigateTab} navigateToSearch={navigateToSearch} />}
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: '100vh', marginLeft: showSidebar ? undefined : 0, transition: 'margin 0.3s' }}
         className={showSidebar ? 'md:ml-64' : ''}
@@ -123,7 +123,7 @@ export default function App() {
                 searchInput={single.searchInput}
                 setSearchInput={single.setSearchInput}
                 onSearch={single.handleSearch}
-                setTab={setTab}
+                setTab={navigateTab}
                 recentSearches={single.recentSearches}
                 onDeleteRecentSearch={single.removeRecentSearchItem}
                 onClearRecentSearches={single.clearRecentSearchHistory}
@@ -255,14 +255,14 @@ export default function App() {
             )}
 
             {/* 인증 / 결제 페이지 */}
-            {tab === 'login'   && <Login setTab={setTab} />}
-            {tab === 'signup'  && <Signup setTab={setTab} />}
-            {tab === 'pricing' && <Pricing setTab={setTab} />}
+            {tab === 'login'   && <Login setTab={navigateTab} />}
+            {tab === 'signup'  && <Signup setTab={navigateTab} />}
+            {tab === 'pricing' && <Pricing setTab={navigateTab} />}
 
             {/* 법적 고지 / 정책 페이지 */}
-            {tab === 'data-notice' && <DataNotice setTab={setTab} />}
-            {tab === 'privacy-policy' && <PrivacyPolicy setTab={setTab} />}
-            {tab === 'terms' && <Terms setTab={setTab} />}
+            {tab === 'data-notice' && <DataNotice setTab={navigateTab} />}
+            {tab === 'privacy-policy' && <PrivacyPolicy setTab={navigateTab} />}
+            {tab === 'terms' && <Terms setTab={navigateTab} />}
 
           </main>
         )}
