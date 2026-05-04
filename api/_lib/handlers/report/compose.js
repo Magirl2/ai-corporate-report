@@ -87,17 +87,26 @@ export default async function handler(req, res) {
 
     const finalReport = await orchestrator.runStage3Compose(loadedArtifact.data);
     
-    // Markdown 검증 (한 번 더)
-    if (!finalReport.report?.markdown || finalReport.report.markdown.trim() === '') {
-      throw new Error('종합 보고서 내용이 비어 있습니다.');
+    // Markdown 검증: 비어 있어도 throw하지 않는다. partial success 처리.
+    const markdownEmpty = !finalReport.report?.markdown || finalReport.report.markdown.trim() === '';
+    if (markdownEmpty) {
+      logger.warn('Compose stage returned empty markdown — treating as partial success', { stage2Id });
+      if (!finalReport.metadata) finalReport.metadata = {};
+      finalReport.metadata.composeFailed = true;
+      finalReport.metadata.partial = true;
+      finalReport.metadata.qualityWarning = true;
+      if (!finalReport.debug) finalReport.debug = {};
+      finalReport.debug.isPartialResult = true;
     }
 
-    logger.info('Orchestration Stage 3 completed successfully', { 
+    const isComposeFailed = finalReport.metadata?.composeFailed === true;
+    logger.info('Orchestration Stage 3 completed', { 
       totalDurationMs: finalReport.metadata?.totalDurationMs,
-      qualityLevel: finalReport.metadata?.qualityLevel 
+      qualityLevel: finalReport.metadata?.qualityLevel,
+      composeFailed: isComposeFailed
     });
 
-    // 5. 사용량 차감 (성공 시에만)
+    // 5. 사용량 차감 (partial success 포함 — 분석까지 완료되었으므로)
     await incrementUserUsage(user.email);
 
     // 5.5 품질 게이트 검사 후 선택적 캐시 저장

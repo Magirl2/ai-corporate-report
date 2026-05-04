@@ -66,6 +66,11 @@ export function useSingleReport({ auth, showToast, setTab }) {
       const data = await fetchCompanyData(query, setStatusMessage, searchOptions);
       setSingleData(data);
 
+      // partial success (Stage 3 compose 실패) 안내 토스트
+      if (data?.metadata?.composeFailed) {
+        showToast('종합 보고서 생성에 실패했습니다. 상세 분석 탭에서 개별 섹션을 확인할 수 있습니다.', 'warning');
+      }
+
       const updatedHistory = addRecentSearch(auth.currentUser, query);
       setRecentSearches(updatedHistory);
     } catch (err) {

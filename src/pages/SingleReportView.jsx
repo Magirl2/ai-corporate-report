@@ -241,6 +241,7 @@ export default function SingleReportView({ singleData }) {
     const cacheAgeMs = singleData.metadata?.cacheAgeMs;
     const qualityWarning = singleData.metadata?.qualityWarning === true;
     const isPartialResult = singleData.debug?.isPartialResult === true;
+    const composeFailed = singleData.metadata?.composeFailed === true;
     const agentErrors = Array.isArray(singleData.debug?.agentErrors) ? singleData.debug.agentErrors : [];
     const hasAgentErrors = agentErrors.length > 0;
     const hasSentiment = !!(r?.marketSentiment?.status);
@@ -499,7 +500,7 @@ export default function SingleReportView({ singleData }) {
       {/* ── AI 종합 보고서 탭 (composer markdown) ── */}
       {reportSubTab === 'report' && (
         <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 animate-in fade-in slide-in-from-bottom-2">
-          {r?.markdown ? (
+          {r?.markdown && r.markdown.trim() !== '' ? (
             <>
               <div className="flex items-center gap-2 mb-6 pb-4 border-b border-slate-100">
                 <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
@@ -509,9 +510,30 @@ export default function SingleReportView({ singleData }) {
               <div>{renderMarkdown(r.markdown)}</div>
             </>
           ) : (
-            <div className="flex flex-col items-center justify-center py-16 gap-4">
-              <span className="material-symbols-outlined text-slate-300" style={{ fontSize: '48px' }}>auto_awesome</span>
-              <p className="text-slate-400 text-sm">종합 보고서를 생성하지 못했습니다. 상세 분석 탭에서 개별 섹션을 확인하세요.</p>
+            <div className="flex flex-col items-center justify-center py-16 gap-5 text-center">
+              <span className="material-symbols-outlined text-amber-300" style={{ fontSize: '56px' }}>
+                {composeFailed ? 'report_off' : 'auto_awesome'}
+              </span>
+              <div>
+                <p className="text-slate-700 font-bold text-base mb-2">종합 보고서를 생성하지 못했습니다.</p>
+                <p className="text-slate-400 text-sm leading-relaxed max-w-sm">
+                  AI 작성 모델이 응답하지 않아 종합 보고서를 완성하지 못했습니다.<br />
+                  <strong>상세 분석 탭</strong>에서 재무·전략·뉴스 섹션 결과를 바로 확인하실 수 있습니다.
+                </p>
+              </div>
+              <button
+                onClick={() => setReportSubTab('analysis')}
+                className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-full font-bold text-sm shadow hover:shadow-md hover:bg-primary/90 transition-all active:scale-95"
+                style={{ backgroundColor: 'var(--color-primary)' }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '18px', fontVariationSettings: "'FILL' 1" }}>analytics</span>
+                상세 분석 보기
+              </button>
+              {composeFailed && (
+                <p className="text-xs text-slate-300 mt-2">
+                  오류 원인: {singleData.metadata?.composeFail || '알 수 없음'}
+                </p>
+              )}
             </div>
           )}
         </div>

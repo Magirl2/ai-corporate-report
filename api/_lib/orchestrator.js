@@ -470,10 +470,24 @@ export class ServerOrchestrator {
 
     const report = this.assembleFinalReport();
     if (!report.report.markdown || report.report.markdown.trim() === '') {
-      // 실제 실패 원인을 포함한 에러 메시지 생성
+      // Compose 실패 — throw 하지 않고 partial success 처리
+      // Stage 2 데이터가 있으면 개별 섹션을 사용자에게 반환한다.
       const composerErrors = this._agentErrors.filter(e => e.stage === 'compose' || e.agent === 'composer');
       const causeDetail = composerErrors.length > 0 ? composerErrors.map(e => e.error).join('; ') : 'Unknown cause';
-      throw new Error(`AI 종합 보고서 생성에 실패했습니다: ${causeDetail}`);
+      this.logger?.warn('Stage 3 compose produced empty markdown — returning partial success', { causeDetail });
+      if (!report.metadata) report.metadata = {};
+      report.metadata.composeFailed = true;
+      report.metadata.composeFail = causeDetail;
+      report.metadata.partial = true;
+      report.metadata.qualityWarning = true;
+      if (!report.debug) report.debug = {};
+      report.debug.isPartialResult = true;
+      if (!Array.isArray(report.debug.agentErrors)) report.debug.agentErrors = [];
+      if (composerErrors.length > 0) {
+        report.debug.agentErrors.push(...composerErrors);
+      } else {
+        report.debug.agentErrors.push({ agent: 'composer', stage: 'compose', error: causeDetail });
+      }
     }
     return report;
   }

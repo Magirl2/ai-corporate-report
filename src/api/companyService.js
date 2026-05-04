@@ -146,13 +146,15 @@ export const fetchCompanyData = async (companyName, onStatusUpdate, options = {}
 
     const composeResult = await consumeNdjsonStream(composeResponse, onStatusUpdate);
 
+    // partial success: composeFailed여도 finalData(Stage 2 분석 포함)가 있으면 반환
     if (!composeResult.finalData) {
-      const error = new Error('보고서 생성 결과가 없습니다.');
+      const error = new Error('보고서 생성 결과가 없습니다. 다시 시도해주세요.');
       error.code = 'NO_REPORT_DATA';
-      error.retryable = false;
+      error.retryable = true;
       throw error;
     }
 
+    // composeFailed가 true여도 singleData로 반환 (프론트에서 markdown 탭만 실패 표시)
     return composeResult.finalData;
   } catch (error) {
     console.error('Report Generation Error:', error);
