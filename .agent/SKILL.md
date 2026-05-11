@@ -36,3 +36,29 @@
 - **`.agent/skills/`**: 에이전트들이 공통으로 참조하는 **실행 지침 및 규칙**(Skill).
 - **`api/_prompts/report-agents/`**: 실제 서비스 가동 중 보고서 생성 시에만 사용되는 **런타임 프롬프트**.
 - **주의**: 개발용 에이전트 지침과 런타임 보고서 프롬프트를 혼동하여 수정하지 않도록 주의한다.
+
+## 협업 워크플로우 (Workflows)
+
+`.agent/workflows/` 디렉토리에는 특정 상황에서 에이전트들이 협업하는 절차가 정의되어 있습니다.
+
+| 파일명 | 용도 |
+| :--- | :--- |
+| [00-common](workflows/00-common-workflow.md) | 모든 작업의 기본 공통 절차 및 원칙 |
+| [01-feature](workflows/01-feature-workflow.md) | 신규 기능 개발 시 (PM -> Designer -> Dev) |
+| [02-bugfix](workflows/02-bugfix-workflow.md) | 버그 발생 시 원인 분석 및 수정 절차 |
+| [03-security](workflows/03-security-workflow.md) | 보안 패치 및 환경변수/Secret 관리 절차 |
+| [04-report-quality](workflows/04-report-quality-workflow.md) | 보고서 품질 및 출처 신뢰도 개선 시 |
+| [05-dart-data](workflows/05-dart-data-workflow.md) | DART/FMP 데이터 연동 및 검증 필요 시 |
+| [06-ui-ux](workflows/06-ui-ux-workflow.md) | UI/UX 개선 및 접근성/반응형 작업 시 |
+| [07-release-qa](workflows/07-release-qa-workflow.md) | 배포 전 최종 기능 및 보안 점검 시 |
+
+### 에이전트별 워크플로우 매핑
+
+| 에이전트 | 참조 워크플로우 |
+| :--- | :--- |
+| **Product Manager** | Common, Feature, Bugfix, Report, Release QA |
+| **Product Designer** | Common, Feature, UI/UX, Report |
+| **Frontend Developer** | Common, Feature, Bugfix, UI/UX, Report, Release QA |
+| **Backend Developer** | Common, Feature, Bugfix, Security, DART, Release QA |
+| **AI Engineer** | Common, Report, Release QA |
+| **Financial Data Engineer** | Common, DART, Report, Release QA |

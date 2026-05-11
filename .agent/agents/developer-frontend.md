@@ -38,3 +38,11 @@
 - ../skills/report-ui.md
 - ../skills/legal-trust.md
 - ../skills/qa-build-grep.md
+
+## 사용하는 워크플로우
+- ../workflows/00-common-workflow.md
+- ../workflows/01-feature-workflow.md
+- ../workflows/02-bugfix-workflow.md
+- ../workflows/06-ui-ux-workflow.md
+- ../workflows/04-report-quality-workflow.md
+- ../workflows/07-release-qa-workflow.md

@@ -545,9 +545,11 @@ export class ServerOrchestrator {
             this.metadata.dartStatus.resolutionMethod = corpCodeRes.method;
             this.metadata.dartStatus.corpCodeResolved = true;
           } else {
+            this.metadata.dartStatus.corpCodeResolved = false;
             this.metadata.dartStatus.warnings.push("DART corp_code 매칭 실패: 공식 상장사명 또는 종목코드로 다시 검색하세요.");
           }
         } else {
+          this.metadata.dartStatus.apiKeyPresent = false;
           this.logger?.warn('DART_API_KEY missing, skipping resolveCorpCode for ' + companyName);
           this.metadata.dartStatus.warnings.push("DART API 키가 설정되지 않아 DART 공시 및 재무 데이터를 가져올 수 없습니다.");
         }
@@ -637,6 +639,7 @@ export class ServerOrchestrator {
           this.metadata.dartStatus.financeAvailable = true;
           this.metadata.dartStatus.financeYears = fRes.yearlyMetrics.length;
         } else {
+          this.metadata.dartStatus.financeAvailable = false;
           this.metadata.dartStatus.warnings.push("DART 재무 데이터가 없습니다.");
         }
 

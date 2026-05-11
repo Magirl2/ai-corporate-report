@@ -33,3 +33,8 @@
 - ../skills/source-quality.md
 - ../skills/report-pipeline.md
 - ../skills/qa-build-grep.md
+
+## 사용하는 워크플로우
+- ../workflows/00-common-workflow.md
+- ../workflows/04-report-quality-workflow.md
+- ../workflows/07-release-qa-workflow.md
