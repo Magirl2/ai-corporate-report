@@ -1393,12 +1393,19 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
 
   assembleFinalReport() {
     const { analysis, raw } = this.state;
-    
+
     // UI 계약을 보장하기 위한 안전한 정규화 (Partial Success 대응)
     const safeAnalysis = normalizeAnalystOutput(analysis || {});
     const { strategy, financial, news } = safeAnalysis;
 
-    const sources = raw.sources || [];
+    // engineData와 engineSearch가 병렬로 sources를 push하므로
+    // engineSearch의 정규화 타이밍에 따라 일부 소스가 미정규화될 수 있다.
+    // assembleFinalReport에서 최종 일괄 정규화·정렬·중복제거를 수행한다.
+    raw.sources = filterReportSources(
+      (raw.sources || []).map((s, idx) => s.qualityScore != null ? s : normalizeSourceWithQuality(s, idx))
+    );
+
+    const sources = raw.sources;
     const highQualitySources = sources.filter(s => s.qualityTier === 'high').length;
     const mediumQualitySources = sources.filter(s => s.qualityTier === 'medium').length;
     const lowQualitySources = sources.filter(s => s.qualityTier === 'low').length;
