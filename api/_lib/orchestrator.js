@@ -716,7 +716,7 @@ export class ServerOrchestrator {
     this.onStatusUpdate?.('최신 뉴스 및 시장 동향 검색 중...');
     const today = new Date().toLocaleDateString('ko-KR');
     const isDeep = this.options.qualityMode === 'deep';
-    const newsCount = isDeep ? '5-8' : '2-3';
+    const newsCount = isDeep ? '8-12' : '4-6';
     
     const searchPrompt = `Evaluate '${companyName}'. Today is ${today}. identity: ${JSON.stringify(identity)}.
 - Prefer primary and professional sources.
@@ -772,6 +772,7 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
         searchBriefing = { ...normalizeSearchBriefing({}), rawContent: fullText };
       }
       
+      // 1) Gemini 그라운딩 청크 → sources
       const groundingMetadata = searchResult.candidates?.[0]?.groundingMetadata;
       if (groundingMetadata?.groundingChunks) {
         groundingMetadata.groundingChunks.forEach((chunk, idx) => {
@@ -781,8 +782,22 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
           }
         });
       }
-      
-      // Process all sources through dedupe and quality check
+
+      // 2) searchBriefing.newsFindings URL → sources (그라운딩 미반환 시 보완)
+      (searchBriefing.newsFindings || []).forEach((item) => {
+        const url = item.url || item.uri;
+        if (url && !this.state.raw.sources.some(s => s.url === url || s.uri === url)) {
+          this.state.raw.sources.push(normalizeSourceWithQuality({
+            title: item.headline || item.summary || url,
+            url,
+            publisher: item.publisher,
+            publishedAt: item.publishedAt,
+            usedIn: item.usedIn || ['recentNews'],
+          }, this.state.raw.sources.length));
+        }
+      });
+
+      // 3) 전체 dedupe + 품질 정규화
       this.state.raw.sources = filterReportSources(this.state.raw.sources.map((s, idx) => {
         return s.qualityScore ? s : normalizeSourceWithQuality(s, idx);
       }));
@@ -938,6 +953,23 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
       return { ok: true, data: { news: newsData, score: 0 } };
     }
     
+    // recentNews URL → raw.sources에 추가 (뉴스 출처 다양성 확보)
+    (newsData.recentNews || []).forEach((item) => {
+      const url = item.url || item.uri;
+      if (url && !this.state.raw.sources.some(s => s.url === url || s.uri === url)) {
+        this.state.raw.sources.push(normalizeSourceWithQuality({
+          title: item.headline || url,
+          url,
+          publisher: item.publisher,
+          publishedAt: item.publishedAt,
+          usedIn: ['recentNews'],
+        }, this.state.raw.sources.length));
+      }
+    });
+    if (newsData.recentNews?.length) {
+      this.state.raw.sources = filterReportSources(this.state.raw.sources);
+    }
+
     const score = await this.engineSimpleScore('news', { news: newsData }, signal);
     return { ok: true, data: { news: newsData, score } };
   }
@@ -1011,7 +1043,7 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
       // 원본 재무 데이터 (축약)
       financeData: compactFinance,
       disclosures: safeSlice(this.state.raw.disclosures, 10),
-      sources: safeSlice(this.state.raw.sources, 10),
+      sources: safeSlice(this.state.raw.sources, 20),
 
       // 출처 품질 요약 (composer 프롬프트의 '출처 품질 한계' 섹션 작성용)
       sourceQualitySummary: (() => {

@@ -120,15 +120,19 @@ export default function Pricing({ setTab }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl px-2">
         {/* Free Plan */}
         <div className={`p-8 rounded-3xl flex flex-col justify-between transition-all duration-300 ${
-          currentUser?.plan === 'free' || !currentUser
-            ? 'bg-white border-2 border-slate-200 shadow-md ring-4 ring-slate-50' 
-            : 'bg-slate-50/50 border border-slate-100 opacity-80'
+          currentUser?.plan === 'free'
+            ? 'bg-white border-2 border-blue-400 shadow-lg ring-4 ring-blue-100'
+            : !currentUser
+            ? 'bg-white border-2 border-slate-200 shadow-md'
+            : 'bg-slate-50/50 border border-slate-100 opacity-70'
         }`}>
           <div>
             <div className="flex justify-between items-start mb-4">
               <h3 className="text-2xl font-bold font-headline text-slate-800">Free</h3>
-              {(currentUser?.plan === 'free' || !currentUser) && (
-                <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider">Current Plan</span>
+              {currentUser?.plan === 'free' && (
+                <span className="bg-blue-500 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-sm">
+                  <span className="material-symbols-outlined text-[12px]">check_circle</span>현재 플랜
+                </span>
               )}
             </div>
             <p className="text-slate-500 text-sm mb-4">기본적인 분석을 경험해보세요.</p>
@@ -162,16 +166,19 @@ export default function Pricing({ setTab }) {
             </ul>
           </div>
           
-          <button 
-            disabled={currentUser?.plan === 'free' || !currentUser}
-            onClick={() => setTab('search')}
+          <button
+            type="button"
+            disabled={currentUser?.plan === 'free' || !currentUser || currentUser?.plan === 'premium'}
+            onClick={() => !currentUser ? setTab('login') : setTab('search')}
             className={`w-full py-4 rounded-xl font-bold text-sm transition-all ${
-              currentUser?.plan === 'free' || !currentUser
+              currentUser?.plan === 'free' || currentUser?.plan === 'premium'
                 ? 'bg-slate-100 text-slate-400 cursor-default'
+                : !currentUser
+                ? 'bg-slate-200 text-slate-500 cursor-default'
                 : 'bg-slate-900 text-white hover:bg-slate-800 shadow-lg'
             }`}
           >
-            {(currentUser?.plan === 'free' || !currentUser) ? '현재 이용 중인 플랜' : '무료 플랜으로 시작하기'}
+            {currentUser?.plan === 'free' ? '현재 이용 중인 플랜' : currentUser?.plan === 'premium' ? '현재 프리미엄 이용 중' : '무료로 시작하기'}
           </button>
         </div>
 
@@ -195,7 +202,9 @@ export default function Pricing({ setTab }) {
             <div className="flex justify-between items-start mb-4">
               <h3 className="text-2xl font-bold font-headline text-primary">Premium</h3>
               {currentUser?.plan === 'premium' && (
-                <span className="bg-primary text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm">Current Plan</span>
+                <span className="bg-primary text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[12px]">verified</span>현재 플랜
+                </span>
               )}
             </div>
             <p className="text-slate-600 text-sm mb-6">모든 한계를 부수고 무제한으로 분석하세요.</p>
