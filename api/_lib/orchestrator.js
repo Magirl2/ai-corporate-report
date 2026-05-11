@@ -1464,7 +1464,8 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
       iteration: this.state.iteration || 1,
       metadata: {
         ...this.metadata,
-        missingSections: this.metadata.missingSections || []
+        missingSections: this.metadata.missingSections || [],
+        generatedAt: this.metadata.generatedAt || new Date().toISOString()
       },
       debug: { 
         agentErrors: this._agentErrors,

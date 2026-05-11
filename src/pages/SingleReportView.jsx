@@ -3,6 +3,16 @@ import MarketSentimentBanner from '../components/MarketSentimentBanner';
 import { renderMarkdown } from '../utils/displayHelpers';
 import { getYearlyMetrics, getSourceBadge, getSafeItems } from '../utils/reportSelectors';
 
+// ─── Composer model name formatter ───
+const _MODEL_NAMES = {
+  'gemini-2.5-pro': 'Gemini 2.5 Pro',
+  'gemini-2.5-flash': 'Gemini 2.5 Flash',
+  'gemini-2.5-flash-lite': 'Gemini 2.5 Flash Lite',
+};
+function formatComposerModel(model) {
+  return model ? (_MODEL_NAMES[model] || model) : 'AI 분석 모델';
+}
+
 // ─── Source classification domain tiers (mirrors api/_lib/sourceQuality.js DOMAIN_TIERS) ───
 const _DOMAIN_TIERS = {
   official:      ['opendart.fss.or.kr','dart.fss.or.kr','kind.krx.co.kr','krx.co.kr','sec.gov','investor.gov'],
@@ -698,7 +708,8 @@ export default function SingleReportView({ singleData }) {
                 <span className="material-symbols-outlined text-primary text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
                 <h3 className="text-base font-bold text-slate-800">AI 종합 분석 보고서</h3>
                 <span className="ml-auto text-xs text-slate-400">
-                  {singleData.metadata?.composerModel || 'AI report composer'}
+                  {formatComposerModel(singleData.metadata?.composerModel)}
+                  {singleData.metadata?.composerFallbackUsed && <span className="ml-1 text-amber-500" title="보조 모델로 생성됨">↓</span>}
                   {singleData.metadata?.generatedAt || singleData.createdAt
                     ? ` · ${new Date(singleData.metadata?.generatedAt || singleData.createdAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
                     : ''}
@@ -739,7 +750,8 @@ export default function SingleReportView({ singleData }) {
                 <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
                 <h3 className="text-lg font-bold">AI 종합 분석 보고서</h3>
                 <span className="ml-auto text-xs text-slate-400">
-                  {singleData.metadata?.composerModel || 'AI report composer'}
+                  {formatComposerModel(singleData.metadata?.composerModel)}
+                  {singleData.metadata?.composerFallbackUsed && <span className="ml-1 text-amber-500" title="보조 모델로 생성됨">↓</span>}
                   {singleData.metadata?.generatedAt || singleData.createdAt
                     ? ` · ${new Date(singleData.metadata?.generatedAt || singleData.createdAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
                     : ''}
