@@ -1,21 +1,23 @@
+import { createErrorResponse, ErrorCategory } from '../../errors.js';
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const apiKey = process.env.FMP_API_KEY;
-
-  if (!apiKey) {
-    return res.status(500).json({ error: 'FMP API 키가 설정되어 있지 않습니다.' });
-  }
-
   try {
+    const apiKey = process.env.FMP_API_KEY;
+
+    if (!apiKey) {
+      return res.status(500).json(createErrorResponse(ErrorCategory.INTERNAL, 'CONFIG_ERROR', 'FMP API 키가 설정되어 있지 않습니다.'));
+    }
+
     const queryString = req.url.split('?')[1] || '';
     const searchParams = new URLSearchParams(queryString);
     const ticker = searchParams.get('ticker');
 
     if (!ticker) {
-      return res.status(400).json({ error: 'ticker 파라미터가 필요합니다.' });
+      return res.status(400).json(createErrorResponse(ErrorCategory.VALIDATION, 'BAD_REQUEST', 'ticker 파라미터가 필요합니다.'));
     }
 
     const incUrl = `https://financialmodelingprep.com/api/v3/income-statement/${ticker}?limit=4&apikey=${apiKey}`;
@@ -28,14 +30,14 @@ export default async function handler(req, res) {
 
     if (!incRes.ok || !balRes.ok) {
       console.error('FMP API 오류:', incRes.status, balRes.status);
-      return res.status(500).json({ error: 'FMP API 연동 중 오류가 발생했습니다.' });
+      return res.status(502).json(createErrorResponse(ErrorCategory.UPSTREAM, 'FMP_API_ERROR', 'FMP API 연동 중 오류가 발생했습니다.'));
     }
 
     const incData = await incRes.json();
     const balData = await balRes.json();
 
     if (!Array.isArray(incData) || !Array.isArray(balData) || incData.length === 0 || balData.length === 0) {
-      return res.status(404).json({ error: '재무제표 데이터를 찾을 수 없습니다.' });
+      return res.status(404).json(createErrorResponse(ErrorCategory.UPSTREAM, 'NO_FMP_DATA', '재무제표 데이터를 찾을 수 없습니다.'));
     }
 
     const rawByYear = {};
@@ -96,7 +98,7 @@ export default async function handler(req, res) {
     });
 
     if (yearlyMetrics.length === 0) {
-      return res.status(404).json({ error: '재무제표 데이터를 파싱할 수 없습니다.' });
+      return res.status(404).json(createErrorResponse(ErrorCategory.UPSTREAM, 'NO_FMP_DATA', '재무제표 데이터를 파싱할 수 없습니다.'));
     }
 
     return res.status(200).json({
@@ -116,6 +118,6 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('FMP finance proxy error:', error);
-    return res.status(500).json({ error: '서버 내부 오류가 발생했습니다.', details: error.message });
+    return res.status(500).json(createErrorResponse(ErrorCategory.INTERNAL, 'INTERNAL_ERROR', '서버 내부 오류가 발생했습니다.'));
   }
 }
