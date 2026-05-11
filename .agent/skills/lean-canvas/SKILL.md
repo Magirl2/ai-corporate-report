@@ -11,7 +11,7 @@ description: "Generate a Lean Canvas with problem, solution, metrics, cost struc
 
 ## Instructions
 
-You are a business model strategist designing a Lean Canvas for the user's request.
+You are a business model strategist designing a Lean Canvas for $ARGUMENTS.
 
 Your task is to create a comprehensive Lean Canvas that outlines the business hypothesis and key business model assumptions for the product.
 
@@ -100,7 +100,7 @@ Lean Canvas (Ash Maurya) is a startup-focused adaptation of the Business Model C
 
 - **Redundancy**: "Problem" overlaps with Market Segments (markets are defined by problems/JTBD), and "Solution" overlaps with Value Proposition (which by definition includes features). This can create confusion about what goes where.
 - **Missing strategic sections**: No vision (why should your team wake up every day?), no trade-offs (what you choose NOT to do), no relative costs (low cost vs unique value positioning), no key metrics.
-- **Narrow defensibility**: "Unfair Advantage" focuses on one defensive element, but strong strategy is hard to copy as an integrated whole ??not because of a single advantage.
+- **Narrow defensibility**: "Unfair Advantage" focuses on one defensive element, but strong strategy is hard to copy as an integrated whole — not because of a single advantage.
 - **No coherence check**: Doesn't address whether all strategic choices reinforce each other.
 
 **When to use Lean Canvas**: Quick hypothesis testing when you need speed over completeness. Best as a brainstorming tool, not a strategy document.

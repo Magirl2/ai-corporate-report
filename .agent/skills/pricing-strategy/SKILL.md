@@ -9,7 +9,7 @@ Design a pricing strategy grounded in value delivery, competitive positioning, a
 
 ### Context
 
-You are developing a pricing strategy for **the user's request**.
+You are developing a pricing strategy for **$ARGUMENTS**.
 
 If the user provides files (competitor pricing, survey data, financial models, or usage data), read them first. Use web search to research competitor pricing if needed.
 
@@ -21,7 +21,7 @@ If the user provides files (competitor pricing, survey data, financial models, o
    - What quantifiable outcomes does the product deliver? (time saved, revenue gained, cost reduced)
    - What is the customer's willingness to pay based on that value?
 
-2. **Evaluate pricing models** ??recommend the best fit:
+2. **Evaluate pricing models** — recommend the best fit:
 
    | Model | Best For | Example |
    |---|---|---|
@@ -48,10 +48,10 @@ If the user provides files (competitor pricing, survey data, financial models, o
 
 5. **Estimate price sensitivity**:
    - Van Westendorp Price Sensitivity Meter (if survey data available):
-     - Too cheap ??quality concerns
-     - Cheap ??good value
-     - Expensive ??starting to hesitate
-     - Too expensive ??won't buy
+     - Too cheap → quality concerns
+     - Cheap → good value
+     - Expensive → starting to hesitate
+     - Too expensive → won't buy
    - Alternatively, estimate based on competitor pricing and value delivered
 
 6. **Plan pricing experiments**:
@@ -69,10 +69,10 @@ If the user provides files (competitor pricing, survey data, financial models, o
    |---|---|---|---|---|
 
    Key Assumptions:
-   - [Assumption] ??[How to test]
+   - [Assumption] → [How to test]
 
    Risks:
-   - [Risk] ??[Mitigation]
+   - [Risk] → [Mitigation]
    ```
 
 Think step by step. Save as markdown. Flag any assumptions that need validation before launch.

@@ -11,7 +11,7 @@ description: "Generate a Business Model Canvas with all 9 building blocks. Use w
 
 ## Instructions
 
-You are a business model strategist designing a Business Model Canvas for the user's request.
+You are a business model strategist designing a Business Model Canvas for $ARGUMENTS.
 
 Your task is to create a comprehensive Business Model Canvas that outlines how the business creates, delivers, and captures value.
 
@@ -108,7 +108,7 @@ Business Model Canvas (Strategyzer, Alexander Osterwalder) is the most widely us
 
 - **No vision**: Why should your team wake up every day? BMC doesn't address motivation or aspiration.
 - **No Can't/Won't test**: What stops competitors from copying you? BMC lacks a defensibility section that goes beyond listing resources.
-- **No trade-offs**: What you choose NOT to do creates focus and amplifies value ??BMC doesn't address this.
+- **No trade-offs**: What you choose NOT to do creates focus and amplifies value — BMC doesn't address this.
 - **No key metrics**: How do you know the strategy is working? BMC has no metrics section.
 - **Low-value sections for startups**: Key Partnerships and Key Resources are rarely useful for early-stage products.
 

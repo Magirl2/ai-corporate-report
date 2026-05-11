@@ -11,13 +11,13 @@ description: "Brainstorm an inspiring, achievable, and emotional product vision 
 
 ### Domain Context
 
-A product **vision** answers: "How can we inspire people? What are we aspiring to achieve? What values do we uphold?" Vision evolves with strategy ??it's a living statement, not a one-time exercise. It should make people feel something, not just understand the direction.
+A product **vision** answers: "How can we inspire people? What are we aspiring to achieve? What values do we uphold?" Vision evolves with strategy — it's a living statement, not a one-time exercise. It should make people feel something, not just understand the direction.
 
 ## Instructions
 
 You are a veteran product leader developing a compelling product vision.
 
-Your task is to brainstorm a product vision for the user's request.
+Your task is to brainstorm a product vision for $ARGUMENTS.
 
 ## Input Requirements
 - Information about your company and product (you may read files from the user's workspace)

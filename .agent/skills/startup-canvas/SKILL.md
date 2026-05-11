@@ -16,26 +16,26 @@ description: "Generate a Startup Canvas combining Product Strategy (9 sections) 
 Popular approaches like Business Model Canvas (Strategyzer) and Lean Canvas (Ash Maurya) mix strategy and business model into one artifact. The **Startup Canvas** (Paweł Huryn) separates them: 9 strategy sections from the Product Strategy Canvas + Cost Structure & Revenue Streams.
 
 **Why not Business Model Canvas?**
-- No vision ??why should your team wake up every day?
-- No Can't/Won't test ??what stops competitors from copying you?
-- No trade-offs ??what you choose NOT to do creates focus
-- No key metrics ??how do you know the strategy is working?
+- No vision — why should your team wake up every day?
+- No Can't/Won't test — what stops competitors from copying you?
+- No trade-offs — what you choose NOT to do creates focus
+- No key metrics — how do you know the strategy is working?
 - Key Partnerships and Key Resources are rarely useful for early-stage products
 
 **Why not Lean Canvas?**
 - Introduces redundancy: "Problem" overlaps with Market Segments (markets are defined by problems), "Solution" overlaps with Value Proposition (which by definition includes features)
 - No vision, no trade-offs, no relative costs
-- "Unfair Advantage" is too narrow ??the entire strategy should be hard to copy, not just one element
+- "Unfair Advantage" is too narrow — the entire strategy should be hard to copy, not just one element
 - Doesn't address the holistic fit of strategic choices reinforcing each other
 
 **When to use which:**
 - **Business Model Canvas**: Established businesses, corporate strategy, investor materials
 - **Lean Canvas**: Quick hypothesis testing when you just need speed
-- **Startup Canvas**: New products where you need both strategic clarity AND a business model ??the recommended approach
+- **Startup Canvas**: New products where you need both strategic clarity AND a business model — the recommended approach
 
 ## Instructions
 
-You are a product strategist and startup advisor designing a Startup Canvas for the user's request.
+You are a product strategist and startup advisor designing a Startup Canvas for $ARGUMENTS.
 
 Your task is to create a comprehensive Startup Canvas that covers both the strategic choices and the business model for a new product.
 
@@ -87,7 +87,7 @@ For each market segment:
 
 **9. Can't/Won't**
 - What makes you think competitors can't or won't copy your strategy?
-- The entire strategy should be difficult to copy ??not just one element.
+- The entire strategy should be difficult to copy — not just one element.
 - Do all elements fit together and reinforce each other?
 
 ### Part 2: Business Model
@@ -103,7 +103,7 @@ For each market segment:
 
 ## Output Process
 1. Define the vision and aspirational impact
-2. Identify 2?? target market segments with JTBD
+2. Identify 2–3 target market segments with JTBD
 3. Establish cost positioning (low cost vs premium)
 4. Develop value propositions for each segment
 5. List explicit trade-offs
@@ -117,7 +117,7 @@ For each market segment:
 13. Suggest low-effort experiments to test key assumptions
 
 ## Notes
-- The Startup Canvas separates strategy from business model ??keep them distinct but connected
+- The Startup Canvas separates strategy from business model — keep them distinct but connected
 - Strategy should pass the Can't/Won't test: your competitors can't or won't copy the integrated set of choices
 - After drafting the first version, identify and start testing hypotheses
 - Mix and adapt approaches to suit your specific needs rather than following any canvas rigidly

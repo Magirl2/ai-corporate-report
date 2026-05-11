@@ -36,6 +36,26 @@
 - ../skills/report-pipeline.md
 - ../skills/source-quality.md
 - ../skills/qa-build-grep.md
+- ../skills/ansoff-matrix/SKILL.md
+- ../skills/business-model/SKILL.md
+- ../skills/lean-canvas/SKILL.md
+- ../skills/monetization-strategy/SKILL.md
+- ../skills/pestle-analysis/SKILL.md
+- ../skills/porters-five-forces/SKILL.md
+- ../skills/pricing-strategy/SKILL.md
+- ../skills/product-strategy/SKILL.md
+- ../skills/product-vision/SKILL.md
+- ../skills/startup-canvas/SKILL.md
+- ../skills/swot-analysis/SKILL.md
+- ../skills/value-proposition/SKILL.md
+- ../skills/competitor-analysis/SKILL.md
+- ../skills/market-segments/SKILL.md
+- ../skills/market-sizing/SKILL.md
+- ../skills/gtm-strategy/SKILL.md
+- ../skills/outcome-roadmap/SKILL.md
+- ../skills/prioritization-frameworks/SKILL.md
+- ../skills/stakeholder-map/SKILL.md
+- ../skills/grammar-check/SKILL.md
 
 ## 사용하는 워크플로우
 - ../workflows/00-common-workflow.md

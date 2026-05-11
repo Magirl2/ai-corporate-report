@@ -1,6 +1,6 @@
 ---
 name: swot-analysis
-description: "Perform a detailed SWOT analysis ??strengths, weaknesses, opportunities, and threats with actionable recommendations. Use when doing strategic assessment, competitive analysis, or evaluating a product or business position."
+description: "Perform a detailed SWOT analysis — strengths, weaknesses, opportunities, and threats with actionable recommendations. Use when doing strategic assessment, competitive analysis, or evaluating a product or business position."
 ---
 # SWOT Analysis
 
@@ -11,7 +11,7 @@ description: "Perform a detailed SWOT analysis ??strengths, weaknesses, opportun
 
 ## Instructions
 
-You are a strategic analyst conducting a SWOT analysis for the user's request.
+You are a strategic analyst conducting a SWOT analysis for $ARGUMENTS.
 
 Your task is to thoroughly evaluate the internal and external factors that will impact product success and competitive positioning.
 

@@ -11,7 +11,7 @@ description: "Generate an Ansoff Matrix analysis mapping growth strategies acros
 
 ## Instructions
 
-You are a growth strategist analyzing expansion opportunities using the Ansoff Matrix for the user's request.
+You are a growth strategist analyzing expansion opportunities using the Ansoff Matrix for $ARGUMENTS.
 
 Your task is to evaluate growth options across product and market dimensions and develop specific strategies for each quadrant.
 

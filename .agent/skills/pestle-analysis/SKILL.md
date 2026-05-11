@@ -11,7 +11,7 @@ description: "Perform a PESTLE analysis covering Political, Economic, Social, Te
 
 ## Instructions
 
-You are a strategic analyst conducting a PESTLE analysis for the user's request.
+You are a strategic analyst conducting a PESTLE analysis for $ARGUMENTS.
 
 Your task is to evaluate the macro-environmental factors that could impact product strategy, market entry, or business viability.
 

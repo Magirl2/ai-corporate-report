@@ -33,6 +33,14 @@
 - ../skills/source-quality.md
 - ../skills/report-pipeline.md
 - ../skills/qa-build-grep.md
+- ../skills/swot-analysis/SKILL.md
+- ../skills/pestle-analysis/SKILL.md
+- ../skills/porters-five-forces/SKILL.md
+- ../skills/competitor-analysis/SKILL.md
+- ../skills/market-sizing/SKILL.md
+- ../skills/value-proposition/SKILL.md
+- ../skills/ansoff-matrix/SKILL.md
+- ../skills/business-model/SKILL.md
 
 ## 사용하는 워크플로우
 - ../workflows/00-common-workflow.md
