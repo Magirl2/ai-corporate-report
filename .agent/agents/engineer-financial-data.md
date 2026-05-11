@@ -31,3 +31,9 @@
 - DART 데이터 미사용 시 그 사유가 `metadata`에 명확히 기록된다.
 - 특정 재무 데이터가 비어 있더라도 전체 보고서 생성 프로세스가 중단되지 않도록 설계한다.
 - `npm run build`가 오류 없이 성공한다.
+
+## 사용하는 스킬
+- ../skills/dart-fmp-data.md
+- ../skills/source-quality.md
+- ../skills/security-env.md
+- ../skills/qa-build-grep.md

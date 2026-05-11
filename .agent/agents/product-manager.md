@@ -29,3 +29,10 @@
 - 각 태스크는 목적, 대상 파일, 완료 기준, 테스트 방법을 포함한다.
 - 사용자 체감 품질과 보안을 최우선 기준으로 의사결정한다.
 - 빌드 및 배포 리스크를 사전에 파악하고 대응 방안을 제시한다.
+
+## 사용하는 스킬
+- ../skills/product-planning.md
+- ../skills/legal-trust.md
+- ../skills/report-pipeline.md
+- ../skills/source-quality.md
+- ../skills/qa-build-grep.md

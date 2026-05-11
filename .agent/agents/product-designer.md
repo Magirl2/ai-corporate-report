@@ -32,3 +32,9 @@
 - 모바일 환경에서도 모든 카드와 표 형태의 데이터가 깨지지 않고 가독성을 유지한다.
 - 색상뿐만 아니라 아이콘, 텍스트 등을 병용하여 의미를 명확히 전달한다.
 - `npm run build`가 오류 없이 성공한다.
+
+## 사용하는 스킬
+- ../skills/report-ui.md
+- ../skills/frontend-react-ui.md
+- ../skills/legal-trust.md
+- ../skills/product-planning.md

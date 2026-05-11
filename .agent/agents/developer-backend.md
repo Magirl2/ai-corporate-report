@@ -33,3 +33,12 @@
 - 모든 500 에러는 가능한 한 구체적인 에러 코드와 메시지로 구분한다.
 - `npm run build`가 오류 없이 성공한다.
 - 보안 관련 변경 사항은 반드시 `grep` 등의 도구로 검증한다.
+
+## 사용하는 스킬
+- ../skills/security-env.md
+- ../skills/vercel-deployment.md
+- ../skills/auth-session.md
+- ../skills/backend-api.md
+- ../skills/redis-cache.md
+- ../skills/report-pipeline.md
+- ../skills/qa-build-grep.md

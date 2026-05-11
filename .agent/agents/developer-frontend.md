@@ -32,3 +32,9 @@
 - 데이터 로드 중 일부 실패(Partial Success)가 발생해도 보고서 뷰가 정상 표시된다.
 - 데이터 출처와 DART 데이터 사용 여부가 사용자에게 명확히 시각화된다.
 - `npm run build`가 오류 없이 성공한다.
+
+## 사용하는 스킬
+- ../skills/frontend-react-ui.md
+- ../skills/report-ui.md
+- ../skills/legal-trust.md
+- ../skills/qa-build-grep.md

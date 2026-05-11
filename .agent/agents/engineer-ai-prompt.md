@@ -27,3 +27,9 @@
 - 출처가 확인되지 않은 사실 단정을 절대 하지 않는다.
 - 보고서 마지막 섹션에 반드시 데이터 및 출처의 한계점을 명시한다.
 - `npm run build`가 오류 없이 성공한다.
+
+## 사용하는 스킬
+- ../skills/prompt-llm.md
+- ../skills/source-quality.md
+- ../skills/report-pipeline.md
+- ../skills/qa-build-grep.md
