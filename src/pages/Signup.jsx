@@ -142,7 +142,7 @@ export default function Signup({ setTab }) {
           >
             {loading ? (
               <>
-                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>refresh</span>
+                <span className="material-symbols-outlined animate-spin" style={{ fontSize: '18px' }}>refresh</span>
                 처리 중...
               </>
             ) : '가입하기'}

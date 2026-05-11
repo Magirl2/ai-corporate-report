@@ -5,36 +5,39 @@ export default function MarketSentimentBanner({ sentiment }) {
   if (!sentiment) return null;
   const status = sentiment.status || '중립';
 
-  let theme = { 
-    bg: 'bg-slate-50', 
-    border: 'border-slate-500', 
-    text: 'text-slate-600', 
+  let theme = {
+    bg: 'bg-slate-50',
+    border: 'border-slate-500',
+    borderSoft: 'border-slate-500/30',
+    text: 'text-slate-600',
     header: 'text-slate-700',
     iconBg: 'bg-slate-500',
-    icon: 'horizontal_rule' 
+    icon: 'horizontal_rule',
   };
 
   const statusLower = status.toLowerCase();
-  const isPositive = statusLower.includes('긍정') || statusLower.includes('매수') || statusLower.includes('positive');
-  const isNegative = statusLower.includes('부정') || statusLower.includes('매도') || statusLower.includes('리스크') || statusLower.includes('negative');
+  const isPositive = statusLower.includes('긍정') || statusLower.includes('positive');
+  const isNegative = statusLower.includes('부정') || statusLower.includes('negative') || statusLower.includes('리스크');
 
   if (isPositive) {
-    theme = { 
-      bg: 'bg-emerald-50', 
-      border: 'border-emerald-500', 
-      text: 'text-emerald-600', 
+    theme = {
+      bg: 'bg-emerald-50',
+      border: 'border-emerald-500',
+      borderSoft: 'border-emerald-500/30',
+      text: 'text-emerald-600',
       header: 'text-emerald-700',
       iconBg: 'bg-emerald-500',
-      icon: 'trending_up' 
+      icon: 'trending_up',
     };
   } else if (isNegative) {
-    theme = { 
-      bg: 'bg-rose-50', 
-      border: 'border-rose-500', 
-      text: 'text-rose-600', 
+    theme = {
+      bg: 'bg-rose-50',
+      border: 'border-rose-500',
+      borderSoft: 'border-rose-500/30',
+      text: 'text-rose-600',
       header: 'text-rose-700',
       iconBg: 'bg-rose-500',
-      icon: 'trending_down' 
+      icon: 'trending_down',
     };
   }
 
@@ -55,8 +58,10 @@ export default function MarketSentimentBanner({ sentiment }) {
         </div>
         {hasDetailOrBasis && (
           <button
+            type="button"
             onClick={() => setOpen(!open)}
-            className={`shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${open ? 'bg-white border-transparent shadow-sm text-slate-700' : `bg-transparent border-${theme.border.replace('border-', '')}/30 ${theme.text} hover:bg-white/50`}`}
+            aria-expanded={open}
+            className={`shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${open ? `bg-white border-transparent shadow-sm text-slate-700` : `bg-transparent ${theme.borderSoft} ${theme.text} hover:bg-white/50`}`}
           >
             {open ? '접기' : '상세보기'}
             <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>{open ? 'unfold_less' : 'unfold_more'}</span>
