@@ -2,15 +2,18 @@ import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-const SOURCE_ID_RE = /(\[(?:DART|NEWS|AI|SRC|FMP|KRX|WEB)-\d+\])/g;
+// split용 capturing-group 정규식 (g 플래그 유지)
+const SOURCE_ID_SPLIT = /(\[(?:DART|NEWS|AI|SRC|FMP|KRX|WEB)-\d+\])/g;
+// test용 비-global 정규식 — global+test 조합의 lastIndex statefulness 버그 방지
+const SOURCE_ID_TEST = /\[(?:DART|NEWS|AI|SRC|FMP|KRX|WEB)-\d+\]/;
 
 function processChildren(children) {
   return React.Children.map(children, (child) => {
     if (typeof child !== 'string') return child;
-    const parts = child.split(SOURCE_ID_RE);
+    const parts = child.split(SOURCE_ID_SPLIT);
     if (parts.length === 1) return child;
     return parts.map((part, i) =>
-      SOURCE_ID_RE.test(part)
+      SOURCE_ID_TEST.test(part)
         ? <span key={i} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary/80 border border-primary/20 mx-0.5 font-mono">{part}</span>
         : part
     );
@@ -21,6 +24,9 @@ const MD_COMPONENTS = {
   h1: ({ children }) => <h2 className="text-xl font-extrabold text-slate-900 mt-6 mb-3 pb-2 border-b border-slate-100">{children}</h2>,
   h2: ({ children }) => <h3 className="text-base font-bold text-slate-800 mt-5 mb-2">{children}</h3>,
   h3: ({ children }) => <h4 className="text-sm font-bold text-slate-800 mt-4 mb-1">{children}</h4>,
+  h4: ({ children }) => <h5 className="text-[13px] font-semibold text-slate-700 mt-3 mb-1">{children}</h5>,
+  h5: ({ children }) => <h6 className="text-[12px] font-semibold text-slate-600 mt-2 mb-1 uppercase tracking-wide">{children}</h6>,
+  h6: ({ children }) => <p className="text-[12px] font-bold text-slate-500 mt-2 mb-1">{children}</p>,
   p:  ({ children }) => <p className="mb-3 text-[13.5px] text-slate-600 leading-7">{processChildren(children)}</p>,
   strong: ({ children }) => <strong className="font-bold text-slate-900">{children}</strong>,
   em: ({ children }) => <em className="italic text-slate-500">{children}</em>,
