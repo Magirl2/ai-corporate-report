@@ -542,6 +542,58 @@ export default function SingleReportView({ singleData }) {
       {/* ── 출처 탭 ── */}
       {reportSubTab === 'sources' && (
         <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 animate-in fade-in slide-in-from-bottom-2">
+          {/* DART 상태 카드 */}
+          {singleData.metadata?.dartStatus && (
+            <div className="mb-8 p-5 bg-slate-50 rounded-xl border border-slate-200">
+              <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary" style={{ fontSize: '18px' }}>database</span>
+                DART 데이터 수집 현황
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <span className="text-slate-500 text-xs block mb-1">매칭 기업명</span>
+                  <span className="font-semibold">{singleData.metadata.dartStatus.resolvedCorpName || '-'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 text-xs block mb-1">DART 고유번호 (corp_code)</span>
+                  <span className="font-semibold">{singleData.metadata.dartStatus.resolvedCorpCode || '-'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 text-xs block mb-1">종목코드</span>
+                  <span className="font-semibold">{singleData.metadata.dartStatus.stockCode || '-'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 text-xs block mb-1">매칭 방식</span>
+                  <span className="font-semibold">{singleData.metadata.dartStatus.resolutionMethod || '-'}</span>
+                </div>
+                
+                <div>
+                  <span className="text-slate-500 text-xs block mb-1">DART 공시 데이터</span>
+                  <span className={`font-semibold ${singleData.metadata.dartStatus.disclosuresCount > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                    {singleData.metadata.dartStatus.disclosuresCount > 0 ? `사용됨 (${singleData.metadata.dartStatus.disclosuresCount}건)` : '미사용'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 text-xs block mb-1">DART 재무 데이터</span>
+                  <span className={`font-semibold ${singleData.metadata.dartStatus.financeAvailable ? 'text-emerald-600' : 'text-slate-400'}`}>
+                    {singleData.metadata.dartStatus.financeAvailable ? `사용됨 (${singleData.metadata.dartStatus.financeYears}개 연도)` : '미사용'}
+                  </span>
+                </div>
+              </div>
+              
+              {singleData.metadata.dartStatus.warnings?.length > 0 && (
+                <div className="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-100">
+                  <span className="text-xs font-bold text-amber-800 block mb-1">경고/미사용 사유</span>
+                  <ul className="list-disc pl-4 text-xs text-amber-700 space-y-1">
+                    {singleData.metadata.dartStatus.warnings.map((w, i) => (
+                      <li key={i}>{w}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
           <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
             <span className="material-symbols-outlined text-slate-400">newspaper</span>
             리포트 생성에 사용된 정보 출처

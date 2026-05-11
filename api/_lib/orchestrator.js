@@ -223,7 +223,24 @@ export class ServerOrchestrator {
     this._agentErrors = [];
     this.metadata = {
       stagedEngines: {},
-      totalDurationMs: 0
+      totalDurationMs: 0,
+      dartStatus: {
+        attempted: false,
+        apiKeyPresent: false,
+        inputCompanyName: companyName,
+        resolvedCorpCode: null,
+        resolvedCorpName: null,
+        stockCode: null,
+        resolutionMethod: null,
+        corpCodeResolved: false,
+        disclosuresAttempted: false,
+        disclosuresCount: 0,
+        financeAttempted: false,
+        financeAvailable: false,
+        financeYears: 0,
+        errors: [],
+        warnings: []
+      }
     };
     this.state = {
       resolve: null,
@@ -510,6 +527,9 @@ export class ServerOrchestrator {
       
       if (resolveInfo.type === 'KR') {
         const dartApiToken = getOptionalEnv('DART_API_KEY');
+        this.metadata.dartStatus.attempted = true;
+        this.metadata.dartStatus.apiKeyPresent = !!dartApiToken;
+
         if (dartApiToken) {
           const corpCodeRes = await resolveCorpCode(companyName, dartApiToken);
           
@@ -518,9 +538,18 @@ export class ServerOrchestrator {
             resolveInfo.corpName = corpCodeRes.corpName;
             resolveInfo.stockCode = corpCodeRes.stockCode;
             resolveInfo.resolutionMethod = corpCodeRes.method;
+
+            this.metadata.dartStatus.resolvedCorpCode = corpCodeRes.corpCode;
+            this.metadata.dartStatus.resolvedCorpName = corpCodeRes.corpName;
+            this.metadata.dartStatus.stockCode = corpCodeRes.stockCode;
+            this.metadata.dartStatus.resolutionMethod = corpCodeRes.method;
+            this.metadata.dartStatus.corpCodeResolved = true;
+          } else {
+            this.metadata.dartStatus.warnings.push("DART corp_code 매칭 실패: 공식 상장사명 또는 종목코드로 다시 검색하세요.");
           }
         } else {
           this.logger?.warn('DART_API_KEY missing, skipping resolveCorpCode for ' + companyName);
+          this.metadata.dartStatus.warnings.push("DART API 키가 설정되지 않아 DART 공시 및 재무 데이터를 가져올 수 없습니다.");
         }
       }
       
@@ -546,6 +575,7 @@ export class ServerOrchestrator {
       if (type === 'KR') {
         if (!dartApiToken) {
           warnings.push('DART API 키가 설정되지 않아 DART 공시 및 재무 데이터를 가져올 수 없습니다.');
+          this.metadata.dartStatus.warnings.push('DART API 키가 설정되지 않아 DART 공시 및 재무 데이터를 가져올 수 없습니다.');
           this.logger?.warn('DART_API_KEY missing, skipping engineData for KR');
           return { ok: true, data: result, warnings };
         }
@@ -564,6 +594,13 @@ export class ServerOrchestrator {
               stockCode: res.stockCode,
               resolutionMethod: res.method
             };
+            this.metadata.dartStatus.resolvedCorpCode = res.corpCode;
+            this.metadata.dartStatus.resolvedCorpName = res.corpName;
+            this.metadata.dartStatus.stockCode = res.stockCode;
+            this.metadata.dartStatus.resolutionMethod = res.method;
+            this.metadata.dartStatus.corpCodeResolved = true;
+          } else {
+            this.metadata.dartStatus.warnings.push("DART corp_code 매칭 실패: 공식 상장사명 또는 종목코드로 다시 검색하세요.");
           }
         }
 
@@ -572,13 +609,37 @@ export class ServerOrchestrator {
           return { ok: true, data: result, warnings };
         }
         
+        this.metadata.dartStatus.disclosuresAttempted = true;
+        this.metadata.dartStatus.financeAttempted = true;
+
         const safeCorpCode = encodeURIComponent(corpCode);
         const [dRes, fRes] = await Promise.all([
-          this.internalFetch(`/api/data/dart?corp_code=${safeCorpCode}`, { signal }).catch(e => { warnings.push(`DART disclosures error: ${e.message}`); return { list: [] }; }),
-          this.internalFetch(`/api/data/dart-finance?corp_code=${safeCorpCode}`, { signal }).catch(e => { warnings.push(`DART finance error: ${e.message}`); return null; })
+          this.internalFetch(`/api/data/dart?corp_code=${safeCorpCode}`, { signal }).catch(e => { 
+            warnings.push(`DART disclosures error: ${e.message}`); 
+            this.metadata.dartStatus.errors.push(`DART disclosures error: ${e.message}`);
+            return { list: [] }; 
+          }),
+          this.internalFetch(`/api/data/dart-finance?corp_code=${safeCorpCode}`, { signal }).catch(e => { 
+            warnings.push(`DART finance error: ${e.message}`); 
+            this.metadata.dartStatus.errors.push(`DART finance error: ${e.message}`);
+            return null; 
+          })
         ]);
+        
         result.disclosures = dRes.list?.map(d => ({ date: d.rcept_dt, title: d.report_nm })) || [];
+        this.metadata.dartStatus.disclosuresCount = result.disclosures.length;
+        if (result.disclosures.length === 0) {
+          this.metadata.dartStatus.warnings.push("DART 공시 데이터가 없습니다.");
+        }
+
         result.finance = fRes;
+        if (fRes && fRes.yearlyMetrics) {
+          this.metadata.dartStatus.financeAvailable = true;
+          this.metadata.dartStatus.financeYears = fRes.yearlyMetrics.length;
+        } else {
+          this.metadata.dartStatus.warnings.push("DART 재무 데이터가 없습니다.");
+        }
+
         this.state.raw.sources.push({ title: 'DART 전자공시시스템', uri: 'https://opendart.fss.or.kr/' });
       } else {
         result.finance = await this.internalFetch(`/api/data/fmp-finance?ticker=${ticker}`, { signal }).catch(e => { warnings.push(`FMP error: ${e.message}`); return null; });
@@ -1312,6 +1373,7 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
         markdown: this.state.composerMarkdown || '',
       },
       sources: raw.sources || [],
+      disclosures: raw.disclosures || [],
       financeData: raw.finance || null,
       score: this.state.score || 0,
       iteration: this.state.iteration || 1,

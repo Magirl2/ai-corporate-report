@@ -183,8 +183,8 @@ export async function resolveCorpCode(userInput, apiKey) {
   const corpList = await loadCorpCodes(apiKey);
   
   if (corpList) {
-    // 1순위: 정확한 종목명(stock_name) 매칭 또는 정확한 법인명 매칭
-    let match = corpList.find(c => c.corpName === targetName || c.normalizedName === normalized);
+    // 1순위: 종목코드(stockCode), 정확한 종목명(stock_name) 매칭 또는 정확한 법인명 매칭
+    let match = corpList.find(c => c.stockCode === targetName || c.corpName === targetName || c.normalizedName === normalized);
     
     // 2순위: 키워드 기반 포함 매칭 (주식 코드가 있는 상장사 우선)
     if (!match) {
