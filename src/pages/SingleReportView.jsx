@@ -697,7 +697,12 @@ export default function SingleReportView({ singleData }) {
               <div className="flex items-center gap-2 mb-6 pb-4 border-b border-slate-100">
                 <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
                 <h3 className="text-lg font-bold">AI 종합 분석 보고서</h3>
-                <span className="ml-auto text-xs text-slate-400">Composed by Gemini 2.5 Pro</span>
+                <span className="ml-auto text-xs text-slate-400">
+                  {singleData.metadata?.composerModel || 'AI report composer'}
+                  {singleData.metadata?.generatedAt || singleData.createdAt
+                    ? ` · ${new Date(singleData.metadata?.generatedAt || singleData.createdAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+                    : ''}
+                </span>
               </div>
               <div>{renderMarkdown(r.markdown)}</div>
             </>
