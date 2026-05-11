@@ -1,17 +1,34 @@
 import React, { useState } from 'react';
 
+const TEST_CARD = '4242 4242 4242 4242';
+
 export default function PaymentModal({ isOpen, onClose, selectedPlan, onPaymentSuccess }) {
+  const [cardNumber, setCardNumber] = useState('');
+  const [expiry, setExpiry] = useState('');
+  const [cvc, setCvc] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
+  const normalizedCard = cardNumber.replace(/\s+/g, ' ').trim();
+  const isCardValid = normalizedCard === TEST_CARD;
+  const isExpiryValid = /^\d{2}\s*\/\s*\d{2}$/.test(expiry.trim());
+  const isCvcValid = /^\d{3,4}$/.test(cvc.trim());
+  const canSubmit = isCardValid && isExpiryValid && isCvcValid && !submitting;
+
+  const planLabel = selectedPlan === 'premium' ? 'Premium Plan' : 'Enterprise Plan';
+  const planPrice = selectedPlan === 'premium' ? '₩19,000' : '₩99,000';
+
   const handleFakePayment = () => {
+    if (!canSubmit) return;
     setSubmitting(true);
     onPaymentSuccess(selectedPlan);
   };
 
-  const planLabel = selectedPlan === 'premium' ? 'Premium Plan' : 'Enterprise Plan';
-  const planPrice = selectedPlan === 'premium' ? '₩19,000' : '₩99,000';
+  const formatCard = (val) => {
+    const digits = val.replace(/\D/g, '').slice(0, 16);
+    return digits.replace(/(.{4})/g, '$1 ').trim();
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
@@ -38,7 +55,15 @@ export default function PaymentModal({ isOpen, onClose, selectedPlan, onPaymentS
         </div>
 
         <div className="p-6">
-          <div className="flex justify-between items-center mb-8 p-4 bg-primary/5 rounded-xl border border-primary/10">
+          {/* 테스트 안내 배너 */}
+          <div className="mb-5 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
+            <span className="material-symbols-outlined text-amber-500 shrink-0 text-[16px] mt-0.5">info</span>
+            <p className="text-[11px] text-amber-700 font-medium leading-relaxed">
+              테스트 카드 번호 <span className="font-black font-mono">{TEST_CARD}</span>를 입력하면 결제가 진행됩니다. 실제 결제는 이루어지지 않습니다.
+            </p>
+          </div>
+
+          <div className="flex justify-between items-center mb-6 p-4 bg-primary/5 rounded-xl border border-primary/10">
             <div>
               <p className="text-[10px] text-primary font-bold uppercase tracking-wider mb-0.5">선택한 플랜</p>
               <p className="text-base font-bold text-slate-800">{planLabel}</p>
@@ -49,36 +74,57 @@ export default function PaymentModal({ isOpen, onClose, selectedPlan, onPaymentS
             </div>
           </div>
 
-          <div className="space-y-5">
+          <div className="space-y-4">
             <div>
               <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">카드 번호</label>
               <div className="relative group">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-300 group-focus-within:text-primary transition-colors">credit_card</span>
                 <input
                   type="text"
-                  placeholder="0000 0000 0000 0000"
+                  value={cardNumber}
+                  onChange={(e) => setCardNumber(formatCard(e.target.value))}
+                  placeholder="4242 4242 4242 4242"
                   disabled={submitting}
-                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white outline-none transition-all disabled:opacity-50"
+                  maxLength={19}
+                  className={`w-full pl-10 pr-4 py-3 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-primary/20 focus:bg-white outline-none transition-all disabled:opacity-50 font-mono ${
+                    cardNumber && !isCardValid ? 'border-red-300 focus:border-red-400' : isCardValid ? 'border-emerald-300 focus:border-emerald-400' : 'border-slate-200 focus:border-primary'
+                  }`}
                 />
+                {isCardValid && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-emerald-500 text-[18px]">check_circle</span>
+                )}
               </div>
+              {cardNumber && !isCardValid && (
+                <p className="text-[10px] text-red-500 mt-1 ml-1">테스트 카드 번호를 입력하세요: {TEST_CARD}</p>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">유효기간</label>
                 <input
                   type="text"
+                  value={expiry}
+                  onChange={(e) => setExpiry(e.target.value)}
                   placeholder="MM / YY"
                   disabled={submitting}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white outline-none transition-all text-center disabled:opacity-50"
+                  maxLength={7}
+                  className={`w-full px-4 py-3 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-primary/20 focus:bg-white outline-none transition-all text-center disabled:opacity-50 ${
+                    expiry && !isExpiryValid ? 'border-red-300' : isExpiryValid ? 'border-emerald-300' : 'border-slate-200 focus:border-primary'
+                  }`}
                 />
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">CVC</label>
                 <input
                   type="text"
+                  value={cvc}
+                  onChange={(e) => setCvc(e.target.value.replace(/\D/g, '').slice(0, 4))}
                   placeholder="123"
                   disabled={submitting}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white outline-none transition-all text-center disabled:opacity-50"
+                  maxLength={4}
+                  className={`w-full px-4 py-3 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-primary/20 focus:bg-white outline-none transition-all text-center disabled:opacity-50 ${
+                    cvc && !isCvcValid ? 'border-red-300' : isCvcValid ? 'border-emerald-300' : 'border-slate-200 focus:border-primary'
+                  }`}
                 />
               </div>
             </div>
@@ -87,8 +133,8 @@ export default function PaymentModal({ isOpen, onClose, selectedPlan, onPaymentS
           <button
             type="button"
             onClick={handleFakePayment}
-            disabled={submitting}
-            className="w-full mt-10 py-4 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-xl shadow-slate-900/20 disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100"
+            disabled={!canSubmit}
+            className="w-full mt-8 py-4 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-xl shadow-slate-900/20 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
           >
             {submitting ? (
               <>
@@ -102,14 +148,6 @@ export default function PaymentModal({ isOpen, onClose, selectedPlan, onPaymentS
               </>
             )}
           </button>
-
-          <div className="mt-6 flex flex-col items-center gap-1 opacity-60">
-            <p className="text-[10px] text-slate-500 font-medium">본 페이지는 실제 결제가 이루어지지 않는</p>
-            <p className="text-[10px] text-slate-500 font-medium flex items-center gap-1">
-              <span className="material-symbols-outlined text-[12px]">info</span>
-              가상 테스트를 위한 시뮬레이션 환경입니다.
-            </p>
-          </div>
         </div>
       </div>
     </div>

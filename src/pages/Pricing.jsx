@@ -169,7 +169,7 @@ export default function Pricing({ setTab }) {
         {/* Premium Plan (Highlighted) */}
         <div className={`p-8 rounded-3xl relative flex flex-col justify-between transition-all duration-500 transform ${
           currentUser?.plan === 'premium'
-            ? 'bg-white border-2 border-primary shadow-xl ring-8 ring-primary/5 -translate-y-2'
+            ? 'bg-white border-2 border-primary shadow-2xl ring-4 ring-primary/40 -translate-y-2'
             : 'bg-gradient-to-b from-primary/5 to-white border border-primary/20 hover:border-primary/40 hover:shadow-2xl hover:-translate-y-1'
         }`}>
           {currentUser?.plan === 'premium' ? (
@@ -186,7 +186,7 @@ export default function Pricing({ setTab }) {
             <div className="flex justify-between items-start mb-4">
               <h3 className="text-2xl font-bold font-headline text-primary">Premium</h3>
               {currentUser?.plan === 'premium' && (
-                <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider">Current Plan</span>
+                <span className="bg-primary text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm">Current Plan</span>
               )}
             </div>
             <p className="text-slate-600 text-sm mb-6">모든 한계를 부수고 무제한으로 분석하세요.</p>
@@ -216,7 +216,7 @@ export default function Pricing({ setTab }) {
             disabled={currentUser?.plan === 'premium'}
             className={`w-full py-4 rounded-xl font-bold text-base transition-all ${
               currentUser?.plan === 'premium'
-                ? 'bg-primary/10 text-primary cursor-default'
+                ? 'bg-primary/15 text-primary border border-primary/30 cursor-default'
                 : 'bg-primary text-white shadow-xl shadow-primary/30 hover:bg-primary-container hover:scale-[1.02] active:scale-[0.98]'
             }`}
           >

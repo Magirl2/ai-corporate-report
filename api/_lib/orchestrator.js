@@ -1312,6 +1312,9 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
 
   async callGemini(model, prompt, config = {}) {
     const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error('GEMINI_API_KEY 환경변수가 설정되지 않았습니다. Vercel 대시보드에서 환경변수를 확인하세요.');
+    }
     // 안전한 fallback 체인 (deprecated 모델 절대 사용 금지)
     const fallbackModels = config.fallbackModels || [];
     const allModels = [model, ...fallbackModels];
@@ -1342,7 +1345,7 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
           temperature: config.temperature ?? 0.2,
           topP: 0.95,
           topK: 40,
-          maxOutputTokens: config.maxOutputTokens ?? 2048,
+          maxOutputTokens: config.maxOutputTokens ?? 4096,
         };
         if (config.responseMimeType) generationConfig.responseMimeType = config.responseMimeType;
         

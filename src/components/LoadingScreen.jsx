@@ -4,16 +4,23 @@ export default function LoadingScreen({ message }) {
   const [step, setStep] = useState(0);
 
   useEffect(() => {
-    // Animate through different loading steps for visual feedback
-    const timer1 = setTimeout(() => setStep(1), 5000);
-    const timer2 = setTimeout(() => setStep(2), 15000);
-    const timer3 = setTimeout(() => setStep(3), 25000);
-    
-    return () => {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-      clearTimeout(timer3);
-    };
+    // message-driven step advancement (pipeline stage keywords)
+    if (message) {
+      if (message.includes('Stage 2') || message.includes('심층 분석')) {
+        setStep(s => Math.max(s, 1));
+      }
+      if (message.includes('Stage 3') || message.includes('종합 보고서')) {
+        setStep(s => Math.max(s, 2));
+      }
+    }
+  }, [message]);
+
+  useEffect(() => {
+    // time-based fallback — never regress step
+    const t1 = setTimeout(() => setStep(s => Math.max(s, 1)), 8000);
+    const t2 = setTimeout(() => setStep(s => Math.max(s, 2)), 20000);
+    const t3 = setTimeout(() => setStep(s => Math.max(s, 3)), 35000);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, []);
 
   return (
