@@ -20,8 +20,9 @@ const STAGE_TIMEOUTS = {
   compose: 55000  // compose.js maxDuration=60초 내에서 최대한 확보
 };
 
-// 배포 디버깅: 실제 배포된 코드와 GitHub main의 일치 여부 확인
-console.info(`[orchestrator] STAGE_TIMEOUTS.compose=${STAGE_TIMEOUTS.compose}ms, BUILD_SHA=${process.env.VERCEL_GIT_COMMIT_SHA || 'local'}`);
+if (DEBUG) {
+  console.info(`[orchestrator] STAGE_TIMEOUTS.compose=${STAGE_TIMEOUTS.compose}ms, BUILD_SHA=${process.env.VERCEL_GIT_COMMIT_SHA || 'local'}`);
+}
 
 /**
  * 텍스트에서 JSON 블록을 추출합니다.
