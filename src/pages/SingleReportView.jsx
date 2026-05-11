@@ -690,6 +690,42 @@ export default function SingleReportView({ singleData }) {
             </div>
           </BentoCard>
 
+          {/* AI 종합 보고서 — 상세 분석 탭 하단에 함께 노출 */}
+          <div className="col-span-full w-full">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+              <div className="flex items-center gap-2 px-6 py-4 border-b border-slate-100 bg-slate-50/60">
+                <span className="material-symbols-outlined text-primary text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
+                <h3 className="text-base font-bold text-slate-800">AI 종합 분석 보고서</h3>
+                <span className="ml-auto text-xs text-slate-400">
+                  {singleData.metadata?.composerModel || 'AI report composer'}
+                  {singleData.metadata?.generatedAt || singleData.createdAt
+                    ? ` · ${new Date(singleData.metadata?.generatedAt || singleData.createdAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+                    : ''}
+                </span>
+              </div>
+              <div className="p-8">
+                {r?.markdown && r.markdown.trim() !== '' ? (
+                  <div>{renderMarkdown(r.markdown)}</div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12 gap-4 text-center">
+                    <span className="material-symbols-outlined text-amber-300" style={{ fontSize: '48px' }}>
+                      {composeFailed ? 'report_off' : 'auto_awesome'}
+                    </span>
+                    <div>
+                      <p className="text-slate-700 font-bold text-sm mb-1">종합 보고서를 생성하지 못했습니다.</p>
+                      <p className="text-slate-400 text-xs leading-relaxed max-w-sm">
+                        AI 작성 모델이 응답하지 않았습니다. 위 섹션별 분석 결과를 참고해주세요.
+                      </p>
+                    </div>
+                    {composeFailed && (
+                      <p className="text-xs text-slate-300">오류 원인: {singleData.metadata?.composeFail || '알 수 없음'}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
         </div>
       )}
 
