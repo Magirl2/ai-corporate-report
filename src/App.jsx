@@ -46,7 +46,7 @@ function Toast({ message, type = 'info', onClose }) {
     }}>
       <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1", flexShrink: 0 }}>{c.icon}</span>
       <span style={{ flex: 1 }}>{message}</span>
-      <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.6 }}>
+      <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.6 }}>
         <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
       </button>
     </div>
@@ -144,6 +144,7 @@ export default function App() {
                   <h3 style={{ fontWeight: 700, color: '#be123c', marginBottom: '0.25rem' }}>분석 중 오류 발생</h3>
                   <p style={{ color: '#be123c', fontSize: '0.875rem' }}>{single.error || compare.compareError}</p>
                   <button
+                    type="button"
                     onClick={navigateToSearch}
                     style={{
                       marginTop: '1rem', fontSize: '0.875rem', fontWeight: 600,
@@ -275,6 +276,7 @@ export default function App() {
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0.5rem)' }}
       >
         <button
+          type="button"
           style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', background: 'none', border: 'none', cursor: 'pointer', color: isSearchFocus ? 'var(--color-primary)' : '#94a3b8' }}
           onClick={() => navigateTab('search')}
         >
@@ -282,6 +284,7 @@ export default function App() {
           <span style={{ fontSize: '10px', fontWeight: 600 }}>홈</span>
         </button>
         <button
+          type="button"
           style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', background: 'none', border: 'none', cursor: 'pointer', color: tab === 'single' ? 'var(--color-primary)' : '#94a3b8' }}
           onClick={() => navigateTab('single')}
         >
@@ -290,6 +293,7 @@ export default function App() {
         </button>
         <div style={{ position: 'relative', top: '-20px' }}>
           <button
+            type="button"
             onClick={() => navigateTab('pricing')}
             style={{
               width: '52px', height: '52px', borderRadius: '50%',
@@ -303,6 +307,7 @@ export default function App() {
           </button>
         </div>
         <button
+          type="button"
           style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', background: 'none', border: 'none', cursor: 'pointer', color: tab === 'compare' ? 'var(--color-primary)' : '#94a3b8' }}
           onClick={() => navigateTab('compare')}
         >
@@ -310,6 +315,7 @@ export default function App() {
           <span style={{ fontSize: '10px', fontWeight: 600 }}>비교</span>
         </button>
         <button
+          type="button"
           style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', background: 'none', border: 'none', cursor: 'pointer', color: ['login','signup'].includes(tab) ? 'var(--color-primary)' : '#94a3b8' }}
           onClick={() => navigateTab(currentUser ? 'search' : 'login')}
         >

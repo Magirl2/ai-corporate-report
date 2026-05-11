@@ -65,6 +65,7 @@ export default function SideNavBar({ tab, setTab, navigateToSearch }) {
 
       <div className="mt-auto space-y-1 pt-6 border-t border-slate-200">
         <button
+          type="button"
           onClick={() => navigateToSearch?.()}
           className="w-full bg-gradient-to-r from-primary to-primary-container text-white rounded-full py-3 px-4 font-semibold text-sm mb-4 shadow hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2"
         >
@@ -87,7 +88,7 @@ export default function SideNavBar({ tab, setTab, navigateToSearch }) {
           <span>{supportCopied ? '이메일 복사됨' : '고객지원'}</span>
         </button>
         {currentUser && (
-          <button onClick={logout} className="w-full flex items-center gap-3 px-4 py-2 text-slate-500 hover:text-slate-900 transition-colors rounded-lg text-sm group">
+          <button type="button" onClick={logout} className="w-full flex items-center gap-3 px-4 py-2 text-slate-500 hover:text-slate-900 transition-colors rounded-lg text-sm group">
             <span className="material-symbols-outlined text-sm group-hover:text-slate-800">logout</span>
             <span>로그아웃</span>
           </button>

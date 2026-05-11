@@ -95,7 +95,7 @@ export default function TopNavBar({ tab, setTab, searchInput, setSearchInput, on
               </div>
             </div>
           ) : (
-            <button onClick={() => setTab('login')} className="ml-2 px-5 py-2 bg-slate-900 text-white font-bold text-sm rounded-full hover:bg-slate-800 transition-colors">
+            <button type="button" onClick={() => setTab('login')} className="ml-2 px-5 py-2 bg-slate-900 text-white font-bold text-sm rounded-full hover:bg-slate-800 transition-colors">
               로그인
             </button>
           )}
