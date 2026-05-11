@@ -19,7 +19,6 @@ let redis;
 if (useRedis) {
   redis = new Redis(REDIS_URL, {
     maxRetriesPerRequest: 3,
-    enableOfflineQueue: false,
   });
   // 연결 오류 이벤트 핸들러 — 없으면 unhandled 'error' 이벤트로 프로세스가 종료됨
   redis.on('error', (err) => {
