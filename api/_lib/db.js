@@ -17,7 +17,14 @@ const useRedis = !!REDIS_URL;
 // 전용 Redis 클라이언트 싱글톤 인스턴스
 let redis;
 if (useRedis) {
-  redis = new Redis(REDIS_URL);
+  redis = new Redis(REDIS_URL, {
+    maxRetriesPerRequest: 3,
+    enableOfflineQueue: false,
+  });
+  // 연결 오류 이벤트 핸들러 — 없으면 unhandled 'error' 이벤트로 프로세스가 종료됨
+  redis.on('error', (err) => {
+    console.error('[Redis] Connection error:', err.message);
+  });
 }
 
 /**
