@@ -33,15 +33,19 @@ const DOMAIN_TIERS = {
   ]
 };
 
+function matchesDomain(hostname, domainList) {
+  return domainList.some(d => hostname === d || hostname.endsWith('.' + d));
+}
+
 export function classifySourceType(url, title) {
   const hostname = getHostname(url);
   if (!hostname) return 'unknown';
 
-  if (DOMAIN_TIERS.official.includes(hostname)) return 'official';
-  if (DOMAIN_TIERS.global_finance.includes(hostname)) return 'global_finance';
-  if (DOMAIN_TIERS.kr_finance.includes(hostname)) return 'kr_finance';
-  if (DOMAIN_TIERS.finance_data.includes(hostname)) return 'finance_data';
-  if (DOMAIN_TIERS.blocked.includes(hostname)) return 'blocked';
+  if (matchesDomain(hostname, DOMAIN_TIERS.official)) return 'official';
+  if (matchesDomain(hostname, DOMAIN_TIERS.global_finance)) return 'global_finance';
+  if (matchesDomain(hostname, DOMAIN_TIERS.kr_finance)) return 'kr_finance';
+  if (matchesDomain(hostname, DOMAIN_TIERS.finance_data)) return 'finance_data';
+  if (matchesDomain(hostname, DOMAIN_TIERS.blocked)) return 'blocked';
 
   if (url.includes('/investor') || url.includes('/ir') || url.includes('/earnings') || url.includes('/financial-results')) {
     return 'official_ir';

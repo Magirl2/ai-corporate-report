@@ -15,14 +15,18 @@ function _srcHostname(url) {
   try { return new URL(url).hostname.replace(/^www\./, '').toLowerCase(); } catch { return ''; }
 }
 
+function _matchesDomain(hostname, list) {
+  return list.some(d => hostname === d || hostname.endsWith('.' + d));
+}
+
 function _classifyType(url) {
   const h = _srcHostname(url);
   if (!h) return 'unknown';
-  if (_OFFICIAL.includes(h)) return 'official';
-  if (_GLOBAL_FIN.includes(h)) return 'global_finance';
-  if (_KR_FIN.includes(h)) return 'kr_finance';
-  if (_FIN_DATA.includes(h)) return 'finance_data';
-  if (_BLOCKED.includes(h)) return 'blocked';
+  if (_matchesDomain(h, _OFFICIAL)) return 'official';
+  if (_matchesDomain(h, _GLOBAL_FIN)) return 'global_finance';
+  if (_matchesDomain(h, _KR_FIN)) return 'kr_finance';
+  if (_matchesDomain(h, _FIN_DATA)) return 'finance_data';
+  if (_matchesDomain(h, _BLOCKED)) return 'blocked';
   if (url.includes('/investor') || url.includes('/ir') || url.includes('/earnings') || url.includes('/financial-results')) return 'official_ir';
   return 'general';
 }
