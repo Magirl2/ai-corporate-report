@@ -1,12 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 export default function PaymentModal({ isOpen, onClose, selectedPlan, onPaymentSuccess }) {
+  const [submitting, setSubmitting] = useState(false);
+
   if (!isOpen) return null;
 
   const handleFakePayment = () => {
-    // Fake the payment processing
+    setSubmitting(true);
     onPaymentSuccess(selectedPlan);
   };
+
+  const planLabel = selectedPlan === 'premium' ? 'Premium Plan' : 'Enterprise Plan';
+  const planPrice = selectedPlan === 'premium' ? '₩19,000' : '₩99,000';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
@@ -21,19 +26,25 @@ export default function PaymentModal({ isOpen, onClose, selectedPlan, onPaymentS
               <span className="material-symbols-outlined text-[12px]">biotech</span> TEST MODE
             </span>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 transition-colors p-1 rounded-full hover:bg-slate-200">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+            className="text-slate-400 hover:text-slate-700 transition-colors p-1 rounded-full hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed"
+            aria-label="닫기"
+          >
             <span className="material-symbols-outlined text-[20px]">close</span>
           </button>
         </div>
-        
+
         <div className="p-6">
           <div className="flex justify-between items-center mb-8 p-4 bg-primary/5 rounded-xl border border-primary/10">
             <div>
               <p className="text-[10px] text-primary font-bold uppercase tracking-wider mb-0.5">선택한 플랜</p>
-              <p className="text-md font-bold text-slate-800">{selectedPlan === 'premium' ? 'Premium Plan' : 'Enterprise Plan'}</p>
+              <p className="text-base font-bold text-slate-800">{planLabel}</p>
             </div>
             <div className="text-right">
-              <p className="text-xl font-black text-primary">{selectedPlan === 'premium' ? '₩19,000' : '₩99,000'}</p>
+              <p className="text-xl font-black text-primary">{planPrice}</p>
               <p className="text-[10px] text-slate-500 font-medium">/ 1개월 이용</p>
             </div>
           </div>
@@ -43,28 +54,55 @@ export default function PaymentModal({ isOpen, onClose, selectedPlan, onPaymentS
               <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">카드 번호</label>
               <div className="relative group">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-300 group-focus-within:text-primary transition-colors">credit_card</span>
-                <input type="text" placeholder="0000 0000 0000 0000" className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white outline-none transition-all" />
+                <input
+                  type="text"
+                  placeholder="0000 0000 0000 0000"
+                  disabled={submitting}
+                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white outline-none transition-all disabled:opacity-50"
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">유효기간</label>
-                <input type="text" placeholder="MM / YY" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white outline-none transition-all text-center" />
+                <input
+                  type="text"
+                  placeholder="MM / YY"
+                  disabled={submitting}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white outline-none transition-all text-center disabled:opacity-50"
+                />
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">CVC</label>
-                <input type="text" placeholder="123" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white outline-none transition-all text-center" />
+                <input
+                  type="text"
+                  placeholder="123"
+                  disabled={submitting}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white outline-none transition-all text-center disabled:opacity-50"
+                />
               </div>
             </div>
           </div>
 
-          <button 
+          <button
+            type="button"
             onClick={handleFakePayment}
-            className="w-full mt-10 py-4 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-xl shadow-slate-900/20"
+            disabled={submitting}
+            className="w-full mt-10 py-4 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-xl shadow-slate-900/20 disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100"
           >
-            <span className="material-symbols-outlined text-[20px]">lock</span>
-            안전하게 결제하기
+            {submitting ? (
+              <>
+                <span className="material-symbols-outlined text-[20px] animate-spin">sync</span>
+                처리 중...
+              </>
+            ) : (
+              <>
+                <span className="material-symbols-outlined text-[20px]">lock</span>
+                안전하게 결제하기
+              </>
+            )}
           </button>
+
           <div className="mt-6 flex flex-col items-center gap-1 opacity-60">
             <p className="text-[10px] text-slate-500 font-medium">본 페이지는 실제 결제가 이루어지지 않는</p>
             <p className="text-[10px] text-slate-500 font-medium flex items-center gap-1">

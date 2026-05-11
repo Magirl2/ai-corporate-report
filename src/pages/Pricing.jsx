@@ -228,7 +228,7 @@ export default function Pricing({ setTab }) {
       {isProcessing && (
         <div className="fixed inset-0 z-[60] bg-white/80 backdrop-blur flex flex-col items-center justify-center">
           <span className="material-symbols-outlined text-6xl text-primary animate-spin mb-4">sync</span>
-          <p className="text-lg font-bold">결제 정보를 파싱하고 승인을 대기중입니다...</p>
+          <p className="text-lg font-bold">플랜을 활성화하는 중입니다...</p>
         </div>
       )}
 

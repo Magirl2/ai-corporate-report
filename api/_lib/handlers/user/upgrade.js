@@ -24,8 +24,9 @@ export default async function handler(req, res) {
     }
 
     const { planType } = req.body;
-    if (!planType) {
-      return res.status(400).json(createErrorResponse(ErrorCategory.VALIDATION, 'INVALID_PLAN', '잘못된 플랜 타입입니다.'));
+    const ALLOWED_PLANS = ['free', 'premium'];
+    if (!planType || !ALLOWED_PLANS.includes(planType)) {
+      return res.status(400).json(createErrorResponse(ErrorCategory.VALIDATION, 'INVALID_PLAN', '유효하지 않은 플랜입니다.'));
     }
 
     // 가짜 결제 딜레이 처리
