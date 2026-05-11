@@ -3,12 +3,14 @@ import MarketSentimentBanner from '../components/MarketSentimentBanner';
 import { renderMarkdown } from '../utils/displayHelpers';
 import { getYearlyMetrics, getSourceBadge, getSafeItems } from '../utils/reportSelectors';
 
-// ─── Source classification domain lists (mirrors api/_lib/sourceQuality.js) ───
-const _OFFICIAL = ['opendart.fss.or.kr','dart.fss.or.kr','kind.krx.co.kr','krx.co.kr','sec.gov','investor.gov'];
-const _GLOBAL_FIN = ['reuters.com','bloomberg.com','wsj.com','ft.com','cnbc.com','marketwatch.com','barrons.com','apnews.com','businesswire.com','prnewswire.com'];
-const _KR_FIN = ['yna.co.kr','hankyung.com','mk.co.kr','sedaily.com','edaily.co.kr','fnnews.com','biz.chosun.com','thebell.co.kr','infostockdaily.co.kr','news.einfomax.co.kr'];
-const _FIN_DATA = ['financialmodelingprep.com','finance.yahoo.com','companiesmarketcap.com','macrotrends.net','nasdaq.com','nyse.com'];
-const _BLOCKED = ['tistory.com','blog.naver.com','cafe.naver.com','brunch.co.kr','medium.com','reddit.com','quora.com','namu.wiki','wikipedia.org','youtube.com','facebook.com','instagram.com','threads.net','x.com','twitter.com'];
+// ─── Source classification domain tiers (mirrors api/_lib/sourceQuality.js DOMAIN_TIERS) ───
+const _DOMAIN_TIERS = {
+  official:      ['opendart.fss.or.kr','dart.fss.or.kr','kind.krx.co.kr','krx.co.kr','sec.gov','investor.gov'],
+  global_finance:['reuters.com','bloomberg.com','wsj.com','ft.com','cnbc.com','marketwatch.com','barrons.com','apnews.com','businesswire.com','prnewswire.com'],
+  kr_finance:    ['yna.co.kr','hankyung.com','mk.co.kr','sedaily.com','edaily.co.kr','fnnews.com','biz.chosun.com','thebell.co.kr','infostockdaily.co.kr','news.einfomax.co.kr'],
+  finance_data:  ['financialmodelingprep.com','finance.yahoo.com','companiesmarketcap.com','macrotrends.net','nasdaq.com','nyse.com'],
+  blocked:       ['tistory.com','blog.naver.com','cafe.naver.com','brunch.co.kr','medium.com','reddit.com','quora.com','namu.wiki','wikipedia.org','youtube.com','facebook.com','instagram.com','threads.net','x.com','twitter.com'],
+};
 
 function _srcHostname(url) {
   if (!url) return '';
@@ -22,11 +24,9 @@ function _matchesDomain(hostname, list) {
 function _classifyType(url) {
   const h = _srcHostname(url);
   if (!h) return 'unknown';
-  if (_matchesDomain(h, _OFFICIAL)) return 'official';
-  if (_matchesDomain(h, _GLOBAL_FIN)) return 'global_finance';
-  if (_matchesDomain(h, _KR_FIN)) return 'kr_finance';
-  if (_matchesDomain(h, _FIN_DATA)) return 'finance_data';
-  if (_matchesDomain(h, _BLOCKED)) return 'blocked';
+  for (const [tier, domains] of Object.entries(_DOMAIN_TIERS)) {
+    if (_matchesDomain(h, domains)) return tier;
+  }
   if (url.includes('/investor') || url.includes('/ir') || url.includes('/earnings') || url.includes('/financial-results')) return 'official_ir';
   return 'general';
 }
@@ -150,11 +150,12 @@ const SourceQualitySummaryCard = ({ summary }) => {
           {warning}
         </div>
       )}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+      <div className="grid grid-cols-3 md:grid-cols-5 gap-3 mb-4">
         {[
           { label: '전체 출처', value: totalSources, cls: 'bg-slate-50 text-slate-800' },
           { label: '고품질 (High)', value: highQualitySources, cls: 'bg-emerald-50 text-emerald-700' },
           { label: '중품질 (Medium)', value: mediumQualitySources, cls: 'bg-blue-50 text-blue-700' },
+          { label: '저품질 (Low)', value: lowQualitySources, cls: 'bg-amber-50 text-amber-700' },
           { label: '차단됨', value: blockedSources, cls: 'bg-red-50 text-red-600' },
         ].map(({ label, value, cls }) => (
           <div key={label} className={`text-center p-3 rounded-lg ${cls}`}>
