@@ -38,7 +38,15 @@ Your task is to analyze the strategic position of a company using frameworks lik
 }
 ```
 
+## SOURCE QUALITY RULES
+- DART 공시, KRX, SEC, 기업 공식 IR, 국내외 주요 경제지(Reuters, Bloomberg, 한국경제, 매일경제 등)를 우선 근거로 사용한다.
+- 블로그·커뮤니티·SNS 출처는 전략 분석의 핵심 주장 근거로 사용하지 않는다.
+- 출처가 불명확한 사실 단정은 "(추정)" 또는 "(근거 제한)"으로 명시한다.
+- 투자 권유(매수·매도·목표가) 표현을 절대 사용하지 않는다.
+- SWOT 항목은 구체적인 근거 또는 맥락을 포함한 한 문장으로 작성한다.
+
 ## RULES
 1. Respond in Korean.
 2. Output ONLY the raw JSON object. NO markdown blocks.
 3. Ground analysis in the provided `searchBriefing` and `rawSearchText`.
+4. SWOT strengths/weaknesses/opportunities/threats는 각각 최소 3개 이상 작성한다.

@@ -1011,6 +1011,25 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
       disclosures: safeSlice(this.state.raw.disclosures, 10),
       sources: safeSlice(this.state.raw.sources, 10),
 
+      // 출처 품질 요약 (composer 프롬프트의 '출처 품질 한계' 섹션 작성용)
+      sourceQualitySummary: (() => {
+        const srcs = this.state.raw.sources || [];
+        const high = srcs.filter(s => s.qualityTier === 'high').length;
+        const medium = srcs.filter(s => s.qualityTier === 'medium').length;
+        const low = srcs.filter(s => s.qualityTier === 'low').length;
+        const blocked = srcs.filter(s => s.qualityTier === 'blocked').length;
+        const total = srcs.length;
+        return {
+          total,
+          high,
+          medium,
+          low,
+          blocked,
+          preferredRatio: total > 0 ? ((high + medium) / total).toFixed(2) : '0.00',
+          warning: total > 0 && (high + medium) === 0 ? '신뢰도 높은 출처가 제한적으로 확인됨' : null,
+        };
+      })(),
+
       // 메타데이터 및 오류 (데이터 한계 섹션 작성용)
       dataLimitations: {
         agentErrors: safeSlice(this._agentErrors, 5),
