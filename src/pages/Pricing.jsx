@@ -9,6 +9,7 @@ export default function Pricing({ setTab }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [successPlan, setSuccessPlan] = useState(null);
   const [countdown, setCountdown] = useState(3);
+  const [paymentError, setPaymentError] = useState(null);
 
   // 성공 후 카운트다운 → 자동 홈 이동
   useEffect(() => {
@@ -29,15 +30,15 @@ export default function Pricing({ setTab }) {
 
   const onPaymentSuccess = async (plan) => {
     setIsProcessing(true);
+    setPaymentError(null);
     try {
       await upgradePlan(plan);
       setIsModalOpen(false);
       setSuccessPlan(plan);
       setCountdown(3);
     } catch (err) {
-      // 실패 시 모달 닫고 에러는 조용히 처리 (향후 toast 연동 가능)
       setIsModalOpen(false);
-      console.error('결제 처리 오류:', err);
+      setPaymentError(err.message || '플랜 변경 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
     } finally {
       setIsProcessing(false);
     }
@@ -103,6 +104,18 @@ export default function Pricing({ setTab }) {
           AI 애널리스트가 작성하는 심층 기업 리포트를 무제한으로 열람하세요.
         </p>
       </div>
+
+      {paymentError && (
+        <div className="w-full max-w-4xl mb-6 px-2">
+          <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+            <span className="material-symbols-outlined text-red-500 shrink-0" style={{ fontSize: '20px' }}>error</span>
+            <span className="font-medium">{paymentError}</span>
+            <button type="button" onClick={() => setPaymentError(null)} className="ml-auto shrink-0 text-red-400 hover:text-red-600">
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl px-2">
         {/* Free Plan */}
@@ -201,7 +214,7 @@ export default function Pricing({ setTab }) {
           <button 
             onClick={() => handleSubscribe('premium')}
             disabled={currentUser?.plan === 'premium'}
-            className={`w-full py-4 rounded-xl font-bold text-md transition-all ${
+            className={`w-full py-4 rounded-xl font-bold text-base transition-all ${
               currentUser?.plan === 'premium'
                 ? 'bg-primary/10 text-primary cursor-default'
                 : 'bg-primary text-white shadow-xl shadow-primary/30 hover:bg-primary-container hover:scale-[1.02] active:scale-[0.98]'
