@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 
 export default function SideNavBar({ tab, setTab, navigateToSearch }) {
   const { currentUser, logout } = useAuth();
+  const [supportCopied, setSupportCopied] = useState(false);
 
   const navItems = [
     { key: 'search',  icon: 'dashboard',             label: '홈 / 대시보드' },
@@ -71,11 +72,19 @@ export default function SideNavBar({ tab, setTab, navigateToSearch }) {
           신규 분석 생성
         </button>
         <button
-          onClick={() => alert('고객지원: support@editorial-intelligence.ai')}
+          type="button"
+          onClick={() => {
+            navigator.clipboard?.writeText('support@editorial-intelligence.ai').catch(() => {});
+            setSupportCopied(true);
+            setTimeout(() => setSupportCopied(false), 2000);
+          }}
           className="w-full flex items-center gap-3 px-4 py-2 text-slate-500 hover:text-slate-900 transition-colors rounded-lg text-sm group"
+          title="support@editorial-intelligence.ai"
         >
-          <span className="material-symbols-outlined text-sm group-hover:text-slate-800">help</span>
-          <span>고객지원</span>
+          <span className="material-symbols-outlined text-sm group-hover:text-slate-800">
+            {supportCopied ? 'check_circle' : 'help'}
+          </span>
+          <span>{supportCopied ? '이메일 복사됨' : '고객지원'}</span>
         </button>
         {currentUser && (
           <button onClick={logout} className="w-full flex items-center gap-3 px-4 py-2 text-slate-500 hover:text-slate-900 transition-colors rounded-lg text-sm group">

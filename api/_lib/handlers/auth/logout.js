@@ -1,7 +1,8 @@
 import { serialize } from 'cookie';
+import { createErrorResponse, ErrorCategory } from '../../errors.js';
 
 export default function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
+  if (req.method !== 'POST') return res.status(405).json(createErrorResponse(ErrorCategory.VALIDATION, 'METHOD_NOT_ALLOWED', 'Method Not Allowed'));
 
   // 만료일자를 과거로 설정하여 클라이언트 측 쿠키 삭제
   res.setHeader('Set-Cookie', serialize('ei_session', '', {
