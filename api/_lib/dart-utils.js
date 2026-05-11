@@ -161,7 +161,7 @@ export async function loadCorpCodes(apiKey) {
     })).filter(i => i.corpCode); // 유효한 corp_code가 있는 항목만
     
     global.CORP_CODE_CACHE_TIME = now;
-    console.log(`[dart-utils] Successfully loaded and cached ${global.CORP_CODE_CACHE.length} corp codes.`);
+    console.info(`[dart-utils] Corp code ZIP loaded: ${global.CORP_CODE_CACHE.length} entries cached.`);
     
     return global.CORP_CODE_CACHE;
   } catch (error) {

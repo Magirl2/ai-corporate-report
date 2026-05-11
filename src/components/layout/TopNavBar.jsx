@@ -19,18 +19,20 @@ export default function TopNavBar({ tab, setTab, searchInput, setSearchInput, on
   }, []);
 
   return (
-    <header className="fixed top-0 right-0 left-0 md:left-64 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl z-30 shadow-sm transition-all duration-300">
+    <header className="fixed top-0 right-0 left-0 md:left-64 bg-white/80 backdrop-blur-xl z-30 shadow-sm transition-all duration-300">
       <div className="flex items-center justify-between px-8 py-4 max-w-[1920px] mx-auto">
         <div className="flex items-center gap-8">
-          <span className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-50 font-headline hidden lg:block uppercase tracking-widest text-primary">Editorial Intelligence</span>
+          <span className="text-xl font-bold tracking-tight text-primary font-headline hidden lg:block uppercase tracking-widest">Editorial Intelligence</span>
           <nav className="flex items-center gap-6 font-headline font-medium">
-            <button 
+            <button
+              type="button"
               onClick={() => setTab('single')}
               className={`pb-2 transition-colors duration-300 border-b-4 ${tab === 'single' ? 'text-primary border-primary' : 'text-slate-500 border-transparent hover:text-primary active:opacity-70'}`}
             >
               단일 기업 보고서
             </button>
-            <button 
+            <button
+              type="button"
               onClick={() => setTab('compare')}
               className={`pb-2 transition-colors duration-300 border-b-4 ${tab === 'compare' ? 'text-primary border-primary' : 'text-slate-500 border-transparent hover:text-primary active:opacity-70'}`}
             >
@@ -62,7 +64,7 @@ export default function TopNavBar({ tab, setTab, searchInput, setSearchInput, on
               onClick={() => setShowNotifications(!showNotifications)}
             >
               <span className="material-symbols-outlined">notifications</span>
-              <span className={`absolute top-2 right-2 w-2 h-2 rounded-full border-2 border-white ${showNotifications ? 'bg-primary' : 'bg-slate-300 animate-pulse'}`} />
+              <span className={`absolute top-2 right-2 w-2 h-2 rounded-full border-2 border-white ${showNotifications ? 'bg-primary' : 'bg-slate-200'}`} />
             </button>
 
             {showNotifications && (
@@ -99,7 +101,7 @@ export default function TopNavBar({ tab, setTab, searchInput, setSearchInput, on
           )}
         </div>
       </div>
-      <div className="bg-slate-100/50 dark:bg-slate-800/50 h-[1px]"></div>
+      <div className="bg-slate-100/50 h-[1px]"></div>
     </header>
   );
 }
