@@ -465,15 +465,27 @@ export class ServerOrchestrator {
       this.state.analysis = stage2Data.analysis || this.state.analysis;
       this.state.score = stage2Data.score || this.state.score;
       this.state.iteration = stage2Data.iteration || this.state.iteration;
+      
+      const previousDartStatus = this.ensureDartStatus();
+      const incomingDartStatus = stage2Data.metadata?.dartStatus || {};
+      
       this.metadata = { 
         ...this.metadata, 
         ...stage2Data.metadata,
         dartStatus: {
-          ...(this.metadata?.dartStatus || {}),
-          ...(stage2Data.metadata?.dartStatus || {})
+          ...previousDartStatus,
+          ...incomingDartStatus,
+          warnings: [
+            ...(previousDartStatus.warnings || []),
+            ...(incomingDartStatus.warnings || [])
+          ],
+          errors: [
+            ...(previousDartStatus.errors || []),
+            ...(incomingDartStatus.errors || [])
+          ]
         }
       };
-      this.ensureDartStatus();
+      
       this._agentErrors = stage2Data.agentErrors || this._agentErrors;
       if (stage2Data.qualityMode) {
         this.options.qualityMode = stage2Data.qualityMode;
