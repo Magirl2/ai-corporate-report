@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import TopNavBar from './components/layout/TopNavBar';
 import SideNavBar from './components/layout/SideNavBar';
 import Footer from './components/layout/Footer';
 import SearchDashboard from './pages/SearchDashboard';
-import SingleReportView from './pages/SingleReportView';
 import LoadingScreen from './components/LoadingScreen';
-import CompareFinancials from './components/CompareFinancials';
 import Login from './pages/Login';
+
+const SingleReportView = lazy(() => import('./pages/SingleReportView'));
+const CompareFinancials = lazy(() => import('./components/CompareFinancials'));
 import Signup from './pages/Signup';
 import Pricing from './pages/Pricing';
 import DataNotice from './pages/DataNotice';
@@ -160,7 +161,9 @@ export default function App() {
 
             {/* 단일 보고서 */}
             {tab === 'single' && !single.error && single.singleData && (
-              <SingleReportView singleData={single.singleData} />
+              <Suspense fallback={<div className="flex justify-center py-20"><span className="material-symbols-outlined animate-spin text-primary text-4xl">sync</span></div>}>
+                <SingleReportView singleData={single.singleData} />
+              </Suspense>
             )}
 
             {/* 비교 분석 */}
@@ -250,7 +253,9 @@ export default function App() {
                 </section>
 
                 {compare.compareDataA && compare.compareDataB && (
-                  <CompareFinancials dataA={compare.compareDataA} dataB={compare.compareDataB} />
+                  <Suspense fallback={<div className="flex justify-center py-12"><span className="material-symbols-outlined animate-spin text-primary text-3xl">sync</span></div>}>
+                    <CompareFinancials dataA={compare.compareDataA} dataB={compare.compareDataB} />
+                  </Suspense>
                 )}
               </div>
             )}
