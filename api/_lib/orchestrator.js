@@ -254,6 +254,29 @@ export class ServerOrchestrator {
     this.options = { qualityMode: 'deep' };
   }
 
+  ensureDartStatus() {
+    if (!this.metadata.dartStatus) {
+      this.metadata.dartStatus = {};
+    }
+    const ds = this.metadata.dartStatus;
+    ds.attempted = ds.attempted || false;
+    ds.apiKeyPresent = ds.apiKeyPresent || false;
+    ds.inputCompanyName = ds.inputCompanyName || this.companyName;
+    ds.resolvedCorpCode = ds.resolvedCorpCode || null;
+    ds.resolvedCorpName = ds.resolvedCorpName || null;
+    ds.stockCode = ds.stockCode || null;
+    ds.resolutionMethod = ds.resolutionMethod || null;
+    ds.corpCodeResolved = ds.corpCodeResolved || false;
+    ds.disclosuresAttempted = ds.disclosuresAttempted || false;
+    ds.disclosuresCount = ds.disclosuresCount || 0;
+    ds.financeAttempted = ds.financeAttempted || false;
+    ds.financeAvailable = ds.financeAvailable || false;
+    ds.financeYears = ds.financeYears || 0;
+    if (!Array.isArray(ds.errors)) ds.errors = [];
+    if (!Array.isArray(ds.warnings)) ds.warnings = [];
+    return ds;
+  }
+
   setOptions(opts) {
     this.options = { ...this.options, ...opts };
     this.logger?.info('Orchestrator options updated', { options: this.options });
@@ -442,7 +465,15 @@ export class ServerOrchestrator {
       this.state.analysis = stage2Data.analysis || this.state.analysis;
       this.state.score = stage2Data.score || this.state.score;
       this.state.iteration = stage2Data.iteration || this.state.iteration;
-      this.metadata = { ...this.metadata, ...stage2Data.metadata };
+      this.metadata = { 
+        ...this.metadata, 
+        ...stage2Data.metadata,
+        dartStatus: {
+          ...(this.metadata?.dartStatus || {}),
+          ...(stage2Data.metadata?.dartStatus || {})
+        }
+      };
+      this.ensureDartStatus();
       this._agentErrors = stage2Data.agentErrors || this._agentErrors;
       if (stage2Data.qualityMode) {
         this.options.qualityMode = stage2Data.qualityMode;
@@ -527,8 +558,9 @@ export class ServerOrchestrator {
       
       if (resolveInfo.type === 'KR') {
         const dartApiToken = getOptionalEnv('DART_API_KEY');
-        this.metadata.dartStatus.attempted = true;
-        this.metadata.dartStatus.apiKeyPresent = !!dartApiToken;
+        const ds = this.ensureDartStatus();
+        ds.attempted = true;
+        ds.apiKeyPresent = !!dartApiToken;
 
         if (dartApiToken) {
           const corpCodeRes = await resolveCorpCode(companyName, dartApiToken);
@@ -539,19 +571,21 @@ export class ServerOrchestrator {
             resolveInfo.stockCode = corpCodeRes.stockCode;
             resolveInfo.resolutionMethod = corpCodeRes.method;
 
-            this.metadata.dartStatus.resolvedCorpCode = corpCodeRes.corpCode;
-            this.metadata.dartStatus.resolvedCorpName = corpCodeRes.corpName;
-            this.metadata.dartStatus.stockCode = corpCodeRes.stockCode;
-            this.metadata.dartStatus.resolutionMethod = corpCodeRes.method;
-            this.metadata.dartStatus.corpCodeResolved = true;
+            ds.resolvedCorpCode = corpCodeRes.corpCode;
+            ds.resolvedCorpName = corpCodeRes.corpName;
+            ds.stockCode = corpCodeRes.stockCode;
+            ds.resolutionMethod = corpCodeRes.method;
+            ds.corpCodeResolved = true;
           } else {
-            this.metadata.dartStatus.corpCodeResolved = false;
-            this.metadata.dartStatus.warnings.push("DART corp_code 매칭 실패: 공식 상장사명 또는 종목코드로 다시 검색하세요.");
+            ds.corpCodeResolved = false;
+            if (!Array.isArray(ds.warnings)) ds.warnings = [];
+            ds.warnings.push("DART corp_code 매칭 실패: 공식 상장사명 또는 종목코드로 다시 검색하세요.");
           }
         } else {
-          this.metadata.dartStatus.apiKeyPresent = false;
+          ds.apiKeyPresent = false;
           this.logger?.warn('DART_API_KEY missing, skipping resolveCorpCode for ' + companyName);
-          this.metadata.dartStatus.warnings.push("DART API 키가 설정되지 않아 DART 공시 및 재무 데이터를 가져올 수 없습니다.");
+          if (!Array.isArray(ds.warnings)) ds.warnings = [];
+          ds.warnings.push("DART API 키가 설정되지 않아 DART 공시 및 재무 데이터를 가져올 수 없습니다.");
         }
       }
       
@@ -572,12 +606,14 @@ export class ServerOrchestrator {
     this.onStatusUpdate?.('DART/FMP 데이터 수집 중...');
     let { type, ticker, corpCode } = identity;
     const dartApiToken = getOptionalEnv('DART_API_KEY');
+    const ds = this.ensureDartStatus();
     
     try {
       if (type === 'KR') {
         if (!dartApiToken) {
           warnings.push('DART API 키가 설정되지 않아 DART 공시 및 재무 데이터를 가져올 수 없습니다.');
-          this.metadata.dartStatus.warnings.push('DART API 키가 설정되지 않아 DART 공시 및 재무 데이터를 가져올 수 없습니다.');
+          if (!Array.isArray(ds.warnings)) ds.warnings = [];
+          ds.warnings.push('DART API 키가 설정되지 않아 DART 공시 및 재무 데이터를 가져올 수 없습니다.');
           this.logger?.warn('DART_API_KEY missing, skipping engineData for KR');
           return { ok: true, data: result, warnings };
         }
@@ -596,13 +632,14 @@ export class ServerOrchestrator {
               stockCode: res.stockCode,
               resolutionMethod: res.method
             };
-            this.metadata.dartStatus.resolvedCorpCode = res.corpCode;
-            this.metadata.dartStatus.resolvedCorpName = res.corpName;
-            this.metadata.dartStatus.stockCode = res.stockCode;
-            this.metadata.dartStatus.resolutionMethod = res.method;
-            this.metadata.dartStatus.corpCodeResolved = true;
+            ds.resolvedCorpCode = res.corpCode;
+            ds.resolvedCorpName = res.corpName;
+            ds.stockCode = res.stockCode;
+            ds.resolutionMethod = res.method;
+            ds.corpCodeResolved = true;
           } else {
-            this.metadata.dartStatus.warnings.push("DART corp_code 매칭 실패: 공식 상장사명 또는 종목코드로 다시 검색하세요.");
+            if (!Array.isArray(ds.warnings)) ds.warnings = [];
+            ds.warnings.push("DART corp_code 매칭 실패: 공식 상장사명 또는 종목코드로 다시 검색하세요.");
           }
         }
 
@@ -611,36 +648,40 @@ export class ServerOrchestrator {
           return { ok: true, data: result, warnings };
         }
         
-        this.metadata.dartStatus.disclosuresAttempted = true;
-        this.metadata.dartStatus.financeAttempted = true;
+        ds.disclosuresAttempted = true;
+        ds.financeAttempted = true;
 
         const safeCorpCode = encodeURIComponent(corpCode);
         const [dRes, fRes] = await Promise.all([
           this.internalFetch(`/api/data/dart?corp_code=${safeCorpCode}`, { signal }).catch(e => { 
             warnings.push(`DART disclosures error: ${e.message}`); 
-            this.metadata.dartStatus.errors.push(`DART disclosures error: ${e.message}`);
+            if (!Array.isArray(ds.errors)) ds.errors = [];
+            ds.errors.push(`DART disclosures error: ${e.message}`);
             return { list: [] }; 
           }),
           this.internalFetch(`/api/data/dart-finance?corp_code=${safeCorpCode}`, { signal }).catch(e => { 
             warnings.push(`DART finance error: ${e.message}`); 
-            this.metadata.dartStatus.errors.push(`DART finance error: ${e.message}`);
+            if (!Array.isArray(ds.errors)) ds.errors = [];
+            ds.errors.push(`DART finance error: ${e.message}`);
             return null; 
           })
         ]);
         
         result.disclosures = dRes.list?.map(d => ({ date: d.rcept_dt, title: d.report_nm })) || [];
-        this.metadata.dartStatus.disclosuresCount = result.disclosures.length;
+        ds.disclosuresCount = result.disclosures.length;
         if (result.disclosures.length === 0) {
-          this.metadata.dartStatus.warnings.push("DART 공시 데이터가 없습니다.");
+          if (!Array.isArray(ds.warnings)) ds.warnings = [];
+          ds.warnings.push("DART 공시 데이터가 없습니다.");
         }
 
         result.finance = fRes;
         if (fRes && fRes.yearlyMetrics) {
-          this.metadata.dartStatus.financeAvailable = true;
-          this.metadata.dartStatus.financeYears = fRes.yearlyMetrics.length;
+          ds.financeAvailable = true;
+          ds.financeYears = fRes.yearlyMetrics.length;
         } else {
-          this.metadata.dartStatus.financeAvailable = false;
-          this.metadata.dartStatus.warnings.push("DART 재무 데이터가 없습니다.");
+          ds.financeAvailable = false;
+          if (!Array.isArray(ds.warnings)) ds.warnings = [];
+          ds.warnings.push("DART 재무 데이터가 없습니다.");
         }
 
         this.state.raw.sources.push({ title: 'DART 전자공시시스템', uri: 'https://opendart.fss.or.kr/' });
