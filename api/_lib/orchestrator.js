@@ -951,6 +951,7 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
       return 80;
     }
     try {
+      // wantedTopKeys: ['score'] — critic의 score 필드만 사용 (feedback은 무시)
       const criticResult = await this.executeJsonAgent('critic', 'gemini-2.5-flash', {
         section: sectionName,
         data: data,

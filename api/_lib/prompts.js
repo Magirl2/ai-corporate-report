@@ -16,6 +16,10 @@ export function loadAgentPrompts() {
     'critic',
     'composer'
   ];
+  // _reserved/ 하위 디렉토리의 프롬프트는 자동 로딩 대상에서 제외됩니다.
+  // (collector, core-analyst, financial-auditor, macro-industry-analyst)
+  // 활성화하려면 해당 파일을 이 디렉토리(report-agents/)로 이동한 뒤
+  // orchestrator.js에서 executeJsonAgent/executeTextAgent로 호출하세요.
 
   try {
     if (!fs.existsSync(promptsDir)) {
