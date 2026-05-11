@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import TopNavBar from './components/layout/TopNavBar';
 import SideNavBar from './components/layout/SideNavBar';
 import Footer from './components/layout/Footer';
@@ -59,9 +59,9 @@ export default function App() {
   const [tab, setTab] = useState('search');
   const [toast, setToast] = useState(null);
 
-  const showToast = (message, type = 'info') => {
+  const showToast = useCallback((message, type = 'info') => {
     setToast({ message, type });
-  };
+  }, []);
 
   const single = useSingleReport({ auth, showToast, setTab });
   const compare = useCompareReport({ auth, showToast, setTab });
@@ -286,7 +286,14 @@ export default function App() {
         <button
           type="button"
           style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', background: 'none', border: 'none', cursor: 'pointer', color: tab === 'single' ? 'var(--color-primary)' : '#94a3b8' }}
-          onClick={() => navigateTab('single')}
+          onClick={() => {
+            if (!single.singleData) {
+              showToast('먼저 기업을 검색해주세요.', 'info');
+              navigateTab('search');
+            } else {
+              navigateTab('single');
+            }
+          }}
         >
           <span className="material-symbols-outlined" style={{ fontSize: '22px', fontVariationSettings: tab === 'single' ? "'FILL' 1" : "'FILL' 0" }}>analytics</span>
           <span style={{ fontSize: '10px', fontWeight: 600 }}>분석</span>

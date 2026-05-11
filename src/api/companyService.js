@@ -190,18 +190,21 @@ export const fetchCompareData = async (companyA, companyB, onStatusUpdate) => {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let finalCompareData = null;
+    let buffer = '';
 
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
 
-      const chunk = decoder.decode(value);
-      const lines = chunk.split('\n').filter(Boolean);
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // 마지막 요소는 불완전할 수 있으므로 버퍼에 남김
 
       for (const line of lines) {
+        if (!line.trim()) continue;
         try {
           const payload = JSON.parse(line);
-          
+
           if (payload.type === 'status') {
             onStatusUpdate?.(payload.data?.message || '');
           } else if (payload.type === 'success') {
@@ -215,9 +218,19 @@ export const fetchCompareData = async (companyA, companyB, onStatusUpdate) => {
             throw error;
           }
         } catch (e) {
-          if (e.code) throw e; 
+          if (e.code) throw e;
           console.warn('NDJSON 파싱 오류:', e, line);
         }
+      }
+    }
+
+    // 스트림 종료 후 버퍼에 남은 잔여 데이터 처리
+    if (buffer.trim()) {
+      try {
+        const payload = JSON.parse(buffer);
+        if (payload.type === 'success') finalCompareData = payload.data;
+      } catch (e) {
+        console.warn('NDJSON 잔여 버퍼 파싱 오류:', e, buffer);
       }
     }
 

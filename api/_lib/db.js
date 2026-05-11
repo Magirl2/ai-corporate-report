@@ -329,6 +329,7 @@ export async function setUniqueStage1Artifact(id, metadataPayload) {
       await redis.set(id, JSON.stringify(metadataPayload), 'EX', ttlSeconds);
     } catch (err) {
       console.error('[Redis Artifact] Set unique error:', err);
+      throw new Error(`[Redis] Stage 1 artifact 저장 실패: ${err.message}`);
     }
   } else {
     const cache = getLocalCache();
@@ -365,6 +366,7 @@ export async function setUniqueStage2Artifact(id, metadataPayload) {
       await redis.set(id, JSON.stringify(metadataPayload), 'EX', ttlSeconds);
     } catch (err) {
       console.error('[Redis Artifact] Set unique stage2 error:', err);
+      throw new Error(`[Redis] Stage 2 artifact 저장 실패: ${err.message}`);
     }
   } else {
     const cache = getLocalCache();
