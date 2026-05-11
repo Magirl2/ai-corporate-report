@@ -1,6 +1,7 @@
 // api/dart.js — 기업 공시 목록 조회 (유사 기업명 자동 매칭)
 import { resolveCorpCode, normalizeCorpName, extractKeyword } from '../../dart-utils.js';
 import { getRequiredEnv } from '../../env.js';
+import { createErrorResponse, ErrorCategory } from '../../errors.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -17,7 +18,7 @@ export default async function handler(req, res) {
     const pageCount    = searchParams.get('page_count') || '5';
 
     if (!corpName && !corpCodeParam) {
-      return res.status(400).json({ error: 'corp_name 또는 corp_code 파라미터가 필요합니다.' });
+      return res.status(400).json(createErrorResponse(ErrorCategory.VALIDATION, 'BAD_REQUEST', 'corp_name 또는 corp_code 파라미터가 필요합니다.'));
     }
 
     // ─── STEP 1: 통합 유틸리티를 통한 기업 코드 탐색 ────────────────────────────
@@ -65,7 +66,7 @@ export default async function handler(req, res) {
 
     const contentType = response.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) {
-      return res.status(502).json({ error: 'DART API가 유효하지 않은 응답을 반환했습니다.' });
+      return res.status(502).json(createErrorResponse(ErrorCategory.UPSTREAM, 'DART_INVALID_RESPONSE', 'DART API가 유효하지 않은 응답을 반환했습니다.'));
     }
 
     const data = await response.json();
@@ -100,6 +101,6 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('DART proxy error:', error);
-    return res.status(500).json({ error: '서버 내부 오류가 발생했습니다.', details: error.message });
+    return res.status(500).json(createErrorResponse(ErrorCategory.INTERNAL, 'INTERNAL_ERROR', '서버 내부 오류가 발생했습니다.'));
   }
 }

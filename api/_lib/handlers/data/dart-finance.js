@@ -1,22 +1,23 @@
 // api/dart-finance.js
 import { resolveCorpCode } from '../../dart-utils.js';
 import { getRequiredEnv } from '../../env.js';
+import { createErrorResponse, ErrorCategory } from '../../errors.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const DART_API_KEY = getRequiredEnv('DART_API_KEY');
-
   try {
+    const DART_API_KEY = getRequiredEnv('DART_API_KEY');
+
     const queryString = req.url.split('?')[1] || '';
     const searchParams = new URLSearchParams(queryString);
     const corpName = searchParams.get('corp_name') || '';
     const corpCodeParam = searchParams.get('corp_code') || '';
 
     if (!corpName && !corpCodeParam) {
-      return res.status(400).json({ error: 'corp_name 또는 corp_code 파라미터가 필요합니다.' });
+      return res.status(400).json(createErrorResponse(ErrorCategory.VALIDATION, 'BAD_REQUEST', 'corp_name 또는 corp_code 파라미터가 필요합니다.'));
     }
 
     // ─── STEP 1: 통합 유틸리티를 통한 기업 코드 탐색 ────────────────────────────
@@ -36,9 +37,7 @@ export default async function handler(req, res) {
     };
     
     if (!corpCode) {
-      return res.status(404).json({
-        error: `'${corpName}'의 DART 공시 정보를 찾지 못했습니다. 정확한 기업명을 입력하거나 한국 상장사인지 확인해 주세요.`
-      });
+      return res.status(404).json(createErrorResponse(ErrorCategory.VALIDATION, 'CORP_NOT_FOUND', `'${corpName}'의 DART 기업 코드를 찾지 못했습니다. 정확한 기업명을 입력하거나 한국 상장사인지 확인해 주세요.`));
     }
 
     const today = new Date();
@@ -104,7 +103,7 @@ export default async function handler(req, res) {
     // ─── STEP 4: 표시용 3개 연도 지표 계산 ──────────────────────────────────
     const validYears = validResults.map(r => r.year);
     if (validYears.length === 0) {
-      return res.status(404).json({ error: '최근 5년간의 재무제표 데이터를 찾을 수 없습니다.' });
+      return res.status(404).json(createErrorResponse(ErrorCategory.UPSTREAM, 'NO_FINANCE_DATA', '최근 5년간의 재무제표 데이터를 찾을 수 없습니다.'));
     }
 
     const displayYears = validYears.slice(0, 3);
@@ -149,6 +148,6 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('DART finance proxy error:', error);
-    return res.status(500).json({ error: '서버 내부 오류가 발생했습니다.', details: error.message });
+    return res.status(500).json(createErrorResponse(ErrorCategory.INTERNAL, 'INTERNAL_ERROR', '서버 내부 오류가 발생했습니다.'));
   }
 }
