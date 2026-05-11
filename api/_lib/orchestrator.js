@@ -697,11 +697,16 @@ export class ServerOrchestrator {
           ds.warnings.push("DART 재무 데이터가 없습니다.");
         }
 
-        this.state.raw.sources.push({ title: 'DART 전자공시시스템', uri: 'https://opendart.fss.or.kr/' });
+        // 실제 데이터가 수집된 경우에만 DART 출처를 소스에 추가
+        if (result.disclosures.length > 0 || ds.financeAvailable) {
+          this.state.raw.sources.push({ title: 'DART 전자공시시스템', uri: 'https://opendart.fss.or.kr/' });
+        }
       } else {
         result.finance = await this.internalFetch(`/api/data/fmp-finance?ticker=${ticker}`, { signal }).catch(e => { warnings.push(`FMP error: ${e.message}`); return null; });
         result.disclosures = [{ date: 'Current', title: `US SEC Filings for ${ticker}` }];
-        this.state.raw.sources.push({ title: 'Financial Modeling Prep (FMP)', uri: 'https://financialmodelingprep.com/' });
+        if (result.finance) {
+          this.state.raw.sources.push({ title: 'Financial Modeling Prep (FMP)', uri: 'https://financialmodelingprep.com/' });
+        }
       }
       return { ok: true, data: result, warnings };
     } catch (err) {
@@ -719,13 +724,11 @@ export class ServerOrchestrator {
     const newsCount = isDeep ? '8-12' : '4-6';
     
     const searchPrompt = `Evaluate '${companyName}'. Today is ${today}. identity: ${JSON.stringify(identity)}.
-- Prefer primary and professional sources.
-- First prioritize official filings, stock exchange disclosures, company IR pages, earnings releases, and reputable financial news.
-- Avoid blogs, forums, social media, content farms, and unsourced aggregators.
-- Each news item must include sourceId, publisher, publishedAt, url, sourceQuality, and whyThisSource.
-- If no reliable source is available, mark the item as unverified and do not use it as a core claim.
-- Do not cite low-quality sources for financial claims.
-- Use official filings or company IR for financial facts whenever possible.
+- Collect ALL found news sources and rate their quality (high/medium/low/unverified) — do NOT omit any found item.
+- Prioritize official filings, stock exchange disclosures, company IR, earnings releases, and reputable financial news (high/medium).
+- Include general news, blogs, or community sources too but rate them low or unverified.
+- For EVERY news item, provide the actual URL from search results. If no URL is available, set url to null.
+- Do not fabricate URLs. Use only URLs from actual search results.
 
 Output a STRICT JSON object containing:
 {
@@ -933,6 +936,29 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
    * 뉴스/센티먼트 섹션 분석 엔진
    */
   async engineAnalyzeNews(signal) {
+    // 뉴스 전용 그라운딩 검색 — 추가 소스 URL 수집 (best-effort)
+    if (!signal?.aborted) {
+      try {
+        const newsSearchResult = await this.callGemini('gemini-2.5-flash',
+          `"${this.companyName}" 최근 뉴스 기사`,
+          { tools: [{ googleSearch: {} }], maxOutputTokens: 256, signal }
+        );
+        const chunks = newsSearchResult.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+        chunks.forEach((chunk) => {
+          const url = chunk.web?.uri;
+          if (url && !this.state.raw.sources.some(s => s.url === url || s.uri === url)) {
+            this.state.raw.sources.push(normalizeSourceWithQuality(
+              { title: chunk.web.title || url, url, usedIn: ['recentNews'] },
+              this.state.raw.sources.length
+            ));
+          }
+        });
+        if (chunks.length > 0) {
+          this.state.raw.sources = filterReportSources(this.state.raw.sources);
+        }
+      } catch (_e) { /* best-effort: 실패해도 분석 계속 */ }
+    }
+
     const context = {
       searchBriefing: this.state.raw.searchBriefing,
       rawSearchText: this.state.raw.searchBriefing?.rawContent || ""
