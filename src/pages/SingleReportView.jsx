@@ -3,6 +3,197 @@ import MarketSentimentBanner from '../components/MarketSentimentBanner';
 import { renderMarkdown } from '../utils/displayHelpers';
 import { getYearlyMetrics, getSourceBadge, getSafeItems } from '../utils/reportSelectors';
 
+// ─── Source classification domain lists (mirrors api/_lib/sourceQuality.js) ───
+const _OFFICIAL = ['opendart.fss.or.kr','dart.fss.or.kr','kind.krx.co.kr','krx.co.kr','sec.gov','investor.gov'];
+const _GLOBAL_FIN = ['reuters.com','bloomberg.com','wsj.com','ft.com','cnbc.com','marketwatch.com','barrons.com','apnews.com','businesswire.com','prnewswire.com'];
+const _KR_FIN = ['yna.co.kr','hankyung.com','mk.co.kr','sedaily.com','edaily.co.kr','fnnews.com','biz.chosun.com','thebell.co.kr','infostockdaily.co.kr','news.einfomax.co.kr'];
+const _FIN_DATA = ['financialmodelingprep.com','finance.yahoo.com','companiesmarketcap.com','macrotrends.net','nasdaq.com','nyse.com'];
+const _BLOCKED = ['tistory.com','blog.naver.com','cafe.naver.com','brunch.co.kr','medium.com','reddit.com','quora.com','namu.wiki','wikipedia.org','youtube.com','facebook.com','instagram.com','threads.net','x.com','twitter.com'];
+
+function _srcHostname(url) {
+  if (!url) return '';
+  try { return new URL(url).hostname.replace(/^www\./, '').toLowerCase(); } catch { return ''; }
+}
+
+function _classifyType(url) {
+  const h = _srcHostname(url);
+  if (!h) return 'unknown';
+  if (_OFFICIAL.includes(h)) return 'official';
+  if (_GLOBAL_FIN.includes(h)) return 'global_finance';
+  if (_KR_FIN.includes(h)) return 'kr_finance';
+  if (_FIN_DATA.includes(h)) return 'finance_data';
+  if (_BLOCKED.includes(h)) return 'blocked';
+  if (url.includes('/investor') || url.includes('/ir') || url.includes('/earnings') || url.includes('/financial-results')) return 'official_ir';
+  return 'general';
+}
+
+const _SCORE_MAP = { official: 98, official_ir: 90, global_finance: 85, finance_data: 85, kr_finance: 80, general: 65, blocked: 20 };
+
+function normalizeSource(source, index) {
+  const url = source.url || source.uri || '';
+  const hostname = _srcHostname(url);
+  const type = source.type || _classifyType(url);
+  const qualityScore = source.qualityScore ?? (_SCORE_MAP[type] ?? 40);
+  const qualityTier = source.qualityTier ?? (qualityScore >= 85 ? 'high' : qualityScore >= 65 ? 'medium' : qualityScore >= 40 ? 'low' : 'blocked');
+  return {
+    id: source.id || source.sourceId || `src-${index}`,
+    title: source.title || source.headline || url || `출처 ${index + 1}`,
+    url,
+    type,
+    reliability: source.reliability || (qualityTier === 'blocked' ? 'unverified' : 'verified'),
+    qualityTier,
+    qualityScore,
+    publisher: source.publisher || hostname || '',
+    usedIn: Array.isArray(source.usedIn) ? source.usedIn : [],
+    note: source.note ?? (type === 'global_finance' ? '원문 접근 제한 가능' : null),
+  };
+}
+
+function dedupeAndGroupSources(rawSources) {
+  const seen = new Set();
+  const deduped = rawSources
+    .map((s, i) => normalizeSource(s, i))
+    .filter(s => {
+      const key = s.url || s.title;
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  return {
+    official:      deduped.filter(s => s.type === 'official' || s.type === 'official_ir'),
+    financial:     deduped.filter(s => s.type === 'global_finance' || s.type === 'kr_finance' || s.type === 'finance_data'),
+    aiSearch:      deduped.filter(s => s.type === 'general' || s.type === 'unknown'),
+    lowReliability: deduped.filter(s => s.type === 'blocked' || s.qualityTier === 'blocked'),
+    total: deduped.length,
+  };
+}
+
+const _TIER_STYLE = {
+  high:    'bg-emerald-50 border-emerald-100 text-emerald-700',
+  medium:  'bg-blue-50 border-blue-100 text-blue-700',
+  low:     'bg-amber-50 border-amber-100 text-amber-700',
+  blocked: 'bg-red-50 border-red-100 text-red-600',
+};
+const _TIER_LABEL  = { high: '높음', medium: '중간', low: '낮음', blocked: '차단됨' };
+const _TYPE_LABEL  = { official: '공식 공시', official_ir: '공식 IR', global_finance: '글로벌 금융', kr_finance: '국내 금융', finance_data: '금융 데이터', general: 'AI 검색', blocked: '낮은 신뢰도', unknown: '미분류' };
+
+const SourceCard = ({ source }) => {
+  const tier = source.qualityTier || 'low';
+  return (
+    <div className="p-4 bg-white rounded-xl border border-slate-100 shadow-sm hover:shadow-md hover:border-primary/20 transition-all flex flex-col gap-2">
+      <div className="flex items-start justify-between gap-3">
+        <h4 className="text-sm font-bold text-slate-800 leading-snug line-clamp-2 flex-1">{source.title}</h4>
+        <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full border ${_TIER_STYLE[tier] || _TIER_STYLE.low}`}>
+          신뢰 {_TIER_LABEL[tier] || tier}
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-1.5 text-[10px]">
+        {source.type && (
+          <span className="font-semibold text-slate-500 bg-slate-50 px-2 py-0.5 rounded">{_TYPE_LABEL[source.type] || source.type}</span>
+        )}
+        {source.publisher && (
+          <span className="text-slate-400 bg-slate-50 px-2 py-0.5 rounded">{source.publisher}</span>
+        )}
+        {source.qualityScore != null && (
+          <span className="text-slate-400 bg-slate-50 px-2 py-0.5 rounded">점수 {source.qualityScore}</span>
+        )}
+        {source.reliability && (
+          <span className={`font-semibold px-2 py-0.5 rounded ${source.reliability === 'verified' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'}`}>
+            {source.reliability === 'verified' ? '검증됨' : '미검증'}
+          </span>
+        )}
+      </div>
+      {source.usedIn?.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {source.usedIn.map((u, i) => (
+            <span key={i} className="text-[10px] px-2 py-0.5 bg-primary/5 text-primary/70 rounded-full border border-primary/10">{u}</span>
+          ))}
+        </div>
+      )}
+      {source.note && (
+        <p className="text-[11px] text-slate-400 italic">{source.note}</p>
+      )}
+      {source.url && (
+        <div className="pt-1 border-t border-slate-50 mt-auto">
+          <a
+            href={source.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline max-w-full"
+          >
+            <span className="material-symbols-outlined shrink-0" style={{ fontSize: '13px' }}>open_in_new</span>
+            <span className="truncate">{source.url.length > 55 ? source.url.slice(0, 55) + '…' : source.url}</span>
+          </a>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const SourceQualitySummaryCard = ({ summary }) => {
+  if (!summary) return null;
+  const { totalSources = 0, highQualitySources = 0, mediumQualitySources = 0, lowQualitySources = 0, blockedSources = 0, preferredSourceRatio = 0, warning } = summary;
+  const preferredPct = Math.round(parseFloat(preferredSourceRatio) * 100);
+  return (
+    <div className="mb-6 p-5 bg-white rounded-xl border border-slate-200 shadow-sm">
+      <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+        <span className="material-symbols-outlined text-primary" style={{ fontSize: '18px', fontVariationSettings: "'FILL' 1" }}>analytics</span>
+        출처 품질 요약
+      </h3>
+      {warning && (
+        <div className="mb-4 px-3 py-2 bg-amber-50 border border-amber-100 rounded-lg text-xs font-semibold text-amber-700 flex items-center gap-2">
+          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>warning</span>
+          {warning}
+        </div>
+      )}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        {[
+          { label: '전체 출처', value: totalSources, cls: 'bg-slate-50 text-slate-800' },
+          { label: '고품질 (High)', value: highQualitySources, cls: 'bg-emerald-50 text-emerald-700' },
+          { label: '중품질 (Medium)', value: mediumQualitySources, cls: 'bg-blue-50 text-blue-700' },
+          { label: '차단됨', value: blockedSources, cls: 'bg-red-50 text-red-600' },
+        ].map(({ label, value, cls }) => (
+          <div key={label} className={`text-center p-3 rounded-lg ${cls}`}>
+            <span className="text-xl font-extrabold block">{value}</span>
+            <p className="text-[10px] mt-0.5 opacity-80">{label}</p>
+          </div>
+        ))}
+      </div>
+      <div>
+        <div className="flex justify-between text-xs mb-1">
+          <span className="text-slate-500 font-medium">신뢰 출처 비율 (high+medium)</span>
+          <span className="font-bold text-slate-700">{preferredPct}%</span>
+        </div>
+        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all duration-500"
+            style={{
+              width: `${preferredPct}%`,
+              background: preferredPct >= 80 ? '#10b981' : preferredPct >= 50 ? '#3b82f6' : '#f59e0b',
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const SourceGroup = ({ label, icon, sources }) => {
+  if (!sources || sources.length === 0) return null;
+  return (
+    <div className="mb-7">
+      <h4 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
+        <span className="material-symbols-outlined text-slate-400" style={{ fontSize: '16px' }}>{icon}</span>
+        {label}
+        <span className="ml-auto text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{sources.length}건</span>
+      </h4>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {sources.map((s, i) => <SourceCard key={s.id || i} source={s} />)}
+      </div>
+    </div>
+  );
+};
+
 /**
  * NewsItem 컴포넌트 — 개별 뉴스 토글 및 심층 분석 지원
  */
@@ -327,9 +518,10 @@ export default function SingleReportView({ singleData }) {
       {/* 서브탭 */}
       <div className="flex gap-8 mb-8 border-b border-slate-200">
         {[
-          { key: 'analysis', label: '상세 분석' },
-          { key: 'report',   label: 'AI 종합 보고서' },
-          { key: 'sources',  label: '사용 정보 (출처)' },
+          { key: 'analysis',    label: '상세 분석' },
+          { key: 'report',      label: 'AI 종합 보고서' },
+          { key: 'sources',     label: '사용 정보 및 출처' },
+          { key: 'data-notice', label: '데이터 고지사항' },
         ].map(({ key, label }) => (
           <button
             key={key}
@@ -539,93 +731,150 @@ export default function SingleReportView({ singleData }) {
         </div>
       )}
 
-      {/* ── 출처 탭 ── */}
-      {reportSubTab === 'sources' && (
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 animate-in fade-in slide-in-from-bottom-2">
-          {/* DART 상태 카드 */}
-          {singleData.metadata?.dartStatus && (
-            <div className="mb-8 p-5 bg-slate-50 rounded-xl border border-slate-200">
-              <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary" style={{ fontSize: '18px' }}>database</span>
-                DART 데이터 수집 현황
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div>
-                  <span className="text-slate-500 text-xs block mb-1">매칭 기업명</span>
-                  <span className="font-semibold">{singleData.metadata.dartStatus.resolvedCorpName || '-'}</span>
+      {/* ── 사용 정보 및 출처 탭 ── */}
+      {reportSubTab === 'sources' && (() => {
+        const rawSources = singleData.sources || [];
+        const { official, financial, aiSearch, lowReliability, total } = dedupeAndGroupSources(rawSources);
+        const qualitySummary = singleData.metadata?.sourceQualitySummary;
+        const dartStatus = singleData.metadata?.dartStatus;
+        const hasAnySources = total > 0;
+
+        return (
+          <div className="animate-in fade-in slide-in-from-bottom-2 space-y-4">
+            {/* 출처 품질 요약 카드 */}
+            <SourceQualitySummaryCard summary={qualitySummary} />
+
+            {/* DART 데이터 수집 현황 카드 */}
+            {dartStatus && (
+              <div className="p-5 bg-white rounded-xl border border-slate-200 shadow-sm">
+                <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary" style={{ fontSize: '18px', fontVariationSettings: "'FILL' 1" }}>database</span>
+                  DART 데이터 수집 현황
+                  {dartStatus.corpCodeResolved ? (
+                    <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100 text-emerald-700">연결됨</span>
+                  ) : (
+                    <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-slate-500">미연결</span>
+                  )}
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                  {[
+                    { label: '매칭 기업명', value: dartStatus.resolvedCorpName },
+                    { label: 'DART corp_code', value: dartStatus.resolvedCorpCode },
+                    { label: '종목코드', value: dartStatus.stockCode },
+                    { label: '매칭 방식', value: dartStatus.resolutionMethod },
+                    {
+                      label: 'DART 공시 데이터',
+                      value: dartStatus.disclosuresCount > 0 ? `사용됨 (${dartStatus.disclosuresCount}건)` : '미사용',
+                      color: dartStatus.disclosuresCount > 0 ? 'text-emerald-600' : 'text-slate-400',
+                    },
+                    {
+                      label: 'DART 재무 데이터',
+                      value: dartStatus.financeAvailable ? `사용됨 (${dartStatus.financeYears}개 연도)` : '미사용',
+                      color: dartStatus.financeAvailable ? 'text-emerald-600' : 'text-slate-400',
+                    },
+                  ].map(({ label, value, color }) => (
+                    <div key={label}>
+                      <span className="text-slate-400 text-[11px] block mb-0.5">{label}</span>
+                      <span className={`font-semibold text-sm ${color || 'text-slate-700'}`}>{value || '-'}</span>
+                    </div>
+                  ))}
                 </div>
-                <div>
-                  <span className="text-slate-500 text-xs block mb-1">DART 고유번호 (corp_code)</span>
-                  <span className="font-semibold">{singleData.metadata.dartStatus.resolvedCorpCode || '-'}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 text-xs block mb-1">종목코드</span>
-                  <span className="font-semibold">{singleData.metadata.dartStatus.stockCode || '-'}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 text-xs block mb-1">매칭 방식</span>
-                  <span className="font-semibold">{singleData.metadata.dartStatus.resolutionMethod || '-'}</span>
-                </div>
-                
-                <div>
-                  <span className="text-slate-500 text-xs block mb-1">DART 공시 데이터</span>
-                  <span className={`font-semibold ${singleData.metadata.dartStatus.disclosuresCount > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
-                    {singleData.metadata.dartStatus.disclosuresCount > 0 ? `사용됨 (${singleData.metadata.dartStatus.disclosuresCount}건)` : '미사용'}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-500 text-xs block mb-1">DART 재무 데이터</span>
-                  <span className={`font-semibold ${singleData.metadata.dartStatus.financeAvailable ? 'text-emerald-600' : 'text-slate-400'}`}>
-                    {singleData.metadata.dartStatus.financeAvailable ? `사용됨 (${singleData.metadata.dartStatus.financeYears}개 연도)` : '미사용'}
-                  </span>
-                </div>
+                {dartStatus.warnings?.length > 0 && (
+                  <div className="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-100">
+                    <span className="text-xs font-bold text-amber-800 block mb-1">경고/미사용 사유</span>
+                    <ul className="list-disc pl-4 text-xs text-amber-700 space-y-1">
+                      {dartStatus.warnings.map((w, i) => <li key={i}>{w}</li>)}
+                    </ul>
+                  </div>
+                )}
               </div>
-              
-              {singleData.metadata.dartStatus.warnings?.length > 0 && (
-                <div className="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-100">
-                  <span className="text-xs font-bold text-amber-800 block mb-1">경고/미사용 사유</span>
-                  <ul className="list-disc pl-4 text-xs text-amber-700 space-y-1">
-                    {singleData.metadata.dartStatus.warnings.map((w, i) => (
-                      <li key={i}>{w}</li>
-                    ))}
-                  </ul>
+            )}
+
+            {/* 출처 그룹 */}
+            <div className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm">
+              <h3 className="text-base font-bold text-slate-800 mb-6 flex items-center gap-2">
+                <span className="material-symbols-outlined text-slate-400">link</span>
+                리포트 생성에 사용된 정보 출처
+                {hasAnySources && (
+                  <span className="ml-auto text-xs font-medium text-slate-400">{total}건 (중복 제거)</span>
+                )}
+              </h3>
+
+              {hasAnySources ? (
+                <>
+                  <SourceGroup label="공식/1차 출처" icon="verified" sources={official} />
+                  <SourceGroup label="전문 경제/뉴스 출처" icon="article" sources={financial} />
+                  <SourceGroup label="AI 검색 근거" icon="search" sources={aiSearch} />
+                  <SourceGroup label="낮은 신뢰도/확인 필요" icon="warning" sources={lowReliability} />
+                </>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 gap-4 text-center">
+                  <span className="material-symbols-outlined text-slate-200" style={{ fontSize: '48px' }}>link_off</span>
+                  <div>
+                    <p className="text-slate-600 font-bold text-sm mb-1">출처 정보를 불러올 수 없습니다.</p>
+                    <p className="text-slate-400 text-xs leading-relaxed max-w-xs">
+                      이 보고서에는 출처 메타데이터가 포함되어 있지 않습니다.<br />
+                      재분석을 실행하면 출처 정보가 포함될 수 있습니다.
+                    </p>
+                  </div>
                 </div>
               )}
-            </div>
-          )}
 
-          <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
-            <span className="material-symbols-outlined text-slate-400">newspaper</span>
-            리포트 생성에 사용된 정보 출처
-          </h3>
-          <div className="space-y-4">
-            {singleData.sources?.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {singleData.sources.map((source, idx) => (
-                  <a
-                    key={idx}
-                    href={source.uri}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="group p-5 bg-slate-50 rounded-xl border border-slate-100 hover:border-primary/30 hover:bg-primary/5 transition-all block"
-                  >
-                    <div className="text-xs font-bold text-slate-400 mb-2 uppercase tracking-widest group-hover:text-primary/70 transition-colors">
-                      {source.uri?.includes('dart') ? '공시 정보' : '웹 검색 뉴스'}
-                    </div>
-                    <div className="font-semibold text-slate-700 text-sm group-hover:text-primary transition-colors line-clamp-2">{source.title}</div>
-                    <div className="text-xs text-slate-400 mt-3 truncate group-hover:text-primary/60 transition-colors">{source.uri}</div>
-                  </a>
-                ))}
+              {/* 하단 고지사항 이동 버튼 */}
+              <div className="mt-8 pt-6 border-t border-slate-100 flex justify-end">
+                <button
+                  onClick={() => setReportSubTab('data-notice')}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-slate-200 bg-slate-50 hover:bg-primary/5 hover:border-primary/30 text-slate-600 hover:text-primary font-semibold text-sm transition-all"
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>info</span>
+                  데이터 출처 및 고지사항 보기
+                </button>
               </div>
-            ) : (
-              <p className="text-slate-500 text-sm">출처 정보를 불러올 수 없습니다.</p>
-            )}
-            <div className="mt-8 p-4 bg-primary/5 rounded-xl border border-primary/20">
-              <p className="text-xs text-primary/80 leading-relaxed">
-                * 본 리포트는 AI가 실시간 웹 검색 결과와 재무 데이터를 종합하여 작성되었습니다.
-                투자 판단 시 반드시 원문을 직접 확인하시기 바랍니다.
-              </p>
             </div>
+          </div>
+        );
+      })()}
+
+      {/* ── 데이터 고지사항 탭 ── */}
+      {reportSubTab === 'data-notice' && (
+        <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 animate-in fade-in slide-in-from-bottom-2">
+          <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>info</span>
+            데이터 출처 및 고지사항
+          </h3>
+          <div className="space-y-5 text-sm text-slate-600 leading-relaxed">
+            <div className="p-4 bg-primary/5 rounded-xl border border-primary/20">
+              <p className="font-semibold text-primary/90 mb-2">AI 생성 보고서 안내</p>
+              <p>본 리포트는 AI가 실시간 웹 검색 결과, DART 공시 데이터, 재무 데이터를 종합하여 자동으로 작성되었습니다. 투자 판단 시 반드시 원문을 직접 확인하시기 바랍니다.</p>
+            </div>
+            <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
+              <p className="font-semibold text-amber-800 mb-2">투자 주의 사항</p>
+              <ul className="list-disc pl-5 space-y-1 text-amber-700">
+                <li>본 보고서는 투자 권유가 아니며 참고 자료로만 활용하십시오.</li>
+                <li>AI 분석 결과는 실제 상황과 다를 수 있으며 오류가 포함될 수 있습니다.</li>
+                <li>과거 데이터 및 공시 자료를 기반으로 하며 미래 성과를 보장하지 않습니다.</li>
+                <li>중요한 투자 결정 전에는 반드시 전문가의 조언을 구하십시오.</li>
+              </ul>
+            </div>
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+              <p className="font-semibold text-slate-700 mb-2">데이터 출처 범위</p>
+              <ul className="list-disc pl-5 space-y-1 text-slate-500">
+                <li>DART(금융감독원 전자공시시스템) — 국내 기업 공시 및 재무제표</li>
+                <li>KRX(한국거래소) — 상장 기업 주가 및 시장 정보</li>
+                <li>국내외 경제 뉴스 매체 (한국경제, 매일경제, Reuters, Bloomberg 등)</li>
+                <li>AI 웹 검색(Gemini 기반 실시간 검색) — 최신 이슈 및 공시 정보</li>
+                <li>Financial Modeling Prep — 글로벌 기업 재무 데이터</li>
+              </ul>
+            </div>
+          </div>
+          <div className="mt-8 flex justify-start">
+            <button
+              onClick={() => setReportSubTab('sources')}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-slate-200 bg-slate-50 hover:bg-primary/5 hover:border-primary/30 text-slate-600 hover:text-primary font-semibold text-sm transition-all"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>arrow_back</span>
+              출처 목록으로 돌아가기
+            </button>
           </div>
         </div>
       )}

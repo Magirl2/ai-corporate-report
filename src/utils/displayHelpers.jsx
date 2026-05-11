@@ -28,6 +28,15 @@ export const renderMarkdown = (text) => {
     if (trimmed.startsWith('###')) {
       flushList(idx);
       elements.push(<h4 key={idx} className="text-sm font-bold text-slate-800 mt-4 mb-2">{trimmed.replace(/^###\s+/, '')}</h4>);
+    } else if (trimmed.startsWith('##')) {
+      flushList(idx);
+      elements.push(<h3 key={idx} className="text-base font-bold text-slate-800 mt-5 mb-2">{trimmed.replace(/^##\s+/, '')}</h3>);
+    } else if (trimmed.startsWith('# ')) {
+      flushList(idx);
+      elements.push(<h2 key={idx} className="text-xl font-extrabold text-slate-900 mt-6 mb-3 pb-2 border-b border-slate-100">{trimmed.replace(/^#\s+/, '')}</h2>);
+    } else if (trimmed === '---') {
+      flushList(idx);
+      elements.push(<hr key={idx} className="my-4 border-slate-100" />);
     } else if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
       listItems.push(trimmed.replace(/^[-•]\s+/, ''));
     } else if (trimmed === '') {
