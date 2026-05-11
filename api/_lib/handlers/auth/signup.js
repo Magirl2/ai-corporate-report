@@ -58,6 +58,6 @@ export default async function handler(req, res) {
     // 공통 헬퍼를 사용하여 일관된 유저 정보 반환
     return res.status(200).json({ user: toSafeUser(dbUser) });
   } catch (err) {
-    return res.status(500).json({ error: '서버 에러가 발생했습니다.', details: err.message });
+    return res.status(500).json(createErrorResponse(ErrorCategory.INTERNAL, 'INTERNAL_ERROR', '서버 에러가 발생했습니다.'));
   }
 }
