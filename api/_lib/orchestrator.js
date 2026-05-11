@@ -716,98 +716,115 @@ export class ServerOrchestrator {
 
   /**
    * STAGE 3: 웹 검색 (Search)
+   * Phase A: 그라운딩 전용 텍스트 검색 → URL 수집 (JSON 미요구 → Gemini가 실제 검색 사용)
+   * Phase B: Phase A 원문을 컨텍스트로 써서 구조화 JSON 브리핑 생성 (검색 도구 없이)
    */
   async engineSearch(companyName, identity, signal) {
     this.onStatusUpdate?.('최신 뉴스 및 시장 동향 검색 중...');
     const today = new Date().toLocaleDateString('ko-KR');
     const isDeep = this.options.qualityMode === 'deep';
     const newsCount = isDeep ? '8-12' : '4-6';
-    
-    const searchPrompt = `Evaluate '${companyName}'. Today is ${today}. identity: ${JSON.stringify(identity)}.
-- Collect ALL found news sources and rate their quality (high/medium/low/unverified) — do NOT omit any found item.
-- Prioritize official filings, stock exchange disclosures, company IR, earnings releases, and reputable financial news (high/medium).
-- Include general news, blogs, or community sources too but rate them low or unverified.
-- For EVERY news item, provide the actual URL from search results. If no URL is available, set url to null.
-- Do not fabricate URLs. Use only URLs from actual search results.
+    let groundingRawText = '';
 
-Output a STRICT JSON object containing:
+    // ── Phase A: 그라운딩 전용 검색 ──────────────────────────────────────────
+    // JSON 출력을 요구하지 않아야 Gemini가 실제로 Google Search를 사용함
+    try {
+      const groundingResult = await this.callGemini('gemini-2.5-flash',
+        `Search for the latest news, disclosures, and financial updates about "${companyName}" as of ${today}. Summarize what you find.`,
+        { tools: [{ googleSearch: {} }], maxOutputTokens: 2048, signal }
+      );
+
+      groundingRawText = groundingResult.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+      // 그라운딩 청크에서 URL 수집
+      const chunks = groundingResult.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+      chunks.forEach((chunk) => {
+        const url = chunk.web?.uri;
+        if (url && !this.state.raw.sources.some(s => s.url === url || s.uri === url)) {
+          this.state.raw.sources.push(normalizeSourceWithQuality(
+            { title: chunk.web.title || url, url, uri: url },
+            this.state.raw.sources.length
+          ));
+        }
+      });
+
+      this.logger?.info('Phase A grounding complete', { chunks: chunks.length, companyName });
+    } catch (e) {
+      this.logger?.warn('Phase A grounding search failed', { error: e.message });
+    }
+
+    // ── Phase B: 구조화 브리핑 생성 (검색 도구 없이, Phase A 결과 활용) ────────
+    const briefingPrompt = `You are a financial analyst. Use the search results below to create a structured briefing about "${companyName}".
+
+Search results:
+${groundingRawText || '(no search results)'}
+
+Output ONLY a valid JSON object:
 {
-  "companyIdentity": "...",
-  "marketContext": "...",
-  "businessModel": "...",
+  "companyIdentity": "brief business description",
+  "marketContext": "current industry and market context",
+  "businessModel": "how the company creates value",
   "newsFindings": [
     {
       "sourceId": "NEWS-1",
-      "headline": "...",
-      "publisher": "...",
+      "headline": "news headline",
+      "publisher": "publisher name",
       "publishedAt": "YYYY-MM-DD or unknown",
-      "url": "https://... or null",
-      "summary": "...",
+      "url": "URL if mentioned in search results, otherwise null",
+      "summary": "1-2 sentence summary",
       "impact": "Positive|Neutral|Negative",
-      "sourceQuality": "high|medium|low|unverified",
-      "whyThisSource": "이 출처를 사용한 이유",
-      "usedIn": ["recentNews", "marketContext"]
+      "sourceQuality": "high|medium|low|unverified"
     }
   ],
-  "sentiment": "...",
-  "risks": ["..."],
-  "opportunities": ["..."],
-  "limitations": ["..."]
+  "sentiment": "Positive|Neutral|Negative",
+  "risks": ["risk1"],
+  "opportunities": ["opp1"]
 }
-IMPORTANT: Please find at least ${newsCount} recent and relevant news items.
-DO NOT output markdown. Respond ONLY with valid JSON.`;
-    
+Find at least ${newsCount} news items. Respond in Korean. NO markdown.`;
+
     try {
-      const searchResult = await this.callGemini('gemini-2.5-flash', searchPrompt, { 
-        tools: [{ googleSearch: {} }],
-        maxOutputTokens: 8192,
+      const briefingResult = await this.callGemini('gemini-2.5-flash', briefingPrompt, {
+        responseMimeType: 'application/json',
+        maxOutputTokens: 4096,
         signal
       });
-      
-      const fullText = searchResult.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+      const fullText = briefingResult.candidates?.[0]?.content?.parts?.[0]?.text || '';
       const extracted = extractJson(fullText) || fullText;
-      
+
       let searchBriefing = {};
       try {
         const parsed = JSON.parse(extracted);
-        searchBriefing = { ...normalizeSearchBriefing(parsed), rawContent: fullText };
+        searchBriefing = { ...normalizeSearchBriefing(parsed), rawContent: groundingRawText };
       } catch (_parseErr) {
-        searchBriefing = { ...normalizeSearchBriefing({}), rawContent: fullText };
-      }
-      
-      // 1) Gemini 그라운딩 청크 → sources
-      const groundingMetadata = searchResult.candidates?.[0]?.groundingMetadata;
-      if (groundingMetadata?.groundingChunks) {
-        groundingMetadata.groundingChunks.forEach((chunk, idx) => {
-          if (chunk.web?.uri) {
-            const rawSource = { title: chunk.web.title || chunk.web.uri, uri: chunk.web.uri, url: chunk.web.uri };
-            this.state.raw.sources.push(normalizeSourceWithQuality(rawSource, idx));
-          }
-        });
+        searchBriefing = { ...normalizeSearchBriefing({}), rawContent: groundingRawText };
       }
 
-      // 2) searchBriefing.newsFindings URL → sources (그라운딩 미반환 시 보완)
+      // newsFindings URL도 sources에 추가 (그라운딩 청크 보완)
       (searchBriefing.newsFindings || []).forEach((item) => {
+        if (!item || typeof item !== 'object') return;
         const url = item.url || item.uri;
         if (url && !this.state.raw.sources.some(s => s.url === url || s.uri === url)) {
           this.state.raw.sources.push(normalizeSourceWithQuality({
-            title: item.headline || item.summary || url,
+            title: item.headline || url,
             url,
             publisher: item.publisher,
             publishedAt: item.publishedAt,
-            usedIn: item.usedIn || ['recentNews'],
+            usedIn: ['recentNews'],
           }, this.state.raw.sources.length));
         }
       });
 
-      // 3) 전체 dedupe + 품질 정규화
+      // dedupe + 품질 정규화
       this.state.raw.sources = filterReportSources(this.state.raw.sources.map((s, idx) => {
         return s.qualityScore ? s : normalizeSourceWithQuality(s, idx);
       }));
-      
+
       return { ok: true, data: { searchBriefing } };
     } catch (e) {
-      return { ok: false, error: e.message, data: { searchBriefing: normalizeSearchBriefing({}) } };
+      // Phase B 실패 시 Phase A 텍스트로만 브리핑 구성
+      const fallback = { ...normalizeSearchBriefing({}), rawContent: groundingRawText };
+      return { ok: true, data: { searchBriefing: fallback } };
     }
   }
 
