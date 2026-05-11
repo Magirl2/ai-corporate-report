@@ -131,7 +131,16 @@ export default function Pricing({ setTab }) {
                 <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider">Current Plan</span>
               )}
             </div>
-            <p className="text-slate-500 text-sm mb-6">기본적인 분석을 경험해보세요.</p>
+            <p className="text-slate-500 text-sm mb-4">기본적인 분석을 경험해보세요.</p>
+            {currentUser?.plan === 'free' && typeof currentUser.usage === 'number' && (
+              <div className="mb-4 px-3 py-2 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between">
+                <span className="text-xs text-slate-500 font-medium">오늘 사용량</span>
+                <span className="text-xs font-bold text-slate-700">
+                  {currentUser.usage} / 3
+                  {currentUser.usage >= 3 && <span className="ml-1.5 text-amber-600">소진</span>}
+                </span>
+              </div>
+            )}
             <div className="mb-8">
               <span className="text-4xl font-black text-slate-900">₩0</span>
               <span className="text-slate-500 font-medium ml-1"> / 평생 무료</span>
@@ -204,9 +213,9 @@ export default function Pricing({ setTab }) {
                 <span className="material-symbols-outlined text-primary text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>stars</span>
                 <span className="text-sm">무제한 기업 1:1 비교 분석 모드</span>
               </li>
-              <li className="flex items-center gap-3 text-slate-800 font-medium">
-                <span className="material-symbols-outlined text-primary text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>stars</span>
-                <span className="text-sm">포트폴리오 백테스팅 기능 (출시 예정)</span>
+              <li className="flex items-center gap-3 text-slate-400 opacity-60">
+                <span className="material-symbols-outlined text-slate-300 text-[20px]">hourglass_empty</span>
+                <span className="text-sm">포트폴리오 백테스팅 기능 <span className="text-[10px] font-bold uppercase tracking-wide bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded ml-1">준비 중</span></span>
               </li>
             </ul>
           </div>
