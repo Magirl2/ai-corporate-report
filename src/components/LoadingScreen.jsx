@@ -17,9 +17,9 @@ export default function LoadingScreen({ message }) {
 
   useEffect(() => {
     // time-based fallback — never regress step
-    const t1 = setTimeout(() => setStep(s => Math.max(s, 1)), 8000);
-    const t2 = setTimeout(() => setStep(s => Math.max(s, 2)), 20000);
-    const t3 = setTimeout(() => setStep(s => Math.max(s, 3)), 35000);
+    const t1 = setTimeout(() => setStep(s => Math.max(s, 1)), 55000);
+    const t2 = setTimeout(() => setStep(s => Math.max(s, 2)), 115000);
+    const t3 = setTimeout(() => setStep(s => Math.max(s, 3)), 175000);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, []);
 
