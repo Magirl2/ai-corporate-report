@@ -29,11 +29,20 @@ Your task is to analyze the strategic position of a company using frameworks lik
       "detail": "수익 구조 및 가치 제안 상세 분석"
     },
     "swotAnalysis": {
-      "strengths": ["강점1", "강점2"],
-      "weaknesses": ["약점1", "약점2"],
+      "strengths": ["강점1 (근거 포함 한 문장)", "강점2"],
+      "weaknesses": ["약점1 (근거 포함 한 문장)", "약점2"],
       "opportunities": ["기회1", "기회2"],
       "threats": ["위협1", "위협2"]
-    }
+    },
+    "competitors": [
+      {
+        "name": "경쟁사명",
+        "relationship": "직접경쟁 | 간접경쟁 | 잠재경쟁",
+        "strength": "경쟁사의 핵심 강점 (한 문장)",
+        "weakness": "경쟁사의 핵심 약점 또는 위협 요소 (한 문장)",
+        "marketPosition": "시장 내 위치 (예: 점유율 1위, 틈새 공략자 등)"
+      }
+    ]
   }
 }
 ```
@@ -50,3 +59,5 @@ Your task is to analyze the strategic position of a company using frameworks lik
 2. Output ONLY the raw JSON object. NO markdown blocks.
 3. Ground analysis in the provided `searchBriefing` and `rawSearchText`.
 4. SWOT strengths/weaknesses/opportunities/threats는 각각 최소 3개 이상 작성한다.
+5. `competitors`는 최소 2개, 최대 5개의 주요 경쟁사를 포함한다. 데이터가 부족하면 빈 배열([])을 반환한다.
+6. competitors의 각 항목은 searchBriefing 또는 rawSearchText에 근거한 내용만 포함한다. 추정 불가 시 "(데이터 부족)" 표시.

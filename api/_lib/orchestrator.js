@@ -112,7 +112,8 @@ export function normalizeAnalystOutput(raw) {
       industryStatus: n(raw.strategy?.industryStatus),
       vision: n(raw.strategy?.vision),
       businessModel: n(raw.strategy?.businessModel),
-      swotAnalysis: raw.strategy?.swotAnalysis || { strengths: [], weaknesses: [], opportunities: [], threats: [] }
+      swotAnalysis: raw.strategy?.swotAnalysis || { strengths: [], weaknesses: [], opportunities: [], threats: [] },
+      competitors: Array.isArray(raw.strategy?.competitors) ? raw.strategy.competitors : []
     },
     news: {
       marketSentiment: raw.news?.marketSentiment || { status: 'Neutral', detail: '', analysis: [] },
@@ -927,13 +928,16 @@ IMPORTANT: Extract ALL news and events found — aim for ${newsCount} items mini
     };
 
     let res = await this.executeJsonAgent('analyst-strategy', 'gemini-2.5-flash', context, ['strategy'], signal);
-    let strategyData = res.strategy || ((res.macroTrend || res.industryStatus || res.vision || res.businessModel || res.swotAnalysis) ? { macroTrend: res.macroTrend, industryStatus: res.industryStatus, vision: res.vision, businessModel: res.businessModel, swotAnalysis: res.swotAnalysis } : null);
+    const _buildStrategyFromFlat = (r) => (r.macroTrend || r.industryStatus || r.vision || r.businessModel || r.swotAnalysis)
+      ? { macroTrend: r.macroTrend, industryStatus: r.industryStatus, vision: r.vision, businessModel: r.businessModel, swotAnalysis: r.swotAnalysis, competitors: Array.isArray(r.competitors) ? r.competitors : [] }
+      : null;
+    let strategyData = res.strategy || _buildStrategyFromFlat(res);
 
     if (res.__empty || res.__error || !validateStrategySection(strategyData)) {
       this.logger?.warn('Retrying strategy analysis due to invalid schema');
       const retryContext = { ...context, _RETRY_NOTE: "이전 시도에서 JSON 스키마를 따르지 않았습니다. 반드시 REQUIRED JSON SCHEMA 최상위 키('strategy')를 포함하여 반환하세요." };
       res = await this.executeJsonAgent('analyst-strategy', 'gemini-2.5-flash', retryContext, ['strategy'], signal);
-      strategyData = res.strategy || ((res.macroTrend || res.industryStatus || res.vision || res.businessModel || res.swotAnalysis) ? { macroTrend: res.macroTrend, industryStatus: res.industryStatus, vision: res.vision, businessModel: res.businessModel, swotAnalysis: res.swotAnalysis } : null);
+      strategyData = res.strategy || _buildStrategyFromFlat(res);
     }
 
     if (res.__empty || res.__error || !validateStrategySection(strategyData)) {
