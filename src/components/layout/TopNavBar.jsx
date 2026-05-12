@@ -66,7 +66,6 @@ export default function TopNavBar({ tab, setTab, searchInput, setSearchInput, on
               onClick={() => setShowNotifications(!showNotifications)}
             >
               <span className="material-symbols-outlined">notifications</span>
-              <span className={`absolute top-2 right-2 w-2 h-2 rounded-full border-2 border-white ${showNotifications ? 'bg-primary' : 'bg-slate-200'}`} />
             </button>
 
             {showNotifications && (
