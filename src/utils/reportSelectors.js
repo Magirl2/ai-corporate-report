@@ -4,7 +4,8 @@ export const getYearlyMetrics = (data) => {
 
 export const getLatestMetrics = (data) => {
   const yearly = getYearlyMetrics(data);
-  return yearly.length > 0 ? yearly[yearly.length - 1] : {};
+  // yearlyMetrics는 내림차순(최신 연도 먼저)이므로 index 0이 최신 연도
+  return yearly.length > 0 ? yearly[0] : {};
 };
 
 export const getSourceBadge = (data) => {
