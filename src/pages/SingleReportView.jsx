@@ -713,16 +713,26 @@ export default function SingleReportView({ singleData }) {
                   {/* 정성 분석 데이터 (keyMetrics 등) */}
                   {hasKeyMetrics && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                      {r.financialAnalysis.keyMetrics.map((metric, idx) => (
-                        <div key={idx} className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                          <div className="flex justify-between items-start mb-2">
-                            <h4 className="text-sm font-bold text-slate-700">{metric.name || '주요 지표'}</h4>
-                            <span className="text-primary font-bold text-sm">{metric.value}</span>
+                      {r.financialAnalysis.keyMetrics.map((metric, idx) => {
+                        const trendMap = {
+                          up:   { label: '▲ 상승', cls: 'text-emerald-600' },
+                          down: { label: '▼ 하락', cls: 'text-rose-600' },
+                          flat: { label: '─ 유지', cls: 'text-slate-500' },
+                        };
+                        const trendInfo = trendMap[metric.trend?.toLowerCase()] || null;
+                        return (
+                          <div key={idx} className="p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-primary/20 transition-colors">
+                            <div className="flex justify-between items-start mb-2">
+                              <h4 className="text-sm font-bold text-slate-700 leading-snug flex-1 mr-2">{metric.name || '주요 지표'}</h4>
+                              <span className="text-primary font-bold text-sm shrink-0">{metric.value}</span>
+                            </div>
+                            {trendInfo && (
+                              <p className={`text-xs font-semibold mb-2 ${trendInfo.cls}`}>{trendInfo.label}</p>
+                            )}
+                            {metric.description && <p className="text-xs text-slate-600 leading-relaxed">{metric.description}</p>}
                           </div>
-                          {metric.trend && <p className="text-xs text-slate-500 mb-2">추세: <span className="font-semibold text-slate-700">{metric.trend}</span></p>}
-                          {metric.description && <p className="text-xs text-slate-600 leading-relaxed">{metric.description}</p>}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
