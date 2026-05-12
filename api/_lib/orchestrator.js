@@ -898,11 +898,14 @@ IMPORTANT: Extract ALL news and events found — aim for ${newsCount} items mini
    * 재무 섹션 분석 엔진
    */
   async engineAnalyzeFinancial(signal) {
+    const rawFullFin = this.state.raw.searchBriefing?.rawContent || '';
+    const briefingSlimFin = { ...this.state.raw.searchBriefing };
+    delete briefingSlimFin.rawContent;
     const context = {
       finance: this.state.raw.finance,
       disclosures: this.state.raw.disclosures,
-      searchBriefing: this.state.raw.searchBriefing,
-      rawSearchText: this.state.raw.searchBriefing?.rawContent || ""
+      searchBriefing: briefingSlimFin,
+      rawSearchText: rawFullFin.length > 4000 ? rawFullFin.slice(0, 4000) + '\n...(이하 생략)' : rawFullFin
     };
 
     let res = await this.executeJsonAgent('analyst-financial', 'gemini-2.5-flash', context, ['financial'], signal);
@@ -928,9 +931,14 @@ IMPORTANT: Extract ALL news and events found — aim for ${newsCount} items mini
    * 전략/거시 섹션 분석 엔진
    */
   async engineAnalyzeStrategy(signal) {
+    // rawContent를 4000자로 제한 — analyst-news와 동일 정책
+    // 무제한 전달 시 competitors 스키마 추가 이후 38s 초과 타임아웃 발생
+    const rawFull = this.state.raw.searchBriefing?.rawContent || '';
+    const briefingSlim = { ...this.state.raw.searchBriefing };
+    delete briefingSlim.rawContent; // 중복 방지 (rawSearchText로 별도 전달)
     const context = {
-      searchBriefing: this.state.raw.searchBriefing,
-      rawSearchText: this.state.raw.searchBriefing?.rawContent || "",
+      searchBriefing: briefingSlim,
+      rawSearchText: rawFull.length > 4000 ? rawFull.slice(0, 4000) + '\n...(이하 생략)' : rawFull,
       disclosures: this.state.raw.disclosures
     };
 

@@ -38,13 +38,14 @@ Your task is to analyze the strategic position of a company using frameworks lik
       {
         "name": "경쟁사명",
         "relationship": "직접경쟁 | 간접경쟁 | 잠재경쟁",
-        "strength": "경쟁사의 핵심 강점 (한 문장)",
-        "weakness": "경쟁사의 핵심 약점 또는 위협 요소 (한 문장)",
-        "marketPosition": "시장 내 위치 (예: 점유율 1위, 틈새 공략자 등)"
+        "strength": "핵심 강점 (한 문장)",
+        "weakness": "핵심 약점 (한 문장)",
+        "marketPosition": "시장 지위 (간략히)"
       }
     ]
   }
 }
+주의: competitors는 선택적 필드입니다. 확인된 정보가 없으면 빈 배열([])로 반환하세요.
 ```
 
 ## SOURCE QUALITY RULES
@@ -59,5 +60,5 @@ Your task is to analyze the strategic position of a company using frameworks lik
 2. Output ONLY the raw JSON object. NO markdown blocks.
 3. Ground analysis in the provided `searchBriefing` and `rawSearchText`.
 4. SWOT strengths/weaknesses/opportunities/threats는 각각 최소 3개 이상 작성한다.
-5. `competitors`는 최소 2개, 최대 5개의 주요 경쟁사를 포함한다. 데이터가 부족하면 빈 배열([])을 반환한다.
-6. competitors의 각 항목은 searchBriefing 또는 rawSearchText에 근거한 내용만 포함한다. 추정 불가 시 "(데이터 부족)" 표시.
+5. `competitors`는 데이터가 있으면 최대 4개만 포함한다. 데이터가 부족하면 빈 배열([])을 반환한다. 강제로 만들지 않는다.
+6. 응답 속도 우선: 각 필드는 간결하게 작성한다. 장문 서술 금지.
