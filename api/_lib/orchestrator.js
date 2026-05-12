@@ -905,7 +905,7 @@ IMPORTANT: Extract ALL news and events found — aim for ${newsCount} items mini
       finance: this.state.raw.finance,
       disclosures: this.state.raw.disclosures,
       searchBriefing: briefingSlimFin,
-      rawSearchText: rawFullFin.length > 4000 ? rawFullFin.slice(0, 4000) + '\n...(이하 생략)' : rawFullFin
+      rawSearchText: rawFullFin.length > 8192 ? rawFullFin.slice(0, 8192) + '\n...(이하 생략)' : rawFullFin
     };
 
     let res = await this.executeJsonAgent('analyst-financial', 'gemini-2.5-flash', context, ['financial'], signal);
@@ -938,7 +938,7 @@ IMPORTANT: Extract ALL news and events found — aim for ${newsCount} items mini
     delete briefingSlim.rawContent; // 중복 방지 (rawSearchText로 별도 전달)
     const context = {
       searchBriefing: briefingSlim,
-      rawSearchText: rawFull.length > 4000 ? rawFull.slice(0, 4000) + '\n...(이하 생략)' : rawFull,
+      rawSearchText: rawFull.length > 8192 ? rawFull.slice(0, 8192) + '\n...(이하 생략)' : rawFull,
       disclosures: this.state.raw.disclosures
     };
 
