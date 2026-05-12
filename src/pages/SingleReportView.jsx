@@ -405,15 +405,36 @@ const SwotQuadrant = ({ label, bgColor, borderColor, textColor, items }) => {
 
 
 
+const _HEALTH_TAGS = {
+  '성장형':  { cls: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: 'trending_up' },
+  '수익형':  { cls: 'bg-blue-100 text-blue-700 border-blue-200',          icon: 'monetization_on' },
+  '안정형':  { cls: 'bg-slate-100 text-slate-600 border-slate-200',       icon: 'shield' },
+  '회복중':  { cls: 'bg-amber-100 text-amber-700 border-amber-200',       icon: 'autorenew' },
+  '위기':    { cls: 'bg-rose-100 text-rose-700 border-rose-200',          icon: 'warning' },
+};
+
 /* ─── 재무 인사이트 내부 개별 토글 ─── */
 const FinancialInsight = ({ summary, detail }) => {
   const [open, setOpen] = useState(false);
   if (!summary) return null;
+
+  // summary에서 재무 건전성 태그 추출 (예: "성장형 — 매출 증가세...")
+  const healthTag = Object.keys(_HEALTH_TAGS).find(tag => summary.includes(tag));
+  const tagStyle = healthTag ? _HEALTH_TAGS[healthTag] : null;
+
   return (
     <div className="p-4 bg-primary/5 rounded-xl border-l-4 border-primary mb-5">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1">
-          <span className="text-xs font-black text-primary uppercase tracking-wider block mb-1">AI Insight</span>
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="text-xs font-black text-primary uppercase tracking-wider">AI Insight</span>
+            {tagStyle && (
+              <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${tagStyle.cls}`}>
+                <span className="material-symbols-outlined" style={{ fontSize: '11px', fontVariationSettings: "'FILL' 1" }}>{tagStyle.icon}</span>
+                {healthTag}
+              </span>
+            )}
+          </div>
           <p className="text-sm font-semibold text-on-surface leading-relaxed">{summary}</p>
         </div>
         {detail && (
