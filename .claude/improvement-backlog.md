@@ -267,22 +267,22 @@ git grep -n "98c7f5"
 
 ---
 
-## 백로그 요약
+## 백로그 요약 (시지푸스 루프 2026-05-12 반영)
 
 | 항목 | 상태 | 우선순위 |
 |------|------|----------|
 | A. 보안/환경변수 Fallback | ✅ 완료 | P0 |
-| B. 출처 탭 UI 전문화 | ⚠️ 부분 | P1 |
+| B. 출처 탭 UI 전문화 | ✅ 완료 (processChildren 전범위 적용) | P1 |
 | C. Composer 모델명 표시 | ✅ 완료 | P1 |
-| D. Markdown 렌더링 개선 | ⚠️ 부분 | P1 |
-| E. DART/FMP 재무 지표 카드 | ⚠️ 부분 | P1 |
-| F. CSV 내보내기 | ❌ 미구현 | P1 |
-| G. 프롬프트 품질 개선 | ⚠️ 부분 | P1 |
+| D. Markdown 렌더링 개선 | ✅ 완료 (heading/blockquote 배지, blockquote 스타일) | P1 |
+| E. DART/FMP 재무 지표 카드 | ✅ 완료 (formatKRW/formatFMPValue, 색상 배지, 연도 강조) | P1 |
+| F. CSV 내보내기 | ✅ 완료 (단위 라벨 수정) | P1 |
+| G. 프롬프트 품질 개선 | ✅ 완료 (prompts 기존 구현 확인) | P1 |
 | H. Partial Success 보장 | ✅ 완료 | P1 |
-| I. 결제/Stripe 연동 | ❌ 미구현 (외부 설정 필요) | P1 |
+| I. 결제/Stripe 연동 | ❌ 외부 설정 필요 (Stripe account) | P1 |
 | J. 경쟁사 비교 보고서 | ❌ 미구현 | P2 |
 | K. 공시 변화 감지 설계 | ❌ 미구현 | P2 |
-| L. 현지화 개선 | ⚠️ 부분 | P2 |
+| L. 현지화 개선 | ✅ 완료 (formatKRW, KST timezone, 보고서 생성일 표시) | P2 |
 | M. 로컬 캐시 Git 제거 | ✅ 완료 | P2 |
 
 **즉시 착수 가능**: B, D, E, G, L (코드만으로 완료 가능)
