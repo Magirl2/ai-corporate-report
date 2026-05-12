@@ -1105,12 +1105,12 @@ IMPORTANT: Extract ALL news and events found — aim for ${newsCount} items mini
       }
     };
 
-    // Composer fallback 체인: flash → pro → flash-lite
-    // flash를 먼저 시도해 타임아웃 위험 감소 (pro는 고품질이지만 응답 시간이 길어 55s 초과 위험)
+    // Composer: flash → flash-lite (pro 제외)
+    // composer는 이미 분석된 데이터를 정리·서술하는 역할 → 추론보다 속도 우선
+    // pro는 55s 초과 위험이 크고 품질 차이가 미미함
     const composerModels = [
       { model: 'gemini-2.5-flash',      maxTokens: 6144 },
-      { model: 'gemini-2.5-pro',        maxTokens: 5120 },
-      { model: 'gemini-2.5-flash-lite', maxTokens: 3072 },
+      { model: 'gemini-2.5-flash-lite', maxTokens: 4096 },
     ];
     
     for (let i = 0; i < composerModels.length; i++) {
