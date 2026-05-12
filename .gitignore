@@ -29,3 +29,4 @@ dist-ssr
 .users.json
 .reports_cache.json
 *.local.json
+.vercel
