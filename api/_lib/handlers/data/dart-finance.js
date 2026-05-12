@@ -78,7 +78,12 @@ export default async function handler(req, res) {
 
       const toNum = (str) => (str ? parseInt(str.replace(/,/g, ''), 10) : NaN);
 
-      const rev = find(['매출액', '수익(매출액)', '수익'], ['IS', 'CIS'], ['ifrs-full_Revenue', 'ifrs_Revenue']);
+      // 영업수익: 증권·은행·보험 등 금융업은 매출액 대신 영업수익 사용
+      const rev = find(
+        ['매출액', '수익(매출액)', '영업수익', '순수익', '수익'],
+        ['IS', 'CIS'],
+        ['ifrs-full_Revenue', 'ifrs_Revenue', 'dart_TotalRevenue']
+      );
       const op  = find(['영업이익', '영업이익(손실)'], ['IS', 'CIS'], ['dart_OperatingIncomeLoss']);
       const net = find(['당기순이익', '당기순이익(손실)', '연결당기순이익'], ['IS', 'CIS'], ['ifrs-full_ProfitLoss', 'ifrs_ProfitLoss']);
       const eq  = find(['자본총계'], ['BS'], ['ifrs-full_Equity', 'ifrs_Equity']);
