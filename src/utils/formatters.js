@@ -88,12 +88,15 @@ export const formatFMPValue = (rawStr) => {
 
 /**
  * 퍼센트 문자열(예: "12.5%", "-3.2%", "+5.1%")을 색상 클래스와 방향 기호로 반환합니다.
+ * lowerIsBetter=true이면 색상이 반전됩니다 (예: 부채비율).
  */
-export const formatRatioBadge = (ratioStr) => {
+export const formatRatioBadge = (ratioStr, lowerIsBetter = false) => {
   if (!ratioStr || ratioStr === '-') return { label: '-', colorClass: 'text-slate-400' };
   const num = parseFloat(String(ratioStr).replace('%', ''));
   if (isNaN(num)) return { label: ratioStr, colorClass: 'text-slate-600' };
   const arrow = num > 0 ? '▲' : num < 0 ? '▼' : '─';
-  const colorClass = num > 0 ? 'text-emerald-600' : num < 0 ? 'text-rose-600' : 'text-slate-500';
+  const isGood = lowerIsBetter ? num < 0 : num > 0;
+  const isBad = lowerIsBetter ? num > 0 : num < 0;
+  const colorClass = isGood ? 'text-emerald-600' : isBad ? 'text-rose-600' : 'text-slate-500';
   return { label: `${arrow} ${ratioStr}`, colorClass };
 };

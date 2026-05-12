@@ -664,11 +664,11 @@ export default function SingleReportView({ singleData }) {
                               { label: isKrw ? '매출액' : `매출액 (${finCurrency})`, rawKey: 'revenue', section: 'raw' },
                               { label: isKrw ? '영업이익' : `영업이익 (${finCurrency})`, rawKey: 'opIncome', section: 'raw' },
                               { label: isKrw ? '순이익' : `순이익 (${finCurrency})`, rawKey: 'netIncome', section: 'raw' },
-                              { label: '매출 성장률', key: 'revenueGrowth', section: 'ratio' },
-                              { label: '영업이익률', key: 'operatingMargin', section: 'ratio' },
-                              { label: '부채비율', key: 'debtRatio', section: 'ratio' },
-                              { label: 'ROE', key: 'roe', section: 'ratio' },
-                            ].map(({ label, key, rawKey, section }) => (
+                              { label: '매출 성장률', key: 'revenueGrowth', section: 'ratio', lowerIsBetter: false },
+                              { label: '영업이익률', key: 'operatingMargin', section: 'ratio', lowerIsBetter: false },
+                              { label: '부채비율', key: 'debtRatio', section: 'ratio', lowerIsBetter: true },
+                              { label: 'ROE', key: 'roe', section: 'ratio', lowerIsBetter: false },
+                            ].map(({ label, key, rawKey, section, lowerIsBetter = false }) => (
                               <tr key={label} className="hover:bg-slate-50/70 transition-colors">
                                 <td className="p-3 font-semibold text-slate-600 text-xs">{label}</td>
                                 {yearly.map((y, i) => {
@@ -683,7 +683,7 @@ export default function SingleReportView({ singleData }) {
                                     );
                                   } else {
                                     const val = y[key] ?? null;
-                                    const { label: rLabel, colorClass } = formatRatioBadge(val);
+                                    const { label: rLabel, colorClass } = formatRatioBadge(val, lowerIsBetter);
                                     return (
                                       <td key={i} className={`p-3 text-sm tabular-nums font-medium ${isLatest ? 'bg-primary/5' : ''} ${colorClass}`}>
                                         {rLabel}

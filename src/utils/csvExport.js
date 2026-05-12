@@ -25,7 +25,7 @@ export function downloadFinancialCsv(companyName, yearlyMetrics, currency) {
   if (!yearlyMetrics || yearlyMetrics.length === 0) return;
 
   const years = yearlyMetrics.map(y => String(y.year ?? '-'));
-  const unitLabel = currency && currency !== 'KRW' ? `(${currency})` : '(원)';
+  const unitLabel = currency && currency !== 'KRW' ? `(${currency})` : '(백만원)';
   const headers = ['구분', ...years];
 
   const rows = [
