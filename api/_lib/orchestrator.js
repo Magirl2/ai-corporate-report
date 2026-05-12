@@ -406,6 +406,11 @@ export class ServerOrchestrator {
       this.state.raw.finance = stage1Data.raw?.finance || this.state.raw.finance;
       this.state.raw.disclosures = stage1Data.raw?.disclosures || this.state.raw.disclosures;
       this.state.raw.sources = stage1Data.raw?.sources || this.state.raw.sources;
+      // Stage 1에서 수집한 dartStatus 복원 (미복원 시 DART 재무 데이터가 "미사용"으로 표시되는 버그)
+      if (stage1Data.metadata?.dartStatus) {
+        const ds = this.ensureDartStatus();
+        Object.assign(ds, stage1Data.metadata.dartStatus);
+      }
     }
 
     this.onStatusUpdate?.('심층 분석 중 (Stage 2)');
@@ -1100,10 +1105,11 @@ IMPORTANT: Extract ALL news and events found — aim for ${newsCount} items mini
       }
     };
 
-    // Composer fallback 체인: pro → flash → flash-lite (stage-level timeout 공유)
+    // Composer fallback 체인: flash → pro → flash-lite
+    // flash를 먼저 시도해 타임아웃 위험 감소 (pro는 고품질이지만 응답 시간이 길어 55s 초과 위험)
     const composerModels = [
-      { model: 'gemini-2.5-pro',        maxTokens: 8192 },
-      { model: 'gemini-2.5-flash',      maxTokens: 4096 },
+      { model: 'gemini-2.5-flash',      maxTokens: 6144 },
+      { model: 'gemini-2.5-pro',        maxTokens: 5120 },
       { model: 'gemini-2.5-flash-lite', maxTokens: 3072 },
     ];
     

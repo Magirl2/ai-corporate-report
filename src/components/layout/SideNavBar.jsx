@@ -26,14 +26,21 @@ export default function SideNavBar({ tab, setTab, navigateToSearch }) {
   return (
     <aside className="fixed left-0 h-full w-64 bg-slate-50 flex flex-col p-6 gap-2 z-40 hidden md:flex border-r border-slate-100">
       <div className="mb-10">
-        <h1 className="text-lg font-black text-primary uppercase tracking-widest font-headline">Editorial Intelligence</h1>
+        <div className="flex items-center gap-2 mb-1">
+          <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center shadow-sm shadow-primary/20 shrink-0">
+            <span className="material-symbols-outlined text-white" style={{ fontSize: '15px', fontVariationSettings: "'FILL' 1" }}>analytics</span>
+          </div>
+          <h1 className="text-[15px] font-black tracking-tight font-headline" style={{ background: 'linear-gradient(135deg, #004ac6 0%, #2563eb 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+            Editorial<br />Intelligence
+          </h1>
+        </div>
         {currentUser?.role === 'admin' ? (
           <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-rose-50 text-[10px] text-rose-600 font-bold rounded-md border border-rose-100 mt-1 uppercase tracking-tighter">
             <span className="material-symbols-outlined text-[12px] font-bold">verified_user</span>
             Admin Mode
           </div>
         ) : (
-          <p className="text-xs text-slate-500 font-headline font-semibold mt-1 tracking-wider">AI Financial Curator</p>
+          <p className="text-[10px] text-slate-400 font-semibold mt-1 tracking-widest uppercase">AI Financial Curator</p>
         )}
       </div>
 

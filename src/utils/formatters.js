@@ -56,8 +56,10 @@ export const safeString = (val) => {
 };
 
 /**
- * DART 재무 수치(백만원 단위 문자열)를 사람이 읽기 쉬운 한국어 단위로 변환합니다.
- * 예: "302,231,360" → "302.2조원", "50,000" → "500억원"
+ * DART 재무 수치를 사람이 읽기 쉬운 한국어 단위로 변환합니다.
+ * DART는 회사별 보고 단위(원/백만원)가 다르므로 자동 감지합니다.
+ * - 1조(10^12) 이상 → 원 단위로 판단 → 조원 변환
+ * - 1조 미만 → 백만원 단위로 판단 → 조원/억원/백만원 변환
  */
 export const formatKRW = (rawStr) => {
   if (!rawStr || rawStr === '-') return '-';
@@ -65,6 +67,9 @@ export const formatKRW = (rawStr) => {
   if (isNaN(num)) return String(rawStr);
   const abs = Math.abs(num);
   const sign = num < 0 ? '-' : '';
+  // 원 단위 (>= 1조): DART가 KRW 원 단위로 반환한 경우
+  if (abs >= 1_000_000_000_000) return `${sign}${(abs / 1_000_000_000_000).toFixed(1)}조원`;
+  // 백만원 단위 (일반적인 DART 보고 단위)
   if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(1)}조원`;
   if (abs >= 100) return `${sign}${Math.round(abs / 100).toLocaleString()}억원`;
   return `${sign}${abs.toLocaleString()}백만원`;
