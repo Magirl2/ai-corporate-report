@@ -11,8 +11,8 @@ const DEBUG = process.env.NODE_ENV !== 'production';
  */
 const STAGE_TIMEOUTS = {
   resolve: 15000,
-  data: 30000,
-  search: 40000,
+  data: 40000,   // ZIP 다운로드(~15s) + DART API(~10s) 여유 확보
+  search: 45000,
   // Stage 2: critic 점수 LLM 및 뉴스 그라운딩 제거로 각 섹션 ~30s 내 완료 기대
   // Vercel maxDuration=60s 내에서 여유 확보 (setup 5s + parallel 40s + redis 3s = 48s)
   analyze: 45000,
@@ -720,8 +720,14 @@ export class ServerOrchestrator {
     // JSON 출력을 요구하지 않아야 Gemini가 실제로 Google Search를 사용함
     try {
       const groundingResult = await this.callGemini('gemini-2.5-flash',
-        `Search for the latest news, disclosures, and financial updates about "${companyName}" as of ${today}. Summarize what you find.`,
-        { tools: [{ googleSearch: {} }], maxOutputTokens: 2048, signal }
+        `Search comprehensively for information about "${companyName}" as of ${today}. Find and summarize:
+1. Recent news articles and press releases (last 3 months) — include headlines, publisher, and date
+2. Latest financial results, earnings, or revenue announcements
+3. Regulatory, government, or policy news affecting this company or its industry
+4. Major business developments: partnerships, M&A, new products, restructuring
+5. Industry trends and competitor news relevant to this company
+For each item mention the source name and date where possible.`,
+        { tools: [{ googleSearch: {} }], maxOutputTokens: 8192, signal }
       );
 
       groundingRawText = groundingResult.candidates?.[0]?.content?.parts?.[0]?.text || '';
@@ -758,19 +764,19 @@ Output ONLY a valid JSON object:
     {
       "sourceId": "NEWS-1",
       "headline": "news headline",
-      "publisher": "publisher name",
-      "publishedAt": "YYYY-MM-DD or unknown",
-      "url": "URL if mentioned in search results, otherwise null",
-      "summary": "1-2 sentence summary",
+      "publisher": "publisher name or 'unknown'",
+      "publishedAt": "YYYY-MM-DD or 'unknown'",
+      "url": "URL if explicitly mentioned in search results, otherwise null",
+      "summary": "2-3 sentence summary including key facts and numbers",
       "impact": "Positive|Neutral|Negative",
       "sourceQuality": "high|medium|low|unverified"
     }
   ],
   "sentiment": "Positive|Neutral|Negative",
-  "risks": ["risk1"],
-  "opportunities": ["opp1"]
+  "risks": ["risk1", "risk2"],
+  "opportunities": ["opp1", "opp2"]
 }
-Find at least ${newsCount} news items. Respond in Korean. NO markdown.`;
+IMPORTANT: Extract ALL news and events found — aim for ${newsCount} items minimum. Include items even if URL is not known (set url to null, sourceQuality to "unverified"). Respond in Korean. NO markdown.`;
 
     try {
       const briefingResult = await this.callGemini('gemini-2.5-flash', briefingPrompt, {

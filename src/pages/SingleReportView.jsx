@@ -223,9 +223,20 @@ const NewsItem = ({ news, idx }) => {
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 cursor-pointer" onClick={() => hasDetail && setOpen(!open)}>
           <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1.5 py-0.5 bg-slate-100 rounded">RECENT NEWS</span>
-            {news.source && <span className="text-[10px] font-bold text-slate-500">{news.source}</span>}
-            {news.sourceDate && <span className="text-[10px] text-slate-400">{news.sourceDate}</span>}
+            {news.sentiment && (
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${news.sentiment.toLowerCase().includes('pos') ? 'bg-emerald-100 text-emerald-700' : news.sentiment.toLowerCase().includes('neg') ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-500'}`}>
+                {news.sentiment}
+              </span>
+            )}
+            {(news.publisher || news.source) && (
+              <span className="text-[10px] font-bold text-slate-500">{news.publisher || news.source}</span>
+            )}
+            {(news.publishedAt || news.sourceDate) && (
+              <span className="text-[10px] text-slate-400">{news.publishedAt || news.sourceDate}</span>
+            )}
+            {news.sourceQuality === 'unverified' && (
+              <span className="text-[10px] text-amber-500 font-medium">미확인</span>
+            )}
           </div>
           <h4 className={`text-sm font-bold leading-snug transition-colors ${open ? 'text-primary' : 'text-slate-800'}`}>
             {news.headline || news.title}
@@ -467,86 +478,88 @@ export default function SingleReportView({ singleData }) {
       <div className="mt-8 mx-auto w-full flex-1 animate-in fade-in slide-in-from-bottom-8">
   
         {/* 리포트 헤더 */}
-        <div className="mb-8 flex flex-col lg:flex-row lg:items-center justify-between gap-6 px-1 md:px-0">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-2.5 flex-wrap">
-              <span className="px-2.5 py-1 bg-primary/10 text-primary text-[10px] md:text-xs font-bold rounded-full uppercase tracking-wider">
-                {sourceBadge}
+        <div className="mb-4 px-1 md:px-0">
+          <div className="flex items-center gap-2 mb-2.5 flex-wrap">
+            <span className="px-2.5 py-1 bg-primary/10 text-primary text-[10px] md:text-xs font-bold rounded-full uppercase tracking-wider">
+              {sourceBadge}
+            </span>
+
+            {/* 배지 1: 캐시 vs 새 분석 */}
+            <span className={`px-2.5 py-1 text-[10px] md:text-xs font-bold rounded-full border ${cacheHit ? 'bg-slate-50 text-slate-500 border-slate-200' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
+              {cacheHit ? `캐시된 보고서 (${getCacheAgeText(cacheAgeMs)})` : '새 분석'}
+            </span>
+
+            {/* 배지 2: 품질 경고 */}
+            {qualityWarning && (
+              <span className="px-2.5 py-1 bg-orange-50 text-orange-600 border border-orange-100 text-[10px] md:text-xs font-bold rounded-full flex items-center gap-1">
+                <span className="material-symbols-outlined !text-[14px]">shield_question</span>
+                품질 경고
               </span>
-              
-              {/* 배지 1: 캐시 vs 새 분석 */}
-              <span className={`px-2.5 py-1 text-[10px] md:text-xs font-bold rounded-full border ${cacheHit ? 'bg-slate-50 text-slate-500 border-slate-200' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
-                {cacheHit ? `캐시된 보고서 (${getCacheAgeText(cacheAgeMs)})` : '새 분석'}
+            )}
+
+            {/* 배지 3: 일부 데이터 부족 */}
+            {isPartialResult && (
+              <span className="px-2.5 py-1 bg-amber-50 text-amber-600 border border-amber-100 text-[10px] md:text-xs font-bold rounded-full flex items-center gap-1">
+                <span className="material-symbols-outlined !text-[14px]">warning</span>
+                일부 데이터 부족
               </span>
+            )}
 
-              {/* 배지 2: 품질 경고 */}
-              {qualityWarning && (
-                <span className="px-2.5 py-1 bg-orange-50 text-orange-600 border border-orange-100 text-[10px] md:text-xs font-bold rounded-full flex items-center gap-1">
-                  <span className="material-symbols-outlined !text-[14px]">shield_question</span>
-                  품질 경고
-                </span>
-              )}
+            {/* 배지 4: AI 분석 일부 실패 */}
+            {hasAgentErrors && (
+              <span className="px-2.5 py-1 bg-rose-50 text-rose-600 border border-rose-100 text-[10px] md:text-xs font-bold rounded-full flex items-center gap-1"
+                title={agentErrors.map(e => `${e.agent || e.stage}: ${e.error}`).join(' | ')}>
+                <span className="material-symbols-outlined !text-[14px]">error</span>
+                AI 분석 일부 실패
+              </span>
+            )}
 
-              {/* 배지 3: 일부 데이터 부족 */}
-              {isPartialResult && (
-                <span className="px-2.5 py-1 bg-amber-50 text-amber-600 border border-amber-100 text-[10px] md:text-xs font-bold rounded-full flex items-center gap-1">
-                  <span className="material-symbols-outlined !text-[14px]">warning</span>
-                  일부 데이터 부족
-                </span>
-              )}
-
-              {/* 배지 4: AI 분석 일부 실패 */}
-              {hasAgentErrors && (
-                <span className="px-2.5 py-1 bg-rose-50 text-rose-600 border border-rose-100 text-[10px] md:text-xs font-bold rounded-full flex items-center gap-1"
-                  title={agentErrors.map(e => `${e.agent || e.stage}: ${e.error}`).join(' | ')}>
-                  <span className="material-symbols-outlined !text-[14px]">error</span>
-                  AI 분석 일부 실패
-                </span>
-              )}
-
-              <span className="text-on-surface-variant text-[11px] md:text-sm font-medium ml-1">{today}</span>
-              {aiScore != null && (
-                <span
-                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[10px] md:text-[11px] font-bold"
-                  title={`Sisyphus Loop ${aiIteration}회 반복 후 확정`}
-                  style={{
-                    background: aiScore >= 85 ? '#f0fdf4' : aiScore >= 70 ? '#fffbeb' : '#fff1f2',
-                    borderColor: aiScore >= 85 ? '#86efac' : aiScore >= 70 ? '#fcd34d' : '#fca5a5',
-                    color: aiScore >= 85 ? '#166534' : aiScore >= 70 ? '#92400e' : '#be123c',
-                  }}
-                >
-                  <span className="material-symbols-outlined !text-[12px] md:!text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
-                  AI {aiScore}
-                </span>
-              )}
-            </div>
+            <span className="text-on-surface-variant text-[11px] md:text-sm font-medium ml-1">{today}</span>
+            {aiScore != null && (
+              <span
+                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[10px] md:text-[11px] font-bold"
+                title={`Sisyphus Loop ${aiIteration}회 반복 후 확정`}
+                style={{
+                  background: aiScore >= 85 ? '#f0fdf4' : aiScore >= 70 ? '#fffbeb' : '#fff1f2',
+                  borderColor: aiScore >= 85 ? '#86efac' : aiScore >= 70 ? '#fcd34d' : '#fca5a5',
+                  color: aiScore >= 85 ? '#166534' : aiScore >= 70 ? '#92400e' : '#be123c',
+                }}
+              >
+                <span className="material-symbols-outlined !text-[12px] md:!text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
+                AI {aiScore}
+              </span>
+            )}
+          </div>
           <h2 className="text-2xl md:text-3xl font-extrabold text-on-surface tracking-tight font-headline break-keep">
             {singleData.companyName} 분석 보고서
           </h2>
         </div>
+
+        {/* 투자 심리 배너 — 헤더 아래 전체 너비 */}
         {hasSentiment && (
-          <div className="w-full lg:w-auto">
+          <div className="mb-8 px-1 md:px-0">
             <MarketSentimentBanner sentiment={r?.marketSentiment} />
           </div>
         )}
-      </div>
 
       {/* 서브탭 */}
-      <div className="flex gap-8 mb-8 border-b border-slate-200">
-        {[
-          { key: 'analysis',    label: '상세 분석' },
-          { key: 'report',      label: 'AI 종합 보고서' },
-          { key: 'sources',     label: '사용 정보 및 출처' },
-          { key: 'data-notice', label: '데이터 고지사항' },
-        ].map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => setReportSubTab(key)}
-            className={`pb-3 font-bold text-base transition-all ${reportSubTab === key ? 'border-b-[3px] border-primary text-primary -mb-px' : 'text-slate-400 hover:text-slate-600'}`}
-          >
-            {label}
-          </button>
-        ))}
+      <div className="mb-8 border-b border-slate-200 overflow-x-auto scrollbar-none">
+        <div className="flex gap-1 min-w-max">
+          {[
+            { key: 'analysis',    label: '상세 분석' },
+            { key: 'report',      label: 'AI 종합 보고서' },
+            { key: 'sources',     label: '사용 정보 및 출처' },
+            { key: 'data-notice', label: '데이터 고지사항' },
+          ].map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setReportSubTab(key)}
+              className={`pb-3 px-4 font-bold text-sm md:text-base whitespace-nowrap transition-all ${reportSubTab === key ? 'border-b-[3px] border-primary text-primary -mb-px' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ── 분석 탭 ── */}
@@ -725,41 +738,18 @@ export default function SingleReportView({ singleData }) {
             </div>
           </BentoCard>
 
-          {/* AI 종합 보고서 — 상세 분석 탭 하단에 함께 노출 */}
+          {/* AI 종합 보고서 탭 안내 */}
           <div className="col-span-full w-full">
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-              <div className="flex items-center gap-2 px-6 py-4 border-b border-slate-100 bg-slate-50/60">
-                <span className="material-symbols-outlined text-primary text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
-                <h3 className="text-base font-bold text-slate-800">AI 종합 분석 보고서</h3>
-                <span className="ml-auto text-xs text-slate-400">
-                  {formatComposerModel(singleData.metadata?.composerModel)}
-                  {singleData.metadata?.composerFallbackUsed && <span className="ml-1 text-amber-500" title="보조 모델로 생성됨">↓</span>}
-                  {singleData.metadata?.generatedAt || singleData.createdAt
-                    ? ` · ${new Date(singleData.metadata?.generatedAt || singleData.createdAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
-                    : ''}
-                </span>
+            <button
+              onClick={() => setReportSubTab('report')}
+              className="w-full flex items-center justify-between gap-3 p-4 bg-primary/5 hover:bg-primary/10 border border-primary/20 rounded-xl transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-primary" style={{ fontSize: '20px', fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
+                <span className="text-sm font-bold text-primary">AI 종합 분석 보고서 보기</span>
               </div>
-              <div className="p-8">
-                {r?.markdown && r.markdown.trim() !== '' ? (
-                  <div>{renderMarkdown(r.markdown)}</div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-12 gap-4 text-center">
-                    <span className="material-symbols-outlined text-amber-300" style={{ fontSize: '48px' }}>
-                      {composeFailed ? 'report_off' : 'auto_awesome'}
-                    </span>
-                    <div>
-                      <p className="text-slate-700 font-bold text-sm mb-1">종합 보고서를 생성하지 못했습니다.</p>
-                      <p className="text-slate-400 text-xs leading-relaxed max-w-sm">
-                        AI 작성 모델이 응답하지 않았습니다. 위 섹션별 분석 결과를 참고해주세요.
-                      </p>
-                    </div>
-                    {composeFailed && (
-                      <p className="text-xs text-slate-300">오류 원인: {singleData.metadata?.composeFail || '알 수 없음'}</p>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
+              <span className="material-symbols-outlined text-primary/60 group-hover:translate-x-1 transition-transform" style={{ fontSize: '18px' }}>arrow_forward</span>
+            </button>
           </div>
 
         </div>

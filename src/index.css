@@ -117,3 +117,7 @@ body {
 .slide-in-from-bottom-8 { animation-name: fadeInUp; }
 .duration-300 { animation-duration: 0.3s; }
 .duration-500 { animation-duration: 0.5s; }
+
+/* ── 스크롤바 숨김 ── */
+.scrollbar-none::-webkit-scrollbar { display: none; }
+.scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
