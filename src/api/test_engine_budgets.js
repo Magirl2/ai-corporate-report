@@ -87,12 +87,12 @@ async function runBudgetTest() {
   if (final.report.macroTrend.summary !== 'Strategy Success') {
     throw new Error('Strategy data missing in final report');
   }
-  if (final.report.financialAnalysis.overview !== null) {
-    // normalizeAnalystOutput에 의해 null이 되어야 함 (실패했으므로)
-    // 현재 normalizeAnalystOutput은 기본적으로 { summary, detail } 객체를 반환하므로 empty 체크 필요
-    if (final.report.financialAnalysis.overview.summary !== '') {
-        throw new Error('Financial data should be empty/null due to timeout');
-    }
+  // 타임아웃된 섹션은 fallbackFinancialSection으로 채워짐 — overview.summary는 비어있지 않아야 함
+  if (!final.report.financialAnalysis?.overview?.summary) {
+    throw new Error('Financial fallback section should exist with a non-empty summary');
+  }
+  if (!final.report.financialAnalysis.overview.summary.includes('생성하지 못했습니다')) {
+    throw new Error('Financial fallback summary should contain timeout/error message');
   }
 
   console.log('\n✅ All Independent Budget Verifications Passed!');
