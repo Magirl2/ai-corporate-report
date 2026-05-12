@@ -837,18 +837,50 @@ export default function SingleReportView({ singleData }) {
         <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 animate-in fade-in slide-in-from-bottom-2">
           {r?.markdown && r.markdown.trim() !== '' ? (
             <>
-              <div className="flex items-center gap-2 mb-6 pb-4 border-b border-slate-100">
-                <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
-                <h3 className="text-lg font-bold">AI 종합 분석 보고서</h3>
-                <span className="ml-auto text-xs text-slate-400">
-                  {formatComposerModel(singleData.metadata?.composerModel)}
-                  {singleData.metadata?.composerFallbackUsed && <span className="ml-1 text-amber-500" title="보조 모델로 생성됨">↓</span>}
-                  {singleData.metadata?.generatedAt || singleData.createdAt
-                    ? ` · ${new Date(singleData.metadata?.generatedAt || singleData.createdAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
-                    : ''}
-                </span>
+              {/* 보고서 헤더 */}
+              <div className="flex items-start justify-between gap-4 mb-6 pb-5 border-b border-slate-100">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="material-symbols-outlined text-primary text-base" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
+                    <h3 className="text-lg font-extrabold text-slate-900">AI 종합 분석 보고서</h3>
+                  </div>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="text-xs text-slate-400 font-medium">
+                      {formatComposerModel(singleData.metadata?.composerModel)}
+                      {singleData.metadata?.composerFallbackUsed && <span className="ml-1 text-amber-500" title="보조 모델로 생성됨">↓</span>}
+                    </span>
+                    {(singleData.metadata?.generatedAt || singleData.createdAt) && (
+                      <span className="text-xs text-slate-400">
+                        · {new Date(singleData.metadata?.generatedAt || singleData.createdAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    )}
+                    <span className="text-xs text-slate-400">
+                      · 약 {Math.ceil(r.markdown.replace(/[#*`>\-]/g, '').split(/\s+/).filter(Boolean).length / 300)}분 읽기
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  title="Markdown 파일로 다운로드"
+                  onClick={() => {
+                    const blob = new Blob([r.markdown], { type: 'text/markdown;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    const dateStr = new Date().toISOString().slice(0, 10);
+                    a.href = url;
+                    a.download = `${singleData.companyName || '보고서'}_분석_${dateStr}.md`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="shrink-0 flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-500 bg-slate-50 border border-slate-200 rounded-lg hover:bg-primary/5 hover:border-primary/30 hover:text-primary transition-all"
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>download</span>
+                  MD 다운로드
+                </button>
               </div>
-              <div>{renderMarkdown(r.markdown)}</div>
+              <div className="prose-report">{renderMarkdown(r.markdown)}</div>
             </>
           ) : (
             <div className="flex flex-col items-center justify-center py-16 gap-5 text-center">
