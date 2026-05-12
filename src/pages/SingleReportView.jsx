@@ -790,7 +790,7 @@ export default function SingleReportView({ singleData }) {
                   {formatComposerModel(singleData.metadata?.composerModel)}
                   {singleData.metadata?.composerFallbackUsed && <span className="ml-1 text-amber-500" title="보조 모델로 생성됨">↓</span>}
                   {singleData.metadata?.generatedAt || singleData.createdAt
-                    ? ` · ${new Date(singleData.metadata?.generatedAt || singleData.createdAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+                    ? ` · ${new Date(singleData.metadata?.generatedAt || singleData.createdAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
                     : ''}
                 </span>
               </div>

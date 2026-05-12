@@ -21,12 +21,12 @@ function processChildren(children) {
 }
 
 const MD_COMPONENTS = {
-  h1: ({ children }) => <h2 className="text-xl font-extrabold text-slate-900 mt-6 mb-3 pb-2 border-b border-slate-100">{children}</h2>,
-  h2: ({ children }) => <h3 className="text-base font-bold text-slate-800 mt-5 mb-2">{children}</h3>,
-  h3: ({ children }) => <h4 className="text-sm font-bold text-slate-800 mt-4 mb-1">{children}</h4>,
-  h4: ({ children }) => <h5 className="text-[13px] font-semibold text-slate-700 mt-3 mb-1">{children}</h5>,
-  h5: ({ children }) => <h6 className="text-[12px] font-semibold text-slate-600 mt-2 mb-1 uppercase tracking-wide">{children}</h6>,
-  h6: ({ children }) => <p className="text-[12px] font-bold text-slate-500 mt-2 mb-1">{children}</p>,
+  h1: ({ children }) => <h2 className="text-xl font-extrabold text-slate-900 mt-6 mb-3 pb-2 border-b border-slate-100">{processChildren(children)}</h2>,
+  h2: ({ children }) => <h3 className="text-base font-bold text-slate-800 mt-5 mb-2">{processChildren(children)}</h3>,
+  h3: ({ children }) => <h4 className="text-sm font-bold text-slate-800 mt-4 mb-1">{processChildren(children)}</h4>,
+  h4: ({ children }) => <h5 className="text-[13px] font-semibold text-slate-700 mt-3 mb-1">{processChildren(children)}</h5>,
+  h5: ({ children }) => <h6 className="text-[12px] font-semibold text-slate-600 mt-2 mb-1 uppercase tracking-wide">{processChildren(children)}</h6>,
+  h6: ({ children }) => <p className="text-[12px] font-bold text-slate-500 mt-2 mb-1">{processChildren(children)}</p>,
   p:  ({ children }) => <p className="mb-3 text-[13.5px] text-slate-600 leading-7">{processChildren(children)}</p>,
   strong: ({ children }) => <strong className="font-bold text-slate-900">{processChildren(children)}</strong>,
   em: ({ children }) => <em className="italic text-slate-500">{processChildren(children)}</em>,
@@ -39,7 +39,7 @@ const MD_COMPONENTS = {
     </a>
   ),
   blockquote: ({ children }) => (
-    <blockquote className="border-l-4 border-primary/30 pl-4 my-3 text-slate-500 italic text-[13px]">{children}</blockquote>
+    <blockquote className="border-l-4 border-primary/30 bg-primary/5 pl-4 pr-3 py-2 my-3 rounded-r-lg text-slate-600 italic text-[13px]">{processChildren(children)}</blockquote>
   ),
   pre: ({ children }) => (
     <pre className="bg-slate-50 rounded-lg p-4 my-3 overflow-x-auto border border-slate-100">{children}</pre>
