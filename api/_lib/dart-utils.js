@@ -8,6 +8,8 @@ import { XMLParser } from 'fast-xml-parser';
 // 글로벌 캐시 변수 (Vercel 서버리스 환경에서 인스턴스 생존 시 유지)
 global.CORP_CODE_CACHE = global.CORP_CODE_CACHE || null;
 global.CORP_CODE_CACHE_TIME = global.CORP_CODE_CACHE_TIME || 0;
+// 진행 중인 다운로드 Promise — 동시 요청 시 중복 다운로드 방지 (promise coalescing)
+global.CORP_CODE_LOADING_PROMISE = global.CORP_CODE_LOADING_PROMISE || null;
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24시간
 
 
@@ -131,49 +133,55 @@ export async function loadCorpCodes(apiKey) {
     return global.CORP_CODE_CACHE;
   }
 
-  try {
-    const response = await fetch(`https://opendart.fss.or.kr/api/corpCode.xml?crtfc_key=${apiKey}`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch corpCode.xml: ${response.status}`);
-    }
-    
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    
-    const zip = new AdmZip(buffer);
-    const zipEntries = zip.getEntries();
-    const xmlEntry = zipEntries.find(entry => entry.entryName === 'CORPCODE.xml');
-    
-    if (!xmlEntry) {
-      throw new Error('CORPCODE.xml not found in the downloaded zip');
-    }
-    
-    const xmlString = xmlEntry.getData().toString('utf8');
-    const parser = new XMLParser();
-    const jsonObj = parser.parse(xmlString);
-    
-    const list = jsonObj.result?.list || [];
-    
-    // list is an array of { corp_code, corp_name, stock_code, modify_date }
-    // Some companies don't have stock_code (represented as empty string or spaces in XML)
-    global.CORP_CODE_CACHE = list.map(item => ({
-      corpCode: item.corp_code ? String(item.corp_code).padStart(8, '0') : null,
-      corpName: item.corp_name,
-      stockCode: item.stock_code ? String(item.stock_code).trim() : null,
-      normalizedName: normalizeCorpName(item.corp_name, false),
-      keywordName: extractKeyword(item.corp_name)
-    })).filter(i => i.corpCode); // 유효한 corp_code가 있는 항목만
-    
-    global.CORP_CODE_CACHE_TIME = now;
-    console.info(`[dart-utils] Corp code ZIP loaded: ${global.CORP_CODE_CACHE.length} entries cached.`);
-    
-    return global.CORP_CODE_CACHE;
-  } catch (error) {
-    console.error('[dart-utils] Error loading corp codes:', error);
-    // 폴백: 이전 캐시가 있으면 그대로 사용
-    if (global.CORP_CODE_CACHE) return global.CORP_CODE_CACHE;
-    return null;
+  // 이미 다운로드 중이면 같은 Promise를 반환 (중복 다운로드 방지)
+  if (global.CORP_CODE_LOADING_PROMISE) {
+    return await global.CORP_CODE_LOADING_PROMISE;
   }
+
+  global.CORP_CODE_LOADING_PROMISE = (async () => {
+    try {
+      const response = await fetch(`https://opendart.fss.or.kr/api/corpCode.xml?crtfc_key=${apiKey}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch corpCode.xml: ${response.status}`);
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+
+      const zip = new AdmZip(buffer);
+      const zipEntries = zip.getEntries();
+      const xmlEntry = zipEntries.find(entry => entry.entryName === 'CORPCODE.xml');
+
+      if (!xmlEntry) {
+        throw new Error('CORPCODE.xml not found in the downloaded zip');
+      }
+
+      const xmlString = xmlEntry.getData().toString('utf8');
+      const parser = new XMLParser();
+      const jsonObj = parser.parse(xmlString);
+
+      const list = jsonObj.result?.list || [];
+
+      global.CORP_CODE_CACHE = list.map(item => ({
+        corpCode: item.corp_code ? String(item.corp_code).padStart(8, '0') : null,
+        corpName: item.corp_name,
+        stockCode: item.stock_code ? String(item.stock_code).trim() : null,
+        normalizedName: normalizeCorpName(item.corp_name, false),
+        keywordName: extractKeyword(item.corp_name)
+      })).filter(i => i.corpCode);
+
+      global.CORP_CODE_CACHE_TIME = Date.now();
+      console.info(`[dart-utils] Corp code ZIP loaded: ${global.CORP_CODE_CACHE.length} entries cached.`);
+      return global.CORP_CODE_CACHE;
+    } catch (error) {
+      console.error('[dart-utils] Error loading corp codes:', error.message);
+      return global.CORP_CODE_CACHE || null;
+    } finally {
+      global.CORP_CODE_LOADING_PROMISE = null;
+    }
+  })();
+
+  return await global.CORP_CODE_LOADING_PROMISE;
 }
 
 /**

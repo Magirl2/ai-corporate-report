@@ -1,6 +1,6 @@
 // api/_lib/orchestrator.js
 import { loadAgentPrompts } from './prompts.js';
-import { resolveCorpCode } from './dart-utils.js';
+import { resolveCorpCode, loadCorpCodes } from './dart-utils.js';
 import { getOptionalEnv } from './env.js';
 import { normalizeSourceWithQuality, filterReportSources } from './sourceQuality.js';
 
@@ -567,41 +567,29 @@ export class ServerOrchestrator {
    */
   async engineResolve(companyName, signal) {
     try {
+      const dartApiToken = getOptionalEnv('DART_API_KEY');
+
+      // DART XML을 백그라운드로 미리 다운로드 시작 (non-blocking).
+      // resolveTicker(LLM, ~5s)가 실행되는 동안 ZIP을 받기 시작해
+      // engineData(30s 예산)에서 resolveCorpCode 호출 시 캐시 히트 또는 최소 대기로 처리됩니다.
+      if (dartApiToken) {
+        loadCorpCodes(dartApiToken).catch(() => {});
+      }
+
       const resolveInfo = await this.resolveTicker(signal);
-      
+
+      // KR 기업 판별 시 dartStatus 초기화만 수행.
+      // 실제 corp_code 해석은 30s 예산을 가진 engineData에서 처리합니다.
       if (resolveInfo.type === 'KR') {
-        const dartApiToken = getOptionalEnv('DART_API_KEY');
         const ds = this.ensureDartStatus();
         ds.attempted = true;
         ds.apiKeyPresent = !!dartApiToken;
-
-        if (dartApiToken) {
-          const corpCodeRes = await resolveCorpCode(companyName, dartApiToken);
-          
-          if (corpCodeRes) {
-            resolveInfo.corpCode = corpCodeRes.corpCode;
-            resolveInfo.corpName = corpCodeRes.corpName;
-            resolveInfo.stockCode = corpCodeRes.stockCode;
-            resolveInfo.resolutionMethod = corpCodeRes.method;
-
-            ds.resolvedCorpCode = corpCodeRes.corpCode;
-            ds.resolvedCorpName = corpCodeRes.corpName;
-            ds.stockCode = corpCodeRes.stockCode;
-            ds.resolutionMethod = corpCodeRes.method;
-            ds.corpCodeResolved = true;
-          } else {
-            ds.corpCodeResolved = false;
-            if (!Array.isArray(ds.warnings)) ds.warnings = [];
-            ds.warnings.push("DART corp_code 매칭 실패: 공식 상장사명 또는 종목코드로 다시 검색하세요.");
-          }
-        } else {
-          ds.apiKeyPresent = false;
-          this.logger?.warn('DART_API_KEY missing, skipping resolveCorpCode for ' + companyName);
+        if (!dartApiToken) {
           if (!Array.isArray(ds.warnings)) ds.warnings = [];
           ds.warnings.push("DART API 키가 설정되지 않아 DART 공시 및 재무 데이터를 가져올 수 없습니다.");
         }
       }
-      
+
       this.onStatusUpdate?.(`기업 식별 완료: ${resolveInfo.type === 'KR' ? '한국' : '미국 ' + resolveInfo.ticker}`);
       return { ok: true, data: resolveInfo };
     } catch (err) {
