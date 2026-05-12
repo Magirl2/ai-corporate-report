@@ -13,10 +13,12 @@ const STAGE_TIMEOUTS = {
   resolve: 15000,
   data: 30000,
   search: 40000,
-  analyze: 50000,
-  'analyze-financial': 45000,
-  'analyze-strategy': 45000,
-  'analyze-news': 45000,
+  // Stage 2: critic 점수 LLM 및 뉴스 그라운딩 제거로 각 섹션 ~30s 내 완료 기대
+  // Vercel maxDuration=60s 내에서 여유 확보 (setup 5s + parallel 40s + redis 3s = 48s)
+  analyze: 45000,
+  'analyze-financial': 38000,
+  'analyze-strategy': 38000,
+  'analyze-news': 38000,
   compose: 55000  // compose.js maxDuration=60초 내에서 최대한 확보
 };
 
@@ -888,24 +890,24 @@ Find at least ${newsCount} news items. Respond in Korean. NO markdown.`;
       searchBriefing: this.state.raw.searchBriefing,
       rawSearchText: this.state.raw.searchBriefing?.rawContent || ""
     };
-    
+
     let res = await this.executeJsonAgent('analyst-financial', 'gemini-2.5-flash', context, ['financial'], signal);
     let financialData = res.financial || ((res.overview || res.keyMetrics) ? { overview: res.overview, keyMetrics: res.keyMetrics } : null);
-    
+
     if (res.__empty || res.__error || !validateFinancialSection(financialData)) {
       this.logger?.warn('Retrying financial analysis due to invalid schema');
       const retryContext = { ...context, _RETRY_NOTE: "이전 시도에서 JSON 스키마를 따르지 않았습니다. 반드시 REQUIRED JSON SCHEMA 최상위 키('financial')를 포함하여 반환하세요." };
       res = await this.executeJsonAgent('analyst-financial', 'gemini-2.5-flash', retryContext, ['financial'], signal);
       financialData = res.financial || ((res.overview || res.keyMetrics) ? { overview: res.overview, keyMetrics: res.keyMetrics } : null);
     }
-    
+
     if (res.__empty || res.__error || !validateFinancialSection(financialData)) {
       financialData = fallbackFinancialSection('2회 시도 후에도 유효한 결과를 얻지 못했습니다.');
       return { ok: true, data: { financial: financialData, score: 0 } };
     }
-    
-    const score = await this.engineSimpleScore('financial', { financial: financialData }, signal);
-    return { ok: true, data: { financial: financialData, score } };
+
+    // critic 점수는 Stage 2 타임아웃 여유를 위해 생략 (기본 점수 80 사용)
+    return { ok: true, data: { financial: financialData, score: 80 } };
   }
 
   /**
@@ -917,73 +919,53 @@ Find at least ${newsCount} news items. Respond in Korean. NO markdown.`;
       rawSearchText: this.state.raw.searchBriefing?.rawContent || "",
       disclosures: this.state.raw.disclosures
     };
-    
+
     let res = await this.executeJsonAgent('analyst-strategy', 'gemini-2.5-flash', context, ['strategy'], signal);
     let strategyData = res.strategy || ((res.macroTrend || res.industryStatus || res.vision || res.businessModel || res.swotAnalysis) ? { macroTrend: res.macroTrend, industryStatus: res.industryStatus, vision: res.vision, businessModel: res.businessModel, swotAnalysis: res.swotAnalysis } : null);
-    
+
     if (res.__empty || res.__error || !validateStrategySection(strategyData)) {
       this.logger?.warn('Retrying strategy analysis due to invalid schema');
       const retryContext = { ...context, _RETRY_NOTE: "이전 시도에서 JSON 스키마를 따르지 않았습니다. 반드시 REQUIRED JSON SCHEMA 최상위 키('strategy')를 포함하여 반환하세요." };
       res = await this.executeJsonAgent('analyst-strategy', 'gemini-2.5-flash', retryContext, ['strategy'], signal);
       strategyData = res.strategy || ((res.macroTrend || res.industryStatus || res.vision || res.businessModel || res.swotAnalysis) ? { macroTrend: res.macroTrend, industryStatus: res.industryStatus, vision: res.vision, businessModel: res.businessModel, swotAnalysis: res.swotAnalysis } : null);
     }
-    
+
     if (res.__empty || res.__error || !validateStrategySection(strategyData)) {
       strategyData = fallbackStrategySection('2회 시도 후에도 유효한 결과를 얻지 못했습니다.');
       return { ok: true, data: { strategy: strategyData, score: 0 } };
     }
-    
-    const score = await this.engineSimpleScore('strategy', { strategy: strategyData }, signal);
-    return { ok: true, data: { strategy: strategyData, score } };
+
+    // critic 점수는 Stage 2 타임아웃 여유를 위해 생략 (기본 점수 80 사용)
+    return { ok: true, data: { strategy: strategyData, score: 80 } };
   }
 
   /**
    * 뉴스/센티먼트 섹션 분석 엔진
    */
   async engineAnalyzeNews(signal) {
-    // 뉴스 전용 그라운딩 검색 — 추가 소스 URL 수집 (best-effort)
-    if (!signal?.aborted) {
-      try {
-        const newsSearchResult = await this.callGemini('gemini-2.5-flash',
-          `"${this.companyName}" 최근 뉴스 기사`,
-          { tools: [{ googleSearch: {} }], maxOutputTokens: 256, signal }
-        );
-        const chunks = newsSearchResult.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-        chunks.forEach((chunk) => {
-          const url = chunk.web?.uri;
-          if (url && !this.state.raw.sources.some(s => s.url === url || s.uri === url)) {
-            this.state.raw.sources.push(normalizeSourceWithQuality(
-              { title: chunk.web.title || url, url, usedIn: ['recentNews'] },
-              this.state.raw.sources.length
-            ));
-          }
-        });
-        if (chunks.length > 0) {
-          this.state.raw.sources = filterReportSources(this.state.raw.sources);
-        }
-      } catch (_e) { /* best-effort: 실패해도 분석 계속 */ }
-    }
+    // Stage 1 engineSearch에서 이미 뉴스 그라운딩 검색을 완료함.
+    // Stage 2에서 중복 그라운딩 검색은 45s 예산 초과의 원인이 되므로 생략.
 
     const context = {
       searchBriefing: this.state.raw.searchBriefing,
       rawSearchText: this.state.raw.searchBriefing?.rawContent || ""
     };
-    
+
     let res = await this.executeJsonAgent('analyst-news', 'gemini-2.5-flash', context, ['news'], signal);
     let newsData = res.news || ((res.marketSentiment || res.recentNews) ? { marketSentiment: res.marketSentiment, recentNews: res.recentNews } : null);
-    
+
     if (res.__empty || res.__error || !validateNewsSection(newsData)) {
       this.logger?.warn('Retrying news analysis due to invalid schema');
       const retryContext = { ...context, _RETRY_NOTE: "이전 시도에서 JSON 스키마를 따르지 않았습니다. 반드시 REQUIRED JSON SCHEMA 최상위 키('news')를 포함하여 반환하세요." };
       res = await this.executeJsonAgent('analyst-news', 'gemini-2.5-flash', retryContext, ['news'], signal);
       newsData = res.news || ((res.marketSentiment || res.recentNews) ? { marketSentiment: res.marketSentiment, recentNews: res.recentNews } : null);
     }
-    
+
     if (res.__empty || res.__error || !validateNewsSection(newsData)) {
       newsData = fallbackNewsSection('2회 시도 후에도 유효한 결과를 얻지 못했습니다.');
       return { ok: true, data: { news: newsData, score: 0 } };
     }
-    
+
     // recentNews URL → raw.sources에 추가 (뉴스 출처 다양성 확보)
     (newsData.recentNews || []).forEach((item) => {
       const url = item.url || item.uri;
@@ -1001,8 +983,8 @@ Find at least ${newsCount} news items. Respond in Korean. NO markdown.`;
       this.state.raw.sources = filterReportSources(this.state.raw.sources);
     }
 
-    const score = await this.engineSimpleScore('news', { news: newsData }, signal);
-    return { ok: true, data: { news: newsData, score } };
+    // critic 점수는 Stage 2 타임아웃 여유를 위해 생략 (기본 점수 80 사용)
+    return { ok: true, data: { news: newsData, score: 80 } };
   }
 
   /**
