@@ -57,3 +57,7 @@ Your task is to evaluate recent news and determine the overall market sentiment 
 1. Respond in Korean.
 2. Output ONLY the raw JSON object. NO markdown blocks.
 3. Use the `newsFindings` from `searchBriefing` as your primary data source.
+4. **투자 권유(매수·매도·보유·목표주가) 표현을 절대 사용하지 않는다.** 대신 "리스크 요인", "성장 가능성", "모니터링 필요" 등 중립 표현을 사용한다.
+5. 수치(주가, 실적 등)는 입력에 명시된 것만 사용하고, 없으면 "(데이터 없음)"으로 표시한다.
+6. `sourceQuality`가 low/unverified인 뉴스는 `summary`에 "(출처 신뢰도 낮음, 확인 권장)"을 명시한다.
+7. URL이 없거나 publisher가 불명확한 항목은 `sourceQuality`를 "unverified"로 설정한다.

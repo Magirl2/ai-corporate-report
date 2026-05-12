@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import MarketSentimentBanner from '../components/MarketSentimentBanner';
 import { renderMarkdown } from '../utils/displayHelpers';
 import { getYearlyMetrics, getSourceBadge, getSafeItems } from '../utils/reportSelectors';
+import { downloadFinancialCsv } from '../utils/csvExport';
 
 // ─── Composer model name formatter ───
 const _MODEL_NAMES = {
@@ -607,35 +608,58 @@ export default function SingleReportView({ singleData }) {
             {(() => {
               const hasYearly = yearly?.length > 0;
               const hasKeyMetrics = r?.financialAnalysis?.keyMetrics?.length > 0;
+              const finCurrency = singleData.financeData?.raw?.currency;
+              const isKrw = !finCurrency || finCurrency === 'KRW';
+              const unitLabel = isKrw ? '단위: 원' : `단위: ${finCurrency}`;
+              const dataSource = isKrw ? 'DART 공시 기준' : 'FMP 기준';
 
               return (
                 <div className="space-y-6">
                   {/* 정형 데이터 테이블 */}
                   {hasYearly ? (
-                    <div className="overflow-x-auto rounded-xl border border-slate-100">
-                      <table className="w-full text-left border-collapse text-sm">
-                        <thead>
-                          <tr className="bg-surface-container-low">
-                            <th className="p-3 font-bold text-slate-500 text-xs uppercase tracking-wide w-32">구분</th>
-                            {yearly.map((y, i) => (
-                              <th key={y.year ?? i} className={`p-3 font-bold text-xs ${i === yearly.length - 1 ? 'text-primary' : 'text-slate-500'}`}>{y.year ?? '-'}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                          {[
-                            { label: '매출 성장률', key: 'revenueGrowth' },
-                            { label: '영업이익률',  key: 'operatingMargin' },
-                            { label: '부채비율',    key: 'debtRatio' },
-                            { label: 'ROE',         key: 'roe' },
-                          ].map(({ label, key }) => (
-                            <tr key={key} className="hover:bg-slate-50 transition-colors">
-                              <td className="p-3 font-medium text-slate-500 text-xs">{label}</td>
-                              {yearly.map((y, i) => <td key={i} className="p-3 text-sm text-on-surface">{y[key] ?? '-'}</td>)}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[11px] text-slate-400 font-medium">{dataSource} · {unitLabel}</span>
+                        <button
+                          type="button"
+                          onClick={() => downloadFinancialCsv(singleData.companyName || '기업', yearly, finCurrency)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-slate-500 bg-slate-50 border border-slate-200 rounded-lg hover:bg-primary/5 hover:border-primary/30 hover:text-primary transition-all"
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>download</span>
+                          CSV 다운로드
+                        </button>
+                      </div>
+                      <div className="overflow-x-auto rounded-xl border border-slate-100">
+                        <table className="w-full text-left border-collapse text-sm">
+                          <thead>
+                            <tr className="bg-surface-container-low">
+                              <th className="p-3 font-bold text-slate-500 text-xs uppercase tracking-wide w-32">구분</th>
+                              {yearly.map((y, i) => (
+                                <th key={y.year ?? i} className={`p-3 font-bold text-xs ${i === yearly.length - 1 ? 'text-primary' : 'text-slate-500'}`}>{y.year ?? '-'}</th>
+                              ))}
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody className="divide-y divide-slate-50">
+                            {[
+                              { label: `매출액 (${isKrw ? '원' : finCurrency})`, key: null, rawKey: 'revenue', section: 'raw' },
+                              { label: `영업이익 (${isKrw ? '원' : finCurrency})`, key: null, rawKey: 'opIncome', section: 'raw' },
+                              { label: `순이익 (${isKrw ? '원' : finCurrency})`, key: null, rawKey: 'netIncome', section: 'raw' },
+                              { label: '매출 성장률', key: 'revenueGrowth', section: 'ratio' },
+                              { label: '영업이익률',  key: 'operatingMargin', section: 'ratio' },
+                              { label: '부채비율',    key: 'debtRatio', section: 'ratio' },
+                              { label: 'ROE',         key: 'roe', section: 'ratio' },
+                            ].map(({ label, key, rawKey, section }) => (
+                              <tr key={label} className="hover:bg-slate-50 transition-colors">
+                                <td className="p-3 font-medium text-slate-500 text-xs">{label}</td>
+                                {yearly.map((y, i) => {
+                                  const val = section === 'raw' ? (y.raw?.[rawKey] ?? '-') : (y[key] ?? '-');
+                                  return <td key={i} className="p-3 text-sm text-on-surface tabular-nums">{val}</td>;
+                                })}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   ) : (
                     <div className="flex items-center gap-2 py-4">
