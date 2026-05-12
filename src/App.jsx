@@ -104,12 +104,13 @@ export default function App() {
         className={showSidebar ? 'md:ml-64' : ''}
       >
         <TopNavBar
-          tab={tab === 'search' ? 'single' : tab}
+          tab={tab}
           setTab={navigateTab}
           onSearch={single.handleSearch}
           searchInput={single.searchInput}
           setSearchInput={single.setSearchInput}
           showSearch={tab === 'single'}
+          hasSidebar={showSidebar}
         />
 
         {/* 로딩 화면 */}

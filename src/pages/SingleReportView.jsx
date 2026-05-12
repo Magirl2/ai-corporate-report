@@ -3,6 +3,7 @@ import MarketSentimentBanner from '../components/MarketSentimentBanner';
 import { renderMarkdown } from '../utils/displayHelpers';
 import { getYearlyMetrics, getSourceBadge, getSafeItems } from '../utils/reportSelectors';
 import { downloadFinancialCsv } from '../utils/csvExport';
+import { formatKRW, formatRatioBadge } from '../utils/formatters';
 
 // ─── Composer model name formatter ───
 const _MODEL_NAMES = {
@@ -632,7 +633,7 @@ export default function SingleReportView({ singleData }) {
                   {hasYearly ? (
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-[11px] text-slate-400 font-medium">{dataSource} · {unitLabel}</span>
+                        <span className="text-[11px] text-slate-400 font-medium">{dataSource} · {isKrw ? '금액 단위: 백만원 기준 변환 표시' : unitLabel}</span>
                         <button
                           type="button"
                           onClick={() => downloadFinancialCsv(singleData.companyName || '기업', yearly, finCurrency)}
@@ -645,28 +646,50 @@ export default function SingleReportView({ singleData }) {
                       <div className="overflow-x-auto rounded-xl border border-slate-100">
                         <table className="w-full text-left border-collapse text-sm">
                           <thead>
-                            <tr className="bg-surface-container-low">
+                            <tr className="bg-slate-50">
                               <th className="p-3 font-bold text-slate-500 text-xs uppercase tracking-wide w-32">구분</th>
-                              {yearly.map((y, i) => (
-                                <th key={y.year ?? i} className={`p-3 font-bold text-xs ${i === yearly.length - 1 ? 'text-primary' : 'text-slate-500'}`}>{y.year ?? '-'}</th>
-                              ))}
+                              {yearly.map((y, i) => {
+                                const isLatest = i === 0;
+                                return (
+                                  <th key={y.year ?? i} className={`p-3 font-bold text-xs ${isLatest ? 'text-primary bg-primary/5' : 'text-slate-500'}`}>
+                                    {y.year ?? '-'}
+                                    {isLatest && <span className="ml-1 text-[9px] bg-primary/10 text-primary rounded px-1 py-0.5 align-middle">최신</span>}
+                                  </th>
+                                );
+                              })}
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-50">
                             {[
-                              { label: `매출액 (${isKrw ? '원' : finCurrency})`, key: null, rawKey: 'revenue', section: 'raw' },
-                              { label: `영업이익 (${isKrw ? '원' : finCurrency})`, key: null, rawKey: 'opIncome', section: 'raw' },
-                              { label: `순이익 (${isKrw ? '원' : finCurrency})`, key: null, rawKey: 'netIncome', section: 'raw' },
+                              { label: isKrw ? '매출액' : `매출액 (${finCurrency})`, rawKey: 'revenue', section: 'raw' },
+                              { label: isKrw ? '영업이익' : `영업이익 (${finCurrency})`, rawKey: 'opIncome', section: 'raw' },
+                              { label: isKrw ? '순이익' : `순이익 (${finCurrency})`, rawKey: 'netIncome', section: 'raw' },
                               { label: '매출 성장률', key: 'revenueGrowth', section: 'ratio' },
-                              { label: '영업이익률',  key: 'operatingMargin', section: 'ratio' },
-                              { label: '부채비율',    key: 'debtRatio', section: 'ratio' },
-                              { label: 'ROE',         key: 'roe', section: 'ratio' },
+                              { label: '영업이익률', key: 'operatingMargin', section: 'ratio' },
+                              { label: '부채비율', key: 'debtRatio', section: 'ratio' },
+                              { label: 'ROE', key: 'roe', section: 'ratio' },
                             ].map(({ label, key, rawKey, section }) => (
-                              <tr key={label} className="hover:bg-slate-50 transition-colors">
-                                <td className="p-3 font-medium text-slate-500 text-xs">{label}</td>
+                              <tr key={label} className="hover:bg-slate-50/70 transition-colors">
+                                <td className="p-3 font-semibold text-slate-600 text-xs">{label}</td>
                                 {yearly.map((y, i) => {
-                                  const val = section === 'raw' ? (y.raw?.[rawKey] ?? '-') : (y[key] ?? '-');
-                                  return <td key={i} className="p-3 text-sm text-on-surface tabular-nums">{val}</td>;
+                                  const isLatest = i === 0;
+                                  if (section === 'raw') {
+                                    const raw = y.raw?.[rawKey] ?? '-';
+                                    const display = isKrw ? formatKRW(raw) : raw;
+                                    return (
+                                      <td key={i} className={`p-3 text-sm tabular-nums font-medium ${isLatest ? 'text-slate-900 bg-primary/5' : 'text-slate-600'}`}>
+                                        {display}
+                                      </td>
+                                    );
+                                  } else {
+                                    const val = y[key] ?? null;
+                                    const { label: rLabel, colorClass } = formatRatioBadge(val);
+                                    return (
+                                      <td key={i} className={`p-3 text-sm tabular-nums font-medium ${isLatest ? 'bg-primary/5' : ''} ${colorClass}`}>
+                                        {rLabel}
+                                      </td>
+                                    );
+                                  }
                                 })}
                               </tr>
                             ))}

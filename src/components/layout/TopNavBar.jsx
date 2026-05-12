@@ -1,9 +1,9 @@
 import React from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 
-export default function TopNavBar({ tab, setTab, searchInput, setSearchInput, onSearch, showSearch }) {
+export default function TopNavBar({ tab, setTab, searchInput, setSearchInput, onSearch, showSearch, hasSidebar = false }) {
   const { currentUser } = useAuth();
-  
+
   const [showNotifications, setShowNotifications] = React.useState(false);
   const notificationRef = React.useRef(null);
 
@@ -18,12 +18,14 @@ export default function TopNavBar({ tab, setTab, searchInput, setSearchInput, on
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const showBrand = !hasSidebar;
+
   return (
-    <header className="fixed top-0 right-0 left-0 md:left-64 bg-white/80 backdrop-blur-xl z-30 shadow-sm transition-all duration-300">
-      <div className="flex items-center justify-between px-8 py-4 max-w-[1920px] mx-auto">
-        <div className="flex items-center gap-8">
-          <span className="text-xl font-bold tracking-tight text-primary font-headline hidden lg:block uppercase tracking-widest">Editorial Intelligence</span>
-          <nav className="flex items-center gap-6 font-headline font-medium">
+    <header className={`fixed top-0 right-0 left-0 ${hasSidebar ? 'md:left-64' : ''} bg-white/80 backdrop-blur-xl z-30 shadow-sm transition-all duration-300`}>
+      <div className="flex items-center justify-between px-6 md:px-8 py-4 max-w-[1920px] mx-auto">
+        <div className="flex items-center gap-6">
+          <span className={`text-xl font-bold tracking-tight text-primary font-headline uppercase tracking-widest ${showBrand ? 'block' : 'hidden lg:block'}`}>Editorial Intelligence</span>
+          <nav className="flex items-center gap-4 md:gap-6 font-headline font-medium">
             <button
               type="button"
               onClick={() => setTab('single')}

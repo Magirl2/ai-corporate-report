@@ -54,3 +54,30 @@ export const safeString = (val) => {
   if (val === null || val === undefined) return '정보 없음';
   return String(val);
 };
+
+/**
+ * DART 재무 수치(백만원 단위 문자열)를 사람이 읽기 쉬운 한국어 단위로 변환합니다.
+ * 예: "302,231,360" → "302.2조원", "50,000" → "500억원"
+ */
+export const formatKRW = (rawStr) => {
+  if (!rawStr || rawStr === '-') return '-';
+  const num = parseInt(String(rawStr).replace(/,/g, ''), 10);
+  if (isNaN(num)) return String(rawStr);
+  const abs = Math.abs(num);
+  const sign = num < 0 ? '-' : '';
+  if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(1)}조원`;
+  if (abs >= 100) return `${sign}${Math.round(abs / 100).toLocaleString()}억원`;
+  return `${sign}${abs.toLocaleString()}백만원`;
+};
+
+/**
+ * 퍼센트 문자열(예: "12.5%", "-3.2%")을 색상 클래스와 방향 기호로 반환합니다.
+ */
+export const formatRatioBadge = (ratioStr) => {
+  if (!ratioStr || ratioStr === '-') return { label: '-', colorClass: 'text-slate-400' };
+  const num = parseFloat(String(ratioStr).replace('%', ''));
+  if (isNaN(num)) return { label: ratioStr, colorClass: 'text-slate-600' };
+  const arrow = num > 0 ? '▲' : num < 0 ? '▼' : '─';
+  const colorClass = num > 0 ? 'text-emerald-600' : num < 0 ? 'text-rose-600' : 'text-slate-500';
+  return { label: `${arrow} ${ratioStr}`, colorClass };
+};
