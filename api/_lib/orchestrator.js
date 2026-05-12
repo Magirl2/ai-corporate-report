@@ -1497,11 +1497,12 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
         vision: strategy.vision,
         businessModel: strategy.businessModel,
         swotAnalysis: strategy.swotAnalysis,
-        
+        competitors: Array.isArray(strategy.competitors) ? strategy.competitors : [],
+
         // News Sections
         marketSentiment: news.marketSentiment,
         recentNews: news.recentNews,
-        
+
         // Financial Sections
         financialAnalysis: {
           overview: financial.overview,

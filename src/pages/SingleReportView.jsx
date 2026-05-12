@@ -619,6 +619,44 @@ export default function SingleReportView({ singleData }) {
             emptyMessage="산업 내 경쟁 구도 및 시장 동향 정보를 분석 중입니다."
           />
 
+          {/* 주요 경쟁사 현황 */}
+          {r?.competitors?.length > 0 && (
+            <BentoCard icon="groups" title="주요 경쟁사 현황" color="rose" className="col-span-1 lg:col-span-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+                {r.competitors.map((comp, idx) => {
+                  const relColor = comp.relationship === '직접경쟁' ? 'bg-rose-50 text-rose-700 border-rose-100'
+                    : comp.relationship === '간접경쟁' ? 'bg-amber-50 text-amber-700 border-amber-100'
+                    : 'bg-slate-50 text-slate-600 border-slate-100';
+                  return (
+                    <div key={idx} className="p-4 bg-white rounded-xl border border-slate-100 shadow-sm hover:shadow-md hover:border-rose-200 transition-all flex flex-col gap-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <h4 className="text-sm font-extrabold text-slate-800 truncate">{comp.name}</h4>
+                        {comp.relationship && (
+                          <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full border ${relColor}`}>{comp.relationship}</span>
+                        )}
+                      </div>
+                      {comp.marketPosition && (
+                        <p className="text-[11px] text-primary font-semibold">{comp.marketPosition}</p>
+                      )}
+                      {comp.strength && (
+                        <div className="flex items-start gap-1.5">
+                          <span className="material-symbols-outlined text-emerald-500 shrink-0" style={{ fontSize: '13px', marginTop: '2px', fontVariationSettings: "'FILL' 1" }}>thumb_up</span>
+                          <p className="text-[12px] text-slate-600 leading-relaxed">{comp.strength}</p>
+                        </div>
+                      )}
+                      {comp.weakness && (
+                        <div className="flex items-start gap-1.5">
+                          <span className="material-symbols-outlined text-rose-400 shrink-0" style={{ fontSize: '13px', marginTop: '2px', fontVariationSettings: "'FILL' 1" }}>thumb_down</span>
+                          <p className="text-[12px] text-slate-500 leading-relaxed">{comp.weakness}</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </BentoCard>
+          )}
+
           {/* 재무 분석 */}
           <BentoCard icon="finance" title="재무 분석" color="emerald" className="col-span-1 lg:col-span-2">
             <FinancialInsight
