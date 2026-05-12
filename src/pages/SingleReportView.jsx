@@ -796,6 +796,9 @@ export default function SingleReportView({ singleData }) {
         const qualitySummary = singleData.metadata?.sourceQualitySummary;
         const dartStatus = singleData.metadata?.dartStatus;
         const hasAnySources = total > 0;
+        const fmpUsed = rawSources.some(s =>
+          (s.url || '').includes('financialmodelingprep.com') || s.type === 'finance_data'
+        );
 
         return (
           <div className="animate-in fade-in slide-in-from-bottom-2 space-y-4">
@@ -807,15 +810,22 @@ export default function SingleReportView({ singleData }) {
               <div className="p-5 bg-white rounded-xl border border-slate-200 shadow-sm">
                 <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
                   <span className="material-symbols-outlined text-primary" style={{ fontSize: '18px', fontVariationSettings: "'FILL' 1" }}>database</span>
-                  DART 데이터 수집 현황
+                  DART / FMP 데이터 수집 현황
                   {dartStatus.corpCodeResolved ? (
-                    <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100 text-emerald-700">연결됨</span>
+                    <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100 text-emerald-700">DART 연결됨</span>
+                  ) : dartStatus.attempted ? (
+                    <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 border border-amber-100 text-amber-600">DART 매칭 실패</span>
                   ) : (
-                    <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-slate-500">미연결</span>
+                    <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-slate-500">DART 미시도</span>
                   )}
                 </h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                   {[
+                    {
+                      label: 'DART API 키',
+                      value: dartStatus.apiKeyPresent ? '설정됨' : '미설정',
+                      color: dartStatus.apiKeyPresent ? 'text-emerald-600' : 'text-red-400',
+                    },
                     { label: '매칭 기업명', value: dartStatus.resolvedCorpName },
                     { label: 'DART corp_code', value: dartStatus.resolvedCorpCode },
                     { label: '종목코드', value: dartStatus.stockCode },
@@ -829,6 +839,11 @@ export default function SingleReportView({ singleData }) {
                       label: 'DART 재무 데이터',
                       value: dartStatus.financeAvailable ? `사용됨 (${dartStatus.financeYears}개 연도)` : '미사용',
                       color: dartStatus.financeAvailable ? 'text-emerald-600' : 'text-slate-400',
+                    },
+                    {
+                      label: 'FMP 글로벌 재무',
+                      value: fmpUsed ? 'FMP 데이터 포함됨' : dartStatus.corpCodeResolved ? '미사용 (DART 우선)' : '미사용',
+                      color: fmpUsed ? 'text-blue-600' : 'text-slate-400',
                     },
                   ].map(({ label, value, color }) => (
                     <div key={label}>
