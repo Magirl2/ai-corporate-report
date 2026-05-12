@@ -442,9 +442,15 @@ export default function SingleReportView({ singleData }) {
   const [reportSubTab, setReportSubTab] = useState('analysis');
   if (!singleData) return null;
 
-  const d = new Date();
-  const today = `${d.getFullYear()}년 ${String(d.getMonth() + 1).padStart(2, '0')}월 ${String(d.getDate()).padStart(2, '0')}일`;
   const yearly = getYearlyMetrics(singleData);
+  const reportDate = (() => {
+    const raw = singleData.metadata?.generatedAt || singleData.createdAt;
+    if (!raw) {
+      const d = new Date();
+      return `${d.getFullYear()}년 ${String(d.getMonth() + 1).padStart(2, '0')}월 ${String(d.getDate()).padStart(2, '0')}일`;
+    }
+    return new Date(raw).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'long', day: 'numeric' });
+  })();
 
   const r = singleData.report;
 
@@ -515,7 +521,7 @@ export default function SingleReportView({ singleData }) {
               </span>
             )}
 
-            <span className="text-on-surface-variant text-[11px] md:text-sm font-medium ml-1">{today}</span>
+            <span className="text-on-surface-variant text-[11px] md:text-sm font-medium ml-1">{reportDate}</span>
             {aiScore != null && (
               <span
                 className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[10px] md:text-[11px] font-bold"
