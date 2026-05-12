@@ -40,24 +40,39 @@ export default async function handler(req, res) {
 
     const today = new Date();
 
-    // ─── STEP 2: 최근 5개 연도 재무제표 병렬 조회 ───────────────────────────
+    // ─── STEP 2: 최근 4개 연도 재무제표 병렬 조회 (표시 3년 + 성장률 계산용 1년) ──
     const currentYear = today.getFullYear();
-    const years = [currentYear - 1, currentYear - 2, currentYear - 3, currentYear - 4, currentYear - 5];
+    const years = [currentYear - 1, currentYear - 2, currentYear - 3, currentYear - 4];
 
     const fetchYear = async (year) => {
       const base =
         `https://opendart.fss.or.kr/api/fnlttSinglAcntAll.json` +
         `?crtfc_key=${DART_API_KEY}&corp_code=${corpCode}&bsns_year=${year}&reprt_code=11011`;
 
-      const r = await fetch(base + '&fs_div=CFS', { headers: { 'User-Agent': 'Mozilla/5.0' } });
-      const data = await r.json();
-
-      if (data.status !== '000' || !data.list?.length) {
-        const fallback = await fetch(base + '&fs_div=OFS', { headers: { 'User-Agent': 'Mozilla/5.0' } });
-        const fb = await fallback.json();
-        return { year, list: fb.list || [] };
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 10000);
+        try {
+          const r = await fetch(base + '&fs_div=CFS', { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: ctrl.signal });
+          const data = await r.json();
+          if (data.status !== '000' || !data.list?.length) {
+            const ctrl2 = new AbortController();
+            const timer2 = setTimeout(() => ctrl2.abort(), 10000);
+            try {
+              const fallback = await fetch(base + '&fs_div=OFS', { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: ctrl2.signal });
+              const fb = await fallback.json();
+              return { year, list: fb.list || [] };
+            } finally {
+              clearTimeout(timer2);
+            }
+          }
+          return { year, list: data.list };
+        } finally {
+          clearTimeout(timer);
+        }
+      } catch {
+        return { year, list: [] };
       }
-      return { year, list: data.list };
     };
 
     const results = await Promise.all(years.map(fetchYear));

@@ -488,8 +488,6 @@ export default function SingleReportView({ singleData }) {
     const qualityWarning = singleData.metadata?.qualityWarning === true;
     const isPartialResult = singleData.debug?.isPartialResult === true;
     const composeFailed = singleData.metadata?.composeFailed === true;
-    const agentErrors = Array.isArray(singleData.debug?.agentErrors) ? singleData.debug.agentErrors : [];
-    const hasAgentErrors = agentErrors.length > 0;
     const hasSentiment = !!(r?.marketSentiment?.status);
   
     const getCacheAgeText = (ms) => {
@@ -533,14 +531,6 @@ export default function SingleReportView({ singleData }) {
               </span>
             )}
 
-            {/* 배지 4: AI 분석 일부 실패 */}
-            {hasAgentErrors && (
-              <span className="px-2.5 py-1 bg-rose-50 text-rose-600 border border-rose-100 text-[10px] md:text-xs font-bold rounded-full flex items-center gap-1"
-                title={agentErrors.map(e => `${e.agent || e.stage}: ${e.error}`).join(' | ')}>
-                <span className="material-symbols-outlined !text-[14px]">error</span>
-                AI 분석 일부 실패
-              </span>
-            )}
 
             <span className="text-on-surface-variant text-[11px] md:text-sm font-medium ml-1">{reportDate}</span>
             {aiScore != null && (

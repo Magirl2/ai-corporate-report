@@ -21,9 +21,15 @@ export default async function handler(req, res) {
     const incUrl = `https://financialmodelingprep.com/api/v3/income-statement/${ticker}?limit=4&apikey=${apiKey}`;
     const balUrl = `https://financialmodelingprep.com/api/v3/balance-sheet-statement/${ticker}?limit=4&apikey=${apiKey}`;
 
+    const fetchWithTimeout = (url, ms = 10000) => {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), ms);
+      return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(timer));
+    };
+
     const [incRes, balRes] = await Promise.all([
-      fetch(incUrl),
-      fetch(balUrl)
+      fetchWithTimeout(incUrl),
+      fetchWithTimeout(balUrl)
     ]);
 
     if (!incRes.ok || !balRes.ok) {

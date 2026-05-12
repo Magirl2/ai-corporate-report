@@ -58,9 +58,17 @@ export default async function handler(req, res) {
         `&corp_name=${encodeURIComponent(spaced)}&bgn_de=${fmt(threeMonthsAgo)}&end_de=${fmt(today)}&page_count=${pageCount}`;
     }
 
-    const response = await fetch(dartUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CorporateReportBot/1.0)', 'Accept': 'application/json' }
-    });
+    const ctrl = new AbortController();
+    const dartTimer = setTimeout(() => ctrl.abort(), 10000);
+    let response;
+    try {
+      response = await fetch(dartUrl, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CorporateReportBot/1.0)', 'Accept': 'application/json' },
+        signal: ctrl.signal
+      });
+    } finally {
+      clearTimeout(dartTimer);
+    }
 
     const contentType = response.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) {

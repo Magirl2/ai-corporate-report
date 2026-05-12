@@ -15,7 +15,7 @@ const STAGE_TIMEOUTS = {
   search: 45000,
   // Stage 2: critic 점수 LLM 및 뉴스 그라운딩 제거로 각 섹션 ~30s 내 완료 기대
   // Vercel maxDuration=60s 내에서 여유 확보 (setup 5s + parallel 40s + redis 3s = 48s)
-  analyze: 45000,
+  analyze: 52000,          // 내부 최대(news 42s) + 10s 여유 — outer 타임아웃이 inner보다 먼저 발생하면 analysis={}가 됨
   'analyze-financial': 38000,
   'analyze-strategy': 38000,
   'analyze-news': 42000,  // 뉴스 분석은 rawSearchText 처리로 추가 시간 필요
@@ -390,6 +390,9 @@ export class ServerOrchestrator {
         finance: this.state.raw.finance,
         disclosures: this.state.raw.disclosures,
         sources: this.state.raw.sources
+      },
+      metadata: {
+        dartStatus: this.metadata.dartStatus
       }
     };
   }
@@ -971,11 +974,12 @@ IMPORTANT: Extract ALL news and events found — aim for ${newsCount} items mini
     // Stage 1 engineSearch에서 이미 뉴스 그라운딩 검색을 완료함.
     // Stage 2에서 중복 그라운딩 검색은 45s 예산 초과의 원인이 되므로 생략.
 
-    // rawSearchText를 4000자로 제한해 LLM 처리 시간 절약
     const rawFull = this.state.raw.searchBriefing?.rawContent || '';
+    const briefingSlimNews = { ...this.state.raw.searchBriefing };
+    delete briefingSlimNews.rawContent;
     const context = {
-      searchBriefing: this.state.raw.searchBriefing,
-      rawSearchText: rawFull.length > 4000 ? rawFull.slice(0, 4000) + '\n...(이하 생략)' : rawFull
+      searchBriefing: briefingSlimNews,
+      rawSearchText: rawFull.length > 8192 ? rawFull.slice(0, 8192) + '\n...(이하 생략)' : rawFull
     };
 
     let res = await this.executeJsonAgent('analyst-news', 'gemini-2.5-flash', context, ['news'], signal);
@@ -1104,9 +1108,8 @@ IMPORTANT: Extract ALL news and events found — aim for ${newsCount} items mini
         };
       })(),
 
-      // 메타데이터 및 오류 (데이터 한계 섹션 작성용)
+      // 메타데이터 (데이터 한계 섹션 작성용)
       dataLimitations: {
-        agentErrors: safeSlice(this._agentErrors, 5),
         hasFinancialData: !!(this.state.raw.finance),
         hasDisclosures: (this.state.raw.disclosures || []).length > 0,
         hasSearchData: !!(briefing.companyIdentity),

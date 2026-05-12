@@ -24,7 +24,7 @@ export default function TopNavBar({ tab, setTab, searchInput, setSearchInput, on
     <header className={`fixed top-0 right-0 left-0 ${hasSidebar ? 'md:left-64' : ''} bg-white/80 backdrop-blur-xl z-30 shadow-sm transition-all duration-300`}>
       <div className="flex items-center justify-between px-6 md:px-8 py-4 max-w-[1920px] mx-auto">
         <div className="flex items-center gap-6">
-          <div className={`flex items-center gap-2 ${showBrand ? 'flex' : 'hidden lg:flex'}`}>
+          <div className={`flex items-center gap-2 pb-2 ${showBrand ? 'flex' : 'hidden lg:flex'}`}>
             <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center shadow-sm shadow-primary/20 shrink-0">
               <span className="material-symbols-outlined text-white" style={{ fontSize: '15px', fontVariationSettings: "'FILL' 1" }}>analytics</span>
             </div>
