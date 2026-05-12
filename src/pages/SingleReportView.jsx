@@ -3,7 +3,7 @@ import MarketSentimentBanner from '../components/MarketSentimentBanner';
 import { renderMarkdown } from '../utils/displayHelpers';
 import { getYearlyMetrics, getSourceBadge, getSafeItems } from '../utils/reportSelectors';
 import { downloadFinancialCsv } from '../utils/csvExport';
-import { formatKRW, formatRatioBadge } from '../utils/formatters';
+import { formatKRW, formatFMPValue, formatRatioBadge } from '../utils/formatters';
 
 // ─── Composer model name formatter ───
 const _MODEL_NAMES = {
@@ -633,7 +633,7 @@ export default function SingleReportView({ singleData }) {
                   {hasYearly ? (
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-[11px] text-slate-400 font-medium">{dataSource} · {isKrw ? '금액 단위: 백만원 기준 변환 표시' : unitLabel}</span>
+                        <span className="text-[11px] text-slate-400 font-medium">{dataSource} · {isKrw ? '금액 단위: 백만원→조/억원 변환' : `금액 단위: ${finCurrency} (B/M/K 변환)`}</span>
                         <button
                           type="button"
                           onClick={() => downloadFinancialCsv(singleData.companyName || '기업', yearly, finCurrency)}
@@ -675,7 +675,7 @@ export default function SingleReportView({ singleData }) {
                                   const isLatest = i === 0;
                                   if (section === 'raw') {
                                     const raw = y.raw?.[rawKey] ?? '-';
-                                    const display = isKrw ? formatKRW(raw) : raw;
+                                    const display = isKrw ? formatKRW(raw) : formatFMPValue(raw);
                                     return (
                                       <td key={i} className={`p-3 text-sm tabular-nums font-medium ${isLatest ? 'text-slate-900 bg-primary/5' : 'text-slate-600'}`}>
                                         {display}

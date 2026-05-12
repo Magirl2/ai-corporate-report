@@ -71,7 +71,23 @@ export const formatKRW = (rawStr) => {
 };
 
 /**
- * 퍼센트 문자열(예: "12.5%", "-3.2%")을 색상 클래스와 방향 기호로 반환합니다.
+ * FMP 재무 수치(전체 통화 단위 문자열)를 읽기 쉬운 형태로 변환합니다.
+ * 예: "394,328,000,000" → "394.3B", "1,234,567" → "1.2M"
+ */
+export const formatFMPValue = (rawStr) => {
+  if (!rawStr || rawStr === '-') return '-';
+  const num = parseInt(String(rawStr).replace(/,/g, ''), 10);
+  if (isNaN(num)) return String(rawStr);
+  const abs = Math.abs(num);
+  const sign = num < 0 ? '-' : '';
+  if (abs >= 1_000_000_000) return `${sign}${(abs / 1_000_000_000).toFixed(1)}B`;
+  if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `${sign}${(abs / 1_000).toFixed(1)}K`;
+  return `${sign}${abs.toLocaleString()}`;
+};
+
+/**
+ * 퍼센트 문자열(예: "12.5%", "-3.2%", "+5.1%")을 색상 클래스와 방향 기호로 반환합니다.
  */
 export const formatRatioBadge = (ratioStr) => {
   if (!ratioStr || ratioStr === '-') return { label: '-', colorClass: 'text-slate-400' };
