@@ -1462,12 +1462,7 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
     
     // 모든 모델 실패
     const errorText = await lastRes?.text().catch(() => 'No body') || 'No response';
-    const lastModel = allModels[allModels.length - 1];
-    console.error("\n\n[FATAL API ERROR DUMP]");
-    console.error("Status:", lastRes?.status);
-    console.error("Models tried:", allModels.join(', '));
-    console.error("Response:", errorText, "\n\n");
-    this.logger?.error('Gemini API Failure (all models)', { status: lastRes?.status, modelsTried: allModels, body: errorText });
+    this.logger?.error('Gemini API Failure (all models)', { status: lastRes?.status, modelsTried: allModels, body: errorText.substring(0, 500) });
     throw new Error(`Gemini API error (${lastRes?.status}) after trying [${allModels.join(', ')}]: ${errorText.substring(0, 200)}`);
   }
 

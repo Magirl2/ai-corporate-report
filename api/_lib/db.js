@@ -85,7 +85,7 @@ function getLocalDb() {
       return JSON.parse(data || '[]');
     }
   } catch (error) {
-    console.error('[Mock DB] Failed to read local mock DB:', error);
+    console.error('[Mock DB] Failed to read local mock DB:', error.message);
   }
   return [];
 }
@@ -94,7 +94,7 @@ function saveLocalDb(data) {
   try {
     fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2), 'utf8');
   } catch (error) {
-    console.error('[Mock DB] Failed to write local mock DB:', error);
+    console.error('[Mock DB] Failed to write local mock DB:', error.message);
   }
 }
 
@@ -108,7 +108,7 @@ export async function findUserByEmail(email) {
       const raw = await redis.get(`user:${email}`);
       return raw ? enrichUser(JSON.parse(raw)) : null;
     } catch (err) {
-      console.error('[Redis DB] Fetch error:', err);
+      console.error('[Redis DB] Fetch error:', err.message);
       return null;
     }
   } else {
@@ -212,7 +212,7 @@ function getLocalCache() {
   try {
     if (fs.existsSync(CACHE_PATH)) return JSON.parse(fs.readFileSync(CACHE_PATH, 'utf8') || '{}');
   } catch (error) {
-    console.error('[Mock Cache] Failed to read:', error);
+    console.error('[Mock Cache] Failed to read:', error.message);
   }
   return {};
 }
@@ -221,7 +221,7 @@ function saveLocalCache(data) {
   try {
     fs.writeFileSync(CACHE_PATH, JSON.stringify(data, null, 2), 'utf8');
   } catch (error) {
-    console.error('[Mock Cache] Failed to write:', error);
+    console.error('[Mock Cache] Failed to write:', error.message);
   }
 }
 
@@ -234,7 +234,7 @@ export async function getCachedReport(companyName) {
       const raw = await redis.get(key);
       return raw ? JSON.parse(raw) : null;
     } catch (err) {
-      console.error('[Redis Cache] Get error:', err);
+      console.error('[Redis Cache] Get error:', err.message);
       return null;
     }
   } else {
@@ -254,7 +254,7 @@ export async function setCachedReport(companyName, reportData) {
     try {
       await redis.set(key, JSON.stringify(reportData), 'EX', ttlSeconds);
     } catch (err) {
-      console.error('[Redis Cache] Set error:', err);
+      console.error('[Redis Cache] Set error:', err.message);
     }
   } else {
     const cache = getLocalCache();
@@ -271,7 +271,7 @@ export async function deleteCachedReport(companyName) {
     try {
       await redis.del(key);
     } catch (err) {
-      console.error('[Redis Cache] Del error:', err);
+      console.error('[Redis Cache] Del error:', err.message);
     }
   } else {
     const cache = getLocalCache();
@@ -298,7 +298,7 @@ export async function getStage1Artifact(id) {
       const raw = await redis.get(id);
       return raw ? JSON.parse(raw) : null;
     } catch (err) {
-      console.error('[Redis Artifact] Get error:', err);
+      console.error('[Redis Artifact] Get error:', err.message);
       return null;
     }
   } else {
@@ -315,7 +315,7 @@ export async function setStage1Artifact(id, data) {
     try {
       await redis.set(id, JSON.stringify(data), 'EX', ttlSeconds);
     } catch (err) {
-      console.error('[Redis Artifact] Set error:', err);
+      console.error('[Redis Artifact] Set error:', err.message);
     }
   } else {
     const cache = getLocalCache();
@@ -334,7 +334,7 @@ export async function setUniqueStage1Artifact(id, metadataPayload) {
     try {
       await redis.set(id, JSON.stringify(metadataPayload), 'EX', ttlSeconds);
     } catch (err) {
-      console.error('[Redis Artifact] Set unique error:', err);
+      console.error('[Redis Artifact] Set unique error:', err.message);
       throw new Error(`[Redis] Stage 1 artifact 저장 실패: ${err.message}`);
     }
   } else {
@@ -350,7 +350,7 @@ export async function getUniqueStage1Artifact(id) {
       const raw = await redis.get(id);
       return raw ? JSON.parse(raw) : null;
     } catch (err) {
-      console.error('[Redis Artifact] Get unique error:', err);
+      console.error('[Redis Artifact] Get unique error:', err.message);
       return null;
     }
   } else {
@@ -371,7 +371,7 @@ export async function setUniqueStage2Artifact(id, metadataPayload) {
     try {
       await redis.set(id, JSON.stringify(metadataPayload), 'EX', ttlSeconds);
     } catch (err) {
-      console.error('[Redis Artifact] Set unique stage2 error:', err);
+      console.error('[Redis Artifact] Set unique stage2 error:', err.message);
       throw new Error(`[Redis] Stage 2 artifact 저장 실패: ${err.message}`);
     }
   } else {
@@ -387,7 +387,7 @@ export async function getUniqueStage2Artifact(id) {
       const raw = await redis.get(id);
       return raw ? JSON.parse(raw) : null;
     } catch (err) {
-      console.error('[Redis Artifact] Get unique stage2 error:', err);
+      console.error('[Redis Artifact] Get unique stage2 error:', err.message);
       return null;
     }
   } else {

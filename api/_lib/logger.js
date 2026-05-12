@@ -3,10 +3,13 @@ import crypto from 'crypto';
 export function createLogger(route) {
   const reqId = crypto.randomUUID().slice(0, 8);
   
+  const SENSITIVE_KEYS = ['token', 'password', 'secret', 'apiKey', 'key', 'hash', 'authorization', 'cookie', 'credential'];
+
   const log = (level, message, meta = {}) => {
-    // Avoid logging sensitive tokens if accidentally passed
     const safeMeta = { ...meta };
-    if (safeMeta.token) delete safeMeta.token;
+    for (const k of SENSITIVE_KEYS) {
+      if (safeMeta[k] !== undefined) delete safeMeta[k];
+    }
     
     console.log(JSON.stringify({
       timestamp: new Date().toISOString(),
