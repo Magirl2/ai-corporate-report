@@ -1,9 +1,10 @@
 import jwt from 'jsonwebtoken';
 import { parse } from 'cookie';
-import { 
-  getNormalizedUser, 
-  incrementUserUsage, 
-  getCachedReport, 
+import {
+  getNormalizedUser,
+  incrementUserUsage,
+  getCachedReport,
+  deleteCachedReport,
   generateUniqueStage1Id,
   setUniqueStage1Artifact
 } from '../../db.js';
@@ -85,7 +86,11 @@ export default async function handler(req, res) {
         return;
       }
     } else {
-      logger.info('Force refresh requested, bypassing cache', { companyName });
+      logger.info('Force refresh requested, deleting stale cache', { companyName });
+      // 기존 캐시를 삭제해야 새 분석이 품질 게이트를 통과하지 못해도 낡은 캐시가 남지 않는다
+      await deleteCachedReport(companyName).catch((err) =>
+        logger.warn('Failed to delete cache on force refresh', { companyName, error: err.message })
+      );
     }
 
     logger.info('Cache miss, starting orchestrator for Stage 1', { companyName, stage: 'orchestration' });
