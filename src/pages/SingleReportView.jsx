@@ -901,7 +901,24 @@ export default function SingleReportView({ singleData }) {
                   MD 다운로드
                 </button>
               </div>
-              <div className="prose-report">{renderMarkdown(r.markdown)}</div>
+              {/* 섹션 목차 */}
+              {(() => {
+                const sections = r.markdown.match(/^## .+/gm)?.map(h => h.replace(/^## /, '')) || [];
+                if (sections.length < 3) return null;
+                return (
+                  <div className="mb-6 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">목차</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {sections.map((sec, i) => (
+                        <span key={i} className="text-[11px] font-semibold text-slate-600 bg-white border border-slate-200 rounded-full px-2.5 py-0.5">
+                          {sec}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+              <div>{renderMarkdown(r.markdown)}</div>
             </>
           ) : (
             <div className="flex flex-col items-center justify-center py-16 gap-5 text-center">
