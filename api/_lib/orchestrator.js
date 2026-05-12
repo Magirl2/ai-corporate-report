@@ -87,6 +87,7 @@ export function normalizeSearchBriefing(parsed) {
     companyIdentity: typeof parsed.companyIdentity === 'string' ? parsed.companyIdentity : null,
     marketContext: typeof parsed.marketContext === 'string' ? parsed.marketContext : null,
     businessModel: typeof parsed.businessModel === 'string' ? parsed.businessModel : null,
+    mainCompetitors: Array.isArray(parsed.mainCompetitors) ? parsed.mainCompetitors : [],
     newsFindings: Array.isArray(parsed.newsFindings) ? parsed.newsFindings : [],
     sentiment: typeof parsed.sentiment === 'string' ? parsed.sentiment : 'Neutral',
     risks: Array.isArray(parsed.risks) ? parsed.risks : [],
@@ -761,6 +762,7 @@ Output ONLY a valid JSON object:
   "companyIdentity": "brief business description",
   "marketContext": "current industry and market context",
   "businessModel": "how the company creates value",
+  "mainCompetitors": ["경쟁사1", "경쟁사2", "경쟁사3"],
   "newsFindings": [
     {
       "sourceId": "NEWS-1",
@@ -777,7 +779,7 @@ Output ONLY a valid JSON object:
   "risks": ["risk1", "risk2"],
   "opportunities": ["opp1", "opp2"]
 }
-IMPORTANT: Extract ALL news and events found — aim for ${newsCount} items minimum. Include items even if URL is not known (set url to null, sourceQuality to "unverified"). Respond in Korean. NO markdown.`;
+IMPORTANT: Extract ALL news and events found — aim for ${newsCount} items minimum. Include items even if URL is not known (set url to null, sourceQuality to "unverified"). For mainCompetitors, list up to 5 direct competitors mentioned in the search results. Respond in Korean. NO markdown.`;
 
     try {
       const briefingResult = await this.callGemini('gemini-2.5-flash', briefingPrompt, {
