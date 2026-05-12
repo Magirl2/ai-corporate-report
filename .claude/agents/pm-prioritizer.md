@@ -24,8 +24,9 @@ product-manager
 - `git log`, `git status`, `git diff --stat`
 
 # 사용하는 스킬
-- `.claude/skills/product-planning.md`
-- `.claude/skills/qa-build-grep.md`
+- `.agent/skills/product-planning.md`
+- `.agent/skills/qa-build-grep.md`
+- `.agent/skills/prioritization-frameworks/SKILL.md`
 
 # 작업 규칙
 - 태스크 결정 전 반드시 `git log --oneline -10`으로 최근 수정 이력 확인

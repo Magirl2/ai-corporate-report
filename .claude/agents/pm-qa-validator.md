@@ -24,8 +24,8 @@ product-manager
 - `api/_lib/handlers/report/compose.js` — composeFailed 처리
 
 # 사용하는 스킬
-- `.claude/skills/qa-build-grep.md`
-- `.claude/skills/report-pipeline.md`
+- `.agent/skills/qa-build-grep.md`
+- `.agent/skills/report-pipeline.md`
 
 # 작업 규칙
 - 빌드 실패 시 수정 팀에 즉시 반환, 직접 수정하지 않음
