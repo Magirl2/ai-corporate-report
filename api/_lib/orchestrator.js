@@ -18,7 +18,7 @@ const STAGE_TIMEOUTS = {
   analyze: 45000,
   'analyze-financial': 38000,
   'analyze-strategy': 38000,
-  'analyze-news': 38000,
+  'analyze-news': 42000,  // 뉴스 분석은 rawSearchText 처리로 추가 시간 필요
   compose: 55000  // compose.js maxDuration=60초 내에서 최대한 확보
 };
 
@@ -952,9 +952,11 @@ IMPORTANT: Extract ALL news and events found — aim for ${newsCount} items mini
     // Stage 1 engineSearch에서 이미 뉴스 그라운딩 검색을 완료함.
     // Stage 2에서 중복 그라운딩 검색은 45s 예산 초과의 원인이 되므로 생략.
 
+    // rawSearchText를 4000자로 제한해 LLM 처리 시간 절약
+    const rawFull = this.state.raw.searchBriefing?.rawContent || '';
     const context = {
       searchBriefing: this.state.raw.searchBriefing,
-      rawSearchText: this.state.raw.searchBriefing?.rawContent || ""
+      rawSearchText: rawFull.length > 4000 ? rawFull.slice(0, 4000) + '\n...(이하 생략)' : rawFull
     };
 
     let res = await this.executeJsonAgent('analyst-news', 'gemini-2.5-flash', context, ['news'], signal);

@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { fetchCompanyData } from '../api/companyService';
-import { 
-  migrateLegacySearchHistory, 
-  getRecentSearches, 
-  addRecentSearch, 
-  removeRecentSearch, 
-  clearRecentSearches 
+import { fetchCompanyData, deleteCompanyReportCache } from '../api/companyService';
+import {
+  migrateLegacySearchHistory,
+  getRecentSearches,
+  addRecentSearch,
+  removeRecentSearch,
+  clearRecentSearches
 } from '../utils/searchHistory';
 
 export function useSingleReport({ auth, showToast, setTab }) {
@@ -21,7 +21,7 @@ export function useSingleReport({ auth, showToast, setTab }) {
       migrateLegacySearchHistory(auth.currentUser);
       setRecentSearches(getRecentSearches(auth.currentUser));
     } else {
-      setRecentSearches(getRecentSearches(null)); // guest
+      setRecentSearches(getRecentSearches(null));
     }
   }, [auth.currentUser]);
 
@@ -33,6 +33,10 @@ export function useSingleReport({ auth, showToast, setTab }) {
 
   const handleSearch = async (e, keyword, options = {}) => {
     if (e) e.preventDefault();
+
+    // 로딩 중 중복 검색 방지 (레이스 컨디션 차단)
+    if (loading) return;
+
     const query = keyword || searchInput;
     if (!query.trim()) {
       showToast('기업명을 입력해주세요.', 'warning');
@@ -66,7 +70,6 @@ export function useSingleReport({ auth, showToast, setTab }) {
       const data = await fetchCompanyData(query, setStatusMessage, searchOptions);
       setSingleData(data);
 
-      // partial success (Stage 3 compose 실패) 안내 토스트
       if (data?.metadata?.composeFailed) {
         showToast('종합 보고서 생성에 실패했습니다. 상세 분석 탭에서 개별 섹션을 확인할 수 있습니다.', 'warning');
       }
@@ -94,6 +97,8 @@ export function useSingleReport({ auth, showToast, setTab }) {
   const removeRecentSearchItem = (companyName) => {
     const updated = removeRecentSearch(auth.currentUser, companyName);
     setRecentSearches(updated);
+    // 검색 기록 삭제 시 서버 캐시도 함께 삭제 (다음 검색 시 새 분석 보장)
+    deleteCompanyReportCache(companyName).catch(() => {});
   };
 
   const clearRecentSearchHistory = () => {
@@ -102,9 +107,10 @@ export function useSingleReport({ auth, showToast, setTab }) {
   };
 
   const refreshSearch = (companyName) => {
+    if (loading) return; // 이미 로딩 중이면 무시
     setSearchInput(companyName);
     handleSearch(null, companyName, { forceRefresh: true, qualityMode: 'deep' });
-    showToast(`'${companyName}' 캐시를 무시하고 새 분석을 시작합니다.`, 'info');
+    showToast(`'${companyName}' 캐시를 초기화하고 새 분석을 시작합니다.`, 'info');
   };
 
   return {

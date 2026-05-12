@@ -230,9 +230,13 @@ export default function SearchDashboard({
           {(hasHistory ? recentSearches : FALLBACK_COMPANIES).map((item) => {
             const accentColor = nameToColor(item.name);
             return (
-              <button
+              /* div 사용: button 안에 button 중첩은 HTML 비표준으로 브라우저가 중첩을 깨뜨림 */
+              <div
                 key={item.name}
+                role="button"
+                tabIndex={0}
                 onClick={() => handleQuickSearch(item.name)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleQuickSearch(item.name); }}
                 style={{
                   background: 'var(--color-surface-container-lowest)',
                   borderRadius: '1rem',
@@ -254,7 +258,6 @@ export default function SearchDashboard({
               >
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex items-center gap-3">
-                    {/* 기업명 이니셜 아바타 */}
                     <div style={{
                       width: '36px', height: '36px', borderRadius: '10px',
                       background: accentColor + '18',
@@ -294,31 +297,33 @@ export default function SearchDashboard({
                     </span>
                     {hasHistory ? 'AI 분석 완료' : '분석 가능'}
                   </div>
-                  
+
                   {hasHistory && (
                     <div className="flex gap-2">
                       <button
+                        type="button"
                         onClick={(e) => { e.stopPropagation(); onRefreshSearch(item.name); }}
                         aria-label="새로 분석"
                         className="flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors"
                         style={{ width: '36px', height: '36px', color: 'var(--color-primary)' }}
-                        title="새로 분석 (캐시 무시)"
+                        title="새로 분석 (캐시 초기화)"
                       >
                         <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>refresh</span>
                       </button>
                       <button
+                        type="button"
                         onClick={(e) => { e.stopPropagation(); onDeleteRecentSearch(item.name); }}
                         aria-label="기록 삭제"
                         className="flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors"
                         style={{ width: '36px', height: '36px', color: 'var(--color-outline)' }}
-                        title="기록 삭제"
+                        title="기록 삭제 (캐시도 함께 삭제)"
                       >
                         <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
                       </button>
                     </div>
                   )}
                 </div>
-              </button>
+              </div>
             );
           })}
 
