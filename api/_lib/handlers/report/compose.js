@@ -12,7 +12,7 @@ import { ErrorCategory, createErrorResponse, createStreamError } from '../../err
 
 import { getJwtSecret } from '../../env.js';
 
-export const maxDuration = 60; // 60초 설정
+export const maxDuration = 60;
 
 export default async function handler(req, res) {
   const logger = createLogger('/api/report/compose');

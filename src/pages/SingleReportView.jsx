@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import MarketSentimentBanner from '../components/MarketSentimentBanner';
 import { renderMarkdown } from '../utils/displayHelpers';
 import { getYearlyMetrics, getSourceBadge, getSafeItems } from '../utils/reportSelectors';
@@ -50,7 +50,7 @@ function normalizeSource(source, index) {
   const hostname = _srcHostname(url);
   const type = source.type || _classifyType(url);
   const qualityScore = source.qualityScore ?? (_SCORE_MAP[type] ?? 40);
-  const qualityTier = source.qualityTier ?? (qualityScore >= 85 ? 'high' : qualityScore >= 65 ? 'medium' : qualityScore >= 40 ? 'low' : 'blocked');
+  const qualityTier = source.qualityTier ?? (qualityScore >= 80 ? 'high' : qualityScore >= 60 ? 'medium' : qualityScore >= 40 ? 'low' : 'blocked');
   return {
     id: source.id || source.sourceId || `src-${index}`,
     title: source.title || source.headline || url || `출처 ${index + 1}`,
@@ -95,8 +95,9 @@ const _TYPE_LABEL  = { official: '공식 공시', official_ir: '공식 IR', glob
 
 const SourceCard = ({ source }) => {
   const tier = source.qualityTier || 'low';
+  const isBlocked = tier === 'blocked';
   return (
-    <div className="p-4 bg-white rounded-xl border border-slate-100 shadow-sm hover:shadow-md hover:border-primary/20 transition-all flex flex-col gap-2">
+    <div className={`p-4 rounded-xl border shadow-sm hover:shadow-md transition-all flex flex-col gap-2 ${isBlocked ? 'bg-red-50 border-red-200 hover:border-red-300' : 'bg-white border-slate-100 hover:border-primary/20'}`}>
       <div className="flex items-start justify-between gap-3">
         <h4 className="text-sm font-bold text-slate-800 leading-snug line-clamp-2 flex-1">{source.title}</h4>
         <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full border ${_TIER_STYLE[tier] || _TIER_STYLE.low}`}>
@@ -138,7 +139,7 @@ const SourceCard = ({ source }) => {
             className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline max-w-full"
           >
             <span className="material-symbols-outlined shrink-0" style={{ fontSize: '13px' }}>open_in_new</span>
-            <span className="truncate">{source.url.length > 55 ? source.url.slice(0, 55) + '…' : source.url}</span>
+            <span className="truncate max-w-[calc(100%-1.5rem)]">{source.url}</span>
           </a>
         </div>
       )}
@@ -195,14 +196,14 @@ const SourceQualitySummaryCard = ({ summary }) => {
   );
 };
 
-const SourceGroup = ({ label, icon, sources }) => {
+const SourceGroup = ({ label, icon, sources, isWarning = false }) => {
   if (!sources || sources.length === 0) return null;
   return (
-    <div className="mb-7">
-      <h4 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
-        <span className="material-symbols-outlined text-slate-400" style={{ fontSize: '16px' }}>{icon}</span>
+    <div className={`mb-7 ${isWarning ? 'p-4 bg-red-50 rounded-xl border border-red-100' : ''}`}>
+      <h4 className={`text-sm font-bold mb-3 flex items-center gap-2 ${isWarning ? 'text-red-700' : 'text-slate-700'}`}>
+        <span className={`material-symbols-outlined ${isWarning ? 'text-red-400' : 'text-slate-400'}`} style={{ fontSize: '16px' }}>{icon}</span>
         {label}
-        <span className="ml-auto text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{sources.length}건</span>
+        <span className={`ml-auto text-xs font-medium px-2 py-0.5 rounded-full ${isWarning ? 'bg-red-100 text-red-500' : 'bg-slate-100 text-slate-400'}`}>{sources.length}건</span>
       </h4>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {sources.map((s, i) => <SourceCard key={s.id || i} source={s} />)}
@@ -461,7 +462,27 @@ const FinancialInsight = ({ summary, detail }) => {
 ════════════════════════════════════════ */
 export default function SingleReportView({ singleData }) {
   const [reportSubTab, setReportSubTab] = useState('analysis');
+  const [pdfLoading, setPdfLoading] = useState(null); // null | 'analysis' | 'report'
+  const analysisRef = useRef(null);
+  const reportRef = useRef(null);
+
   if (!singleData) return null;
+
+  const handleExportPDF = async (type) => {
+    setPdfLoading(type);
+    try {
+      const { exportElementAsPDF } = await import('../utils/pdfExport');
+      const ref = type === 'analysis' ? analysisRef : reportRef;
+      const label = type === 'analysis' ? '상세분석' : 'AI종합보고서';
+      const date = new Date().toISOString().slice(0, 10);
+      const name = singleData.companyName || '보고서';
+      await exportElementAsPDF(ref, `${name}_${label}_${date}.pdf`);
+    } catch (err) {
+      console.error('PDF 내보내기 실패:', err);
+    } finally {
+      setPdfLoading(null);
+    }
+  };
 
   const yearly = getYearlyMetrics(singleData);
   const reportDate = (() => {
@@ -518,7 +539,7 @@ export default function SingleReportView({ singleData }) {
             {/* 배지 2: 품질 경고 */}
             {qualityWarning && (
               <span className="px-2.5 py-1 bg-orange-50 text-orange-600 border border-orange-100 text-[10px] md:text-xs font-bold rounded-full flex items-center gap-1">
-                <span className="material-symbols-outlined !text-[14px]">shield_question</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>shield_question</span>
                 품질 경고
               </span>
             )}
@@ -526,7 +547,7 @@ export default function SingleReportView({ singleData }) {
             {/* 배지 3: 일부 데이터 부족 */}
             {isPartialResult && (
               <span className="px-2.5 py-1 bg-amber-50 text-amber-600 border border-amber-100 text-[10px] md:text-xs font-bold rounded-full flex items-center gap-1">
-                <span className="material-symbols-outlined !text-[14px]">warning</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>warning</span>
                 일부 데이터 부족
               </span>
             )}
@@ -543,7 +564,7 @@ export default function SingleReportView({ singleData }) {
                   color: aiScore >= 85 ? '#166534' : aiScore >= 70 ? '#92400e' : '#be123c',
                 }}
               >
-                <span className="material-symbols-outlined !text-[12px] md:!text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '14px', fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
                 AI {aiScore}
               </span>
             )}
@@ -582,7 +603,21 @@ export default function SingleReportView({ singleData }) {
 
       {/* ── 분석 탭 ── */}
       {reportSubTab === 'analysis' && (
-        <div className="bento-grid">
+        <>
+          <div className="flex justify-end mb-3">
+            <button
+              type="button"
+              onClick={() => handleExportPDF('analysis')}
+              disabled={pdfLoading === 'analysis'}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-500 bg-slate-50 border border-slate-200 rounded-lg hover:bg-primary/5 hover:border-primary/30 hover:text-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '15px', ...(pdfLoading === 'analysis' ? { animation: 'spin 1s linear infinite' } : {}) }}>
+                {pdfLoading === 'analysis' ? 'sync' : 'picture_as_pdf'}
+              </span>
+              {pdfLoading === 'analysis' ? 'PDF 생성 중...' : 'PDF 내보내기'}
+            </button>
+          </div>
+          <div ref={analysisRef} className="bento-grid">
           {(qualityWarning || isPartialResult) && (
             <div className="col-span-full mb-2 p-4 bg-orange-50 text-orange-800 border border-orange-200 rounded-xl flex items-center gap-3">
               <span className="material-symbols-outlined text-orange-500">warning</span>
@@ -841,11 +876,12 @@ export default function SingleReportView({ singleData }) {
           </div>
 
         </div>
+        </>
       )}
 
       {/* ── AI 종합 보고서 탭 (composer markdown) ── */}
       {reportSubTab === 'report' && (
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 animate-in fade-in slide-in-from-bottom-2">
+        <div ref={reportRef} className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 animate-in fade-in slide-in-from-bottom-2">
           {r?.markdown && r.markdown.trim() !== '' ? (
             <>
               {/* 보고서 헤더 */}
@@ -889,6 +925,21 @@ export default function SingleReportView({ singleData }) {
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>download</span>
                   MD 다운로드
+                </button>
+                <button
+                  type="button"
+                  title="PDF 파일로 다운로드"
+                  onClick={() => handleExportPDF('report')}
+                  disabled={pdfLoading === 'report'}
+                  className="shrink-0 flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-500 bg-slate-50 border border-slate-200 rounded-lg hover:bg-primary/5 hover:border-primary/30 hover:text-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span
+                    className="material-symbols-outlined"
+                    style={{ fontSize: '15px', ...(pdfLoading === 'report' ? { animation: 'spin 1s linear infinite' } : {}) }}
+                  >
+                    {pdfLoading === 'report' ? 'sync' : 'picture_as_pdf'}
+                  </span>
+                  {pdfLoading === 'report' ? '생성 중...' : 'PDF 다운로드'}
                 </button>
               </div>
               {/* 섹션 목차 */}
@@ -1029,7 +1080,7 @@ export default function SingleReportView({ singleData }) {
                   <SourceGroup label="공식/1차 출처" icon="verified" sources={official} />
                   <SourceGroup label="전문 경제/뉴스 출처" icon="article" sources={financial} />
                   <SourceGroup label="AI 검색 근거" icon="search" sources={aiSearch} />
-                  <SourceGroup label="낮은 신뢰도/확인 필요" icon="warning" sources={lowReliability} />
+                  <SourceGroup label="낮은 신뢰도/확인 필요" icon="warning" sources={lowReliability} isWarning />
                 </>
               ) : (
                 <div className="flex flex-col items-center justify-center py-12 gap-4 text-center">

@@ -58,7 +58,7 @@ export default function PaymentModal({ isOpen, onClose, selectedPlan, onPaymentS
           {/* 테스트 안내 배너 */}
           <div className="mb-5 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
             <span className="material-symbols-outlined text-amber-500 shrink-0 text-[16px] mt-0.5">info</span>
-            <p className="text-[11px] text-amber-700 font-medium leading-relaxed">
+            <p className="text-xs text-amber-700 font-medium leading-relaxed">
               테스트 카드 번호 <span className="font-black font-mono">{TEST_CARD}</span>를 입력하면 결제가 진행됩니다. 실제 결제는 이루어지지 않습니다.
             </p>
           </div>
@@ -144,7 +144,7 @@ export default function PaymentModal({ isOpen, onClose, selectedPlan, onPaymentS
             ) : (
               <>
                 <span className="material-symbols-outlined text-[20px]">lock</span>
-                안전하게 결제하기
+                테스트 구독 활성화
               </>
             )}
           </button>

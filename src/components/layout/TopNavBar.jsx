@@ -96,7 +96,14 @@ export default function TopNavBar({ tab, setTab, searchInput, setSearchInput, on
             <div className="flex items-center gap-3 ml-2 group cursor-pointer" onClick={() => setTab('pricing')}>
               <div className="text-right hidden md:block">
                 <p className="text-sm font-bold">{currentUser.name || currentUser.email.split('@')[0]}</p>
-                <p className={`text-[10px] uppercase tracking-wider font-bold ${currentUser.plan === 'premium' ? 'text-primary' : 'text-slate-400'}`}>{currentUser.plan} PLAN</p>
+                <div className="flex items-center justify-end gap-1.5">
+                  <p className={`text-xs uppercase tracking-wider font-bold ${currentUser.plan === 'premium' ? 'text-primary' : 'text-slate-400'}`}>{currentUser.plan} PLAN</p>
+                  {currentUser.plan === 'free' && (
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${(currentUser.usage ?? 0) >= 3 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                      {3 - (currentUser.usage ?? 0)}회 남음
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="w-9 h-9 rounded-full overflow-hidden bg-primary/10 border-2 border-primary/20 flex items-center justify-center text-primary font-bold">
                 {currentUser.name ? currentUser.name[0] : currentUser.email[0].toUpperCase()}

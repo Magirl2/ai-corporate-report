@@ -44,6 +44,12 @@ export default async function handler(req, res) {
     const currentYear = today.getFullYear();
     const years = [currentYear - 1, currentYear - 2, currentYear - 3, currentYear - 4];
 
+    const currentMonth = today.getMonth() + 1;
+    const quarterCandidates =
+      currentMonth >= 11 ? [['11014', '3Q'], ['11012', 'H1'], ['11013', '1Q']] :
+      currentMonth >= 8  ? [['11012', 'H1'], ['11013', '1Q']] :
+      currentMonth >= 5  ? [['11013', '1Q']] : [];
+
     const fetchYear = async (year) => {
       const base =
         `https://opendart.fss.or.kr/api/fnlttSinglAcntAll.json` +
@@ -75,7 +81,40 @@ export default async function handler(req, res) {
       }
     };
 
-    const results = await Promise.all(years.map(fetchYear));
+    const fetchQuarterlyData = async () => {
+      for (const [reprtCode, periodLabel] of quarterCandidates) {
+        const base =
+          `https://opendart.fss.or.kr/api/fnlttSinglAcntAll.json` +
+          `?crtfc_key=${DART_API_KEY}&corp_code=${corpCode}&bsns_year=${currentYear}&reprt_code=${reprtCode}`;
+        try {
+          const ctrl = new AbortController();
+          const timer = setTimeout(() => ctrl.abort(), 10000);
+          let list = null;
+          try {
+            const r = await fetch(base + '&fs_div=CFS', { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: ctrl.signal });
+            const d = await r.json();
+            if (d.status === '000' && d.list?.length > 0) {
+              list = d.list;
+            } else {
+              const ctrl2 = new AbortController();
+              const timer2 = setTimeout(() => ctrl2.abort(), 10000);
+              try {
+                const r2 = await fetch(base + '&fs_div=OFS', { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: ctrl2.signal });
+                const d2 = await r2.json();
+                if (d2.status === '000' && d2.list?.length > 0) list = d2.list;
+              } finally { clearTimeout(timer2); }
+            }
+          } finally { clearTimeout(timer); }
+          if (list) return { periodLabel, list };
+        } catch { /* try next */ }
+      }
+      return null;
+    };
+
+    const [results, latestQuarter] = await Promise.all([
+      Promise.all(years.map(fetchYear)),
+      fetchQuarterlyData(),
+    ]);
 
     const validResults = results
       .filter(r => r.list && r.list.length > 0)
@@ -118,6 +157,49 @@ export default async function handler(req, res) {
       };
     }
 
+    // ─── 분기 데이터 추출 ──────────────────────────────────────────────────────
+    let quarterlyEntry = null;
+    if (latestQuarter) {
+      const { periodLabel, list: qList } = latestQuarter;
+      const qFind = (names, sj_divs, accountIds = []) =>
+        qList.find(r =>
+          ((r.account_id && accountIds.includes(r.account_id)) ||
+            names.some(n => r.account_nm && r.account_nm.trim().startsWith(n))) &&
+          (!sj_divs || sj_divs.includes(r.sj_div))
+        );
+      const toNumQ = (str) => (str ? parseInt(str.replace(/,/g, ''), 10) : NaN);
+      const qMgn = (num, den) =>
+        (den !== 0 && !isNaN(num) && !isNaN(den)) ? `${(num / den * 100).toFixed(1)}%` : null;
+
+      const qRev = qFind(['매출액', '수익(매출액)', '영업수익', '순수익', '수익'], ['IS', 'CIS'], ['ifrs-full_Revenue', 'ifrs_Revenue', 'dart_TotalRevenue']);
+      const qOp  = qFind(['영업이익', '영업이익(손실)'], ['IS', 'CIS'], ['dart_OperatingIncomeLoss']);
+      const qNet = qFind(['당기순이익', '당기순이익(손실)', '연결당기순이익'], ['IS', 'CIS'], ['ifrs-full_ProfitLoss', 'ifrs_ProfitLoss']);
+      const qEq  = qFind(['자본총계'], ['BS'], ['ifrs-full_Equity', 'ifrs_Equity']);
+      const qLb  = qFind(['부채총계'], ['BS'], ['ifrs-full_Liabilities', 'ifrs_Liabilities']);
+
+      const qRevNum = toNumQ(qRev?.thstrm_amount);
+      const qOpNum  = toNumQ(qOp?.thstrm_amount);
+      const qNetNum = toNumQ(qNet?.thstrm_amount);
+      const qEqNum  = toNumQ(qEq?.thstrm_amount);
+      const qLbNum  = toNumQ(qLb?.thstrm_amount);
+
+      quarterlyEntry = {
+        year: `${currentYear} ${periodLabel}`,
+        isQuarterly: true,
+        revenueGrowth: null,
+        operatingMargin: qMgn(qOpNum, qRevNum),
+        roe:             qMgn(qNetNum, qEqNum),
+        debtRatio:       qMgn(qLbNum, qEqNum),
+        raw: {
+          revenue:   qRev?.thstrm_amount || '-',
+          opIncome:  qOp?.thstrm_amount  || '-',
+          netIncome: qNet?.thstrm_amount || '-',
+          equity:    qEq?.thstrm_amount  || '-',
+          liab:      qLb?.thstrm_amount  || '-',
+        },
+      };
+    }
+
     // ─── STEP 4: 표시용 3개 연도 지표 계산 ──────────────────────────────────
     const validYears = validResults.map(r => r.year);
     if (validYears.length === 0) {
@@ -128,7 +210,7 @@ export default async function handler(req, res) {
     const pct     = (v, base) => (base !== 0 && !isNaN(v) && !isNaN(base)) ? `${((v - base) / Math.abs(base) * 100).toFixed(1)}%` : null;
     const margin  = (num, den) => (den !== 0 && !isNaN(num) && !isNaN(den)) ? `${(num / den * 100).toFixed(1)}%` : null;
 
-    const yearlyMetrics = displayYears.map((year) => {
+    const annualMetrics = displayYears.map((year) => {
       const cur  = rawByYear[year]     || {};
       const prev = rawByYear[year - 1] || {};
       return {
@@ -146,21 +228,30 @@ export default async function handler(req, res) {
         }
       };
     });
+    const yearlyMetrics = [
+      ...(quarterlyEntry ? [quarterlyEntry] : []),
+      ...annualMetrics,
+    ];
+
+    const latestAnnual = annualMetrics[0];
+    const displayEntry = quarterlyEntry || latestAnnual;
 
     return res.status(200).json({
       corpName,
-      bsnsYear:    String(displayYears[0]),
+      bsnsYear: quarterlyEntry
+        ? `${currentYear} ${latestQuarter.periodLabel}`
+        : String(displayYears[0]),
       resolvedCorpCode: metadata.resolvedCorpCode,
       resolvedCorpName: metadata.resolvedCorpName,
       stockCode: metadata.stockCode,
       resolutionMethod: metadata.resolutionMethod,
       keyMetrics: {
-        revenueGrowth:   yearlyMetrics[0].revenueGrowth,
-        operatingMargin: yearlyMetrics[0].operatingMargin,
-        roe:             yearlyMetrics[0].roe,
-        debtRatio:       yearlyMetrics[0].debtRatio,
+        revenueGrowth:   latestAnnual?.revenueGrowth   ?? null,
+        operatingMargin: displayEntry?.operatingMargin ?? null,
+        roe:             displayEntry?.roe             ?? null,
+        debtRatio:       displayEntry?.debtRatio       ?? null,
       },
-      raw:         yearlyMetrics[0].raw,
+      raw:         displayEntry?.raw ?? latestAnnual?.raw,
       yearlyMetrics,
     });
 

@@ -130,18 +130,18 @@ export default function Pricing({ setTab }) {
             <div className="flex justify-between items-start mb-4">
               <h3 className="text-2xl font-bold font-headline text-slate-800">Free</h3>
               {currentUser?.plan === 'free' && (
-                <span className="bg-blue-500 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-sm">
-                  <span className="material-symbols-outlined text-[12px]">check_circle</span>현재 플랜
+                <span className="bg-blue-500 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-sm">
+                  <span className="material-symbols-outlined" style={{ fontSize: '13px', fontVariationSettings: "'FILL' 1" }}>check_circle</span>현재 플랜
                 </span>
               )}
             </div>
             <p className="text-slate-500 text-sm mb-4">기본적인 분석을 경험해보세요.</p>
-            {currentUser?.plan === 'free' && typeof currentUser.usage === 'number' && (
+            {currentUser?.plan === 'free' && (
               <div className="mb-4 px-3 py-2 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between">
                 <span className="text-xs text-slate-500 font-medium">오늘 사용량</span>
                 <span className="text-xs font-bold text-slate-700">
-                  {currentUser.usage} / 3
-                  {currentUser.usage >= 3 && <span className="ml-1.5 text-amber-600">소진</span>}
+                  {currentUser.usage ?? 0} / 3
+                  {(currentUser.usage ?? 0) >= 3 && <span className="ml-1.5 text-amber-600">소진</span>}
                 </span>
               </div>
             )}
@@ -178,7 +178,7 @@ export default function Pricing({ setTab }) {
                 : 'bg-slate-900 text-white hover:bg-slate-800 shadow-lg'
             }`}
           >
-            {currentUser?.plan === 'free' ? '현재 이용 중인 플랜' : currentUser?.plan === 'premium' ? '현재 프리미엄 이용 중' : '무료로 시작하기'}
+            {currentUser?.plan === 'free' ? '현재 이용 중인 플랜' : currentUser?.plan === 'premium' ? '상위 플랜 이용 중' : '무료로 시작하기'}
           </button>
         </div>
 
@@ -189,11 +189,11 @@ export default function Pricing({ setTab }) {
             : 'bg-gradient-to-b from-primary/5 to-white border border-primary/20 hover:border-primary/40 hover:shadow-2xl hover:-translate-y-1'
         }`}>
           {currentUser?.plan === 'premium' ? (
-            <div className="absolute top-0 right-8 -translate-y-1/2 bg-primary text-white px-4 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest shadow-lg flex items-center gap-1">
-              <span className="material-symbols-outlined text-[14px]">verified</span> Active
+            <div className="absolute top-0 right-8 -translate-y-1/2 bg-primary text-white px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest shadow-lg flex items-center gap-1">
+              <span className="material-symbols-outlined" style={{ fontSize: '14px', fontVariationSettings: "'FILL' 1" }}>verified</span> 현재 플랜
             </div>
           ) : (
-            <div className="absolute top-0 right-8 -translate-y-1/2 bg-slate-900 text-white px-4 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest shadow-lg">
+            <div className="absolute top-0 right-8 -translate-y-1/2 bg-slate-900 text-white px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest shadow-lg">
               Most Popular
             </div>
           )}
@@ -201,11 +201,6 @@ export default function Pricing({ setTab }) {
           <div>
             <div className="flex justify-between items-start mb-4">
               <h3 className="text-2xl font-bold font-headline text-primary">Premium</h3>
-              {currentUser?.plan === 'premium' && (
-                <span className="bg-primary text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[12px]">verified</span>현재 플랜
-                </span>
-              )}
             </div>
             <p className="text-slate-600 text-sm mb-6">모든 한계를 부수고 무제한으로 분석하세요.</p>
             <div className="mb-8 flex items-baseline gap-1">
@@ -221,10 +216,6 @@ export default function Pricing({ setTab }) {
               <li className="flex items-center gap-3 text-slate-800 font-medium">
                 <span className="material-symbols-outlined text-primary text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>stars</span>
                 <span className="text-sm">무제한 기업 1:1 비교 분석 모드</span>
-              </li>
-              <li className="flex items-center gap-3 text-slate-400 opacity-60">
-                <span className="material-symbols-outlined text-slate-300 text-[20px]">hourglass_empty</span>
-                <span className="text-sm">포트폴리오 백테스팅 기능 <span className="text-[10px] font-bold uppercase tracking-wide bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded ml-1">준비 중</span></span>
               </li>
             </ul>
           </div>

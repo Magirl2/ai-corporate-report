@@ -75,8 +75,8 @@ export function scoreSourceQuality(source) {
 }
 
 function getQualityTier(score) {
-  if (score >= 85) return 'high';
-  if (score >= 65) return 'medium';
+  if (score >= 80) return 'high';
+  if (score >= 60) return 'medium';
   if (score >= 40) return 'low';
   return 'blocked';
 }

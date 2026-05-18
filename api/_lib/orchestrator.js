@@ -1120,8 +1120,8 @@ IMPORTANT: Extract ALL news and events found — aim for ${newsCount} items mini
     // composer는 이미 분석된 데이터를 정리·서술하는 역할 → 추론보다 속도 우선
     // pro는 55s 초과 위험이 크고 품질 차이가 미미함
     const composerModels = [
-      { model: 'gemini-2.5-flash',      maxTokens: 6144 },
-      { model: 'gemini-2.5-flash-lite', maxTokens: 4096 },
+      { model: 'gemini-2.5-flash',      maxTokens: 12288 },
+      { model: 'gemini-2.5-flash-lite', maxTokens: 8192 },
     ];
     
     for (let i = 0; i < composerModels.length; i++) {
@@ -1536,6 +1536,7 @@ DO NOT output markdown. Respond ONLY with valid JSON.`;
       financeData: raw.finance || null,
       score: this.state.score || 0,
       iteration: this.state.iteration || 1,
+      createdAt: this.metadata.generatedAt || new Date().toISOString(),
       metadata: {
         ...this.metadata,
         missingSections: this.metadata.missingSections || [],
