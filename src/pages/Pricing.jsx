@@ -183,24 +183,23 @@ export default function Pricing({ setTab }) {
         </div>
 
         {/* Premium Plan (Highlighted) */}
-        <div className={`p-8 rounded-3xl relative flex flex-col justify-between transition-all duration-500 transform ${
+        <div className={`p-8 rounded-3xl flex flex-col justify-between transition-all duration-500 transform ${
           currentUser?.plan === 'premium'
             ? 'bg-white border-2 border-primary shadow-2xl ring-4 ring-primary/40 -translate-y-2'
             : 'bg-gradient-to-b from-primary/5 to-white border border-primary/20 hover:border-primary/40 hover:shadow-2xl hover:-translate-y-1'
         }`}>
-          {currentUser?.plan === 'premium' ? (
-            <div className="absolute top-0 right-8 -translate-y-1/2 bg-primary text-white px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest shadow-lg flex items-center gap-1">
-              <span className="material-symbols-outlined" style={{ fontSize: '14px', fontVariationSettings: "'FILL' 1" }}>verified</span> 현재 플랜
-            </div>
-          ) : (
-            <div className="absolute top-0 right-8 -translate-y-1/2 bg-slate-900 text-white px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest shadow-lg">
-              Most Popular
-            </div>
-          )}
-          
           <div>
             <div className="flex justify-between items-start mb-4">
               <h3 className="text-2xl font-bold font-headline text-primary">Premium</h3>
+              {currentUser?.plan === 'premium' ? (
+                <span className="bg-primary text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 shadow-sm">
+                  <span className="material-symbols-outlined" style={{ fontSize: '13px', fontVariationSettings: "'FILL' 1" }}>verified</span>현재 플랜
+                </span>
+              ) : (
+                <span className="bg-slate-900 text-white text-xs font-bold px-3 py-1 rounded-full">
+                  Most Popular
+                </span>
+              )}
             </div>
             <p className="text-slate-600 text-sm mb-6">모든 한계를 부수고 무제한으로 분석하세요.</p>
             <div className="mb-8 flex items-baseline gap-1">
