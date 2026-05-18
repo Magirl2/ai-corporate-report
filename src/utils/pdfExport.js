@@ -16,13 +16,16 @@ export async function exportElementAsPDF(target, filename = 'report.pdf') {
     allowTaint: false,
     backgroundColor: '#ffffff',
     logging: false,
-    // CSS 커스텀 속성 해석을 위해 inline style 기준으로 캡처
     onclone: (doc) => {
-      // 캡처 전 애니메이션 클래스 제거 (캡처 중 잘림 방지)
+      // 애니메이션 제거 (캡처 중 잘림 방지)
       doc.querySelectorAll('[class*="animate-"]').forEach((node) => {
         node.style.animation = 'none';
         node.style.opacity = '1';
         node.style.transform = 'none';
+      });
+      // PDF에서 불필요한 버튼 UI 숨기기 (상세보기/접기/PDF버튼 등)
+      doc.querySelectorAll('button').forEach((node) => {
+        node.style.display = 'none';
       });
     },
   });
@@ -45,5 +48,15 @@ export async function exportElementAsPDF(target, filename = 'report.pdf') {
     pdf.addImage(imgData, 'JPEG', margin, yPos, contentW, totalImgH);
   }
 
-  pdf.save(filename);
+  // pdf.save()가 async 체인에서 브라우저 다운로드 차단을 받는 경우 방지:
+  // Blob URL을 직접 생성해 <a> 클릭으로 다운로드
+  const blob = pdf.output('blob');
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }

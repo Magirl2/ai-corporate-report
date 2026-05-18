@@ -470,16 +470,28 @@ export default function SingleReportView({ singleData }) {
 
   const handleExportPDF = async (type) => {
     setPdfLoading(type);
+    const ref = type === 'analysis' ? analysisRef : reportRef;
+
+    // PDF 캡처 전 닫혀있는 상세보기 버튼 모두 펼치기
+    const container = ref.current;
+    const closedBtns = container
+      ? Array.from(container.querySelectorAll('button[aria-label="상세보기"]'))
+      : [];
+    closedBtns.forEach(btn => btn.click());
+    if (closedBtns.length > 0) await new Promise(r => setTimeout(r, 350));
+
     try {
       const { exportElementAsPDF } = await import('../utils/pdfExport');
-      const ref = type === 'analysis' ? analysisRef : reportRef;
       const label = type === 'analysis' ? '상세분석' : 'AI종합보고서';
       const date = new Date().toISOString().slice(0, 10);
       const name = singleData.companyName || '보고서';
       await exportElementAsPDF(ref, `${name}_${label}_${date}.pdf`);
     } catch (err) {
       console.error('PDF 내보내기 실패:', err);
+      alert(`PDF 생성 중 오류가 발생했습니다.\n${err?.message || '알 수 없는 오류'}`);
     } finally {
+      // 펼쳤던 버튼만 다시 닫기
+      closedBtns.forEach(btn => btn.click());
       setPdfLoading(null);
     }
   };
