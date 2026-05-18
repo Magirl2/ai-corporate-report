@@ -57,13 +57,13 @@ export default async function handler(req, res) {
 
       try {
         const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 10000);
+        const timer = setTimeout(() => ctrl.abort(), 18000);
         try {
           const r = await fetch(base + '&fs_div=CFS', { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: ctrl.signal });
           const data = await r.json();
           if (data.status !== '000' || !data.list?.length) {
             const ctrl2 = new AbortController();
-            const timer2 = setTimeout(() => ctrl2.abort(), 10000);
+            const timer2 = setTimeout(() => ctrl2.abort(), 18000);
             try {
               const fallback = await fetch(base + '&fs_div=OFS', { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: ctrl2.signal });
               const fb = await fallback.json();
@@ -120,8 +120,25 @@ export default async function handler(req, res) {
       .filter(r => r.list && r.list.length > 0)
       .sort((a, b) => b.year - a.year);
 
-    // ─── STEP 3: 연도별 원시 수치 추출 ──────────────────────────────────────
+    // ─── STEP 3: 연도별 원시 수치 추출 (thstrm + frmtrm 병행 추출) ─────────
+    // DART 사업보고서 응답에는 당기(thstrm)와 전기(frmtrm) 데이터가 모두 포함됨.
+    // 2025 보고서의 frmtrm → 2024, 2024 보고서의 frmtrm → 2023 등을 추가 추출해
+    // 개별 연도 API 호출이 타임아웃/실패해도 데이터 공백 없이 연속성을 유지한다.
     const rawByYear = {};
+
+    const buildEntry = (rev, op, net, eq, lb, amtField) => ({
+      revenue:     parseInt((rev?.[amtField] || '').replace(/,/g, ''), 10),
+      opIncome:    parseInt((op?.[amtField]  || '').replace(/,/g, ''), 10),
+      netInc:      parseInt((net?.[amtField] || '').replace(/,/g, ''), 10),
+      equity:      parseInt((eq?.[amtField]  || '').replace(/,/g, ''), 10),
+      liab:        parseInt((lb?.[amtField]  || '').replace(/,/g, ''), 10),
+      revenueRaw:  rev?.[amtField] || '-',
+      opIncomeRaw: op?.[amtField]  || '-',
+      netIncRaw:   net?.[amtField] || '-',
+      equityRaw:   eq?.[amtField]  || '-',
+      liabRaw:     lb?.[amtField]  || '-',
+    });
+
     for (const { year, list } of validResults) {
       const find = (names, sj_divs, accountIds = []) =>
         list.find(r =>
@@ -130,31 +147,24 @@ export default async function handler(req, res) {
           (!sj_divs || sj_divs.includes(r.sj_div))
         );
 
-      const toNum = (str) => (str ? parseInt(str.replace(/,/g, ''), 10) : NaN);
-
       // 영업수익: 증권·은행·보험 등 금융업은 매출액 대신 영업수익 사용
-      const rev = find(
-        ['매출액', '수익(매출액)', '영업수익', '순수익', '수익'],
-        ['IS', 'CIS'],
-        ['ifrs-full_Revenue', 'ifrs_Revenue', 'dart_TotalRevenue']
-      );
+      const rev = find(['매출액', '수익(매출액)', '영업수익', '순수익', '수익'], ['IS', 'CIS'], ['ifrs-full_Revenue', 'ifrs_Revenue', 'dart_TotalRevenue']);
       const op  = find(['영업이익', '영업이익(손실)'], ['IS', 'CIS'], ['dart_OperatingIncomeLoss']);
       const net = find(['당기순이익', '당기순이익(손실)', '연결당기순이익'], ['IS', 'CIS'], ['ifrs-full_ProfitLoss', 'ifrs_ProfitLoss']);
       const eq  = find(['자본총계'], ['BS'], ['ifrs-full_Equity', 'ifrs_Equity']);
       const lb  = find(['부채총계'], ['BS'], ['ifrs-full_Liabilities', 'ifrs_Liabilities']);
 
-      rawByYear[year] = {
-        revenue:     toNum(rev?.thstrm_amount),
-        opIncome:    toNum(op?.thstrm_amount),
-        netInc:      toNum(net?.thstrm_amount),
-        equity:      toNum(eq?.thstrm_amount),
-        liab:        toNum(lb?.thstrm_amount),
-        revenueRaw:  rev?.thstrm_amount || '-',
-        opIncomeRaw: op?.thstrm_amount  || '-',
-        netIncRaw:   net?.thstrm_amount || '-',
-        equityRaw:   eq?.thstrm_amount  || '-',
-        liabRaw:     lb?.thstrm_amount  || '-',
-      };
+      // 당기(thstrm) 추출 — 해당 연도 primary 데이터
+      if (!rawByYear[year]) {
+        rawByYear[year] = buildEntry(rev, op, net, eq, lb, 'thstrm_amount');
+      }
+
+      // 전기(frmtrm) 추출 — 인접 연도 API 호출이 실패했을 때 공백 보완
+      const prevYear = year - 1;
+      if (!rawByYear[prevYear] && rev?.frmtrm_amount) {
+        const prev = buildEntry(rev, op, net, eq, lb, 'frmtrm_amount');
+        if (!isNaN(prev.revenue)) rawByYear[prevYear] = prev;
+      }
     }
 
     // ─── 분기 데이터 추출 ──────────────────────────────────────────────────────
@@ -201,12 +211,17 @@ export default async function handler(req, res) {
     }
 
     // ─── STEP 4: 표시용 3개 연도 지표 계산 ──────────────────────────────────
-    const validYears = validResults.map(r => r.year);
-    if (validYears.length === 0) {
+    // thstrm + frmtrm 추출로 rawByYear가 validResults보다 더 많은 연도를 가질 수 있음
+    const allRawYears = Object.keys(rawByYear)
+      .map(Number)
+      .filter(y => !isNaN(rawByYear[y]?.revenue))
+      .sort((a, b) => b - a);
+
+    if (allRawYears.length === 0) {
       return res.status(404).json(createErrorResponse(ErrorCategory.UPSTREAM, 'NO_FINANCE_DATA', '최근 5년간의 재무제표 데이터를 찾을 수 없습니다.'));
     }
 
-    const displayYears = validYears.slice(0, 3);
+    const displayYears = allRawYears.slice(0, 3);
     const pct     = (v, base) => (base !== 0 && !isNaN(v) && !isNaN(base)) ? `${((v - base) / Math.abs(base) * 100).toFixed(1)}%` : null;
     const margin  = (num, den) => (den !== 0 && !isNaN(num) && !isNaN(den)) ? `${(num / den * 100).toFixed(1)}%` : null;
 
