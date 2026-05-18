@@ -34,8 +34,9 @@ const COLOR_PROPS = [
   'outline-color', 'fill', 'stroke',
 ];
 
-// A4 너비(210mm at 96dpi). html2canvas 캡처 기준 너비.
-const A4_PX = 794;
+// 캡처 기준 너비. 600px × scale2 → PDF 190mm 환산 시 본문 약 12pt (가독성 최적).
+// 794px(A4 실물)로 잡으면 축소 후 9pt로 너무 작아짐.
+const CAPTURE_W = 600;
 
 /**
  * DOM 요소를 A4 PDF로 내보냅니다.
@@ -73,14 +74,13 @@ export async function exportElementAsPDF(target, filename = 'report.pdf') {
     allowTaint: false,
     backgroundColor: '#ffffff',
     logging: false,
-    // windowWidth 800 → index.css의 @media (max-width: 1023px) 발동
-    // → .bento-grid { grid-template-columns: 1fr } 자동 적용 (1컬럼)
-    // → md: 브레이크포인트(768px)도 비활성 → 내부 md:grid-cols-2도 1컬럼
-    windowWidth: 800,
+    // windowWidth 600 → sm:(640px)/md:(768px)/lg: 모든 브레이크포인트 비활성
+    // index.css @media(max-width:1023px) 발동 → .bento-grid 1컬럼 자동 전환
+    windowWidth: 600,
     onclone: (clonedDoc, clonedEl) => {
-      // ── A4 너비 강제 ──────────────────────────────────────────────────
-      clonedEl.style.setProperty('width', `${A4_PX}px`, 'important');
-      clonedEl.style.setProperty('max-width', `${A4_PX}px`, 'important');
+      // ── 캡처 너비 고정 ────────────────────────────────────────────────
+      clonedEl.style.setProperty('width', `${CAPTURE_W}px`, 'important');
+      clonedEl.style.setProperty('max-width', `${CAPTURE_W}px`, 'important');
       clonedEl.style.setProperty('overflow', 'visible', 'important');
 
       // ── 잔여 멀티컬럼 그리드 단일컬럼 강제 (windowWidth로 미처리된 케이스 대비) ─
@@ -127,10 +127,10 @@ export async function exportElementAsPDF(target, filename = 'report.pdf') {
   const imgData = canvas.toDataURL('image/png');
 
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const margin = 10;
+  const margin = 14;
   const pageW = pdf.internal.pageSize.getWidth();   // 210mm
   const pageH = pdf.internal.pageSize.getHeight();  // 297mm
-  const contentW = pageW - margin * 2;              // 190mm
+  const contentW = pageW - margin * 2;              // 182mm
   const totalImgH = (canvas.height / canvas.width) * contentW;
 
   // 한 이미지를 페이지 높이로 슬라이싱 (여백 제외 277mm)

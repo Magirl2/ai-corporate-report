@@ -920,26 +920,6 @@ export default function SingleReportView({ singleData }) {
                 </div>
                 <button
                   type="button"
-                  title="Markdown 파일로 다운로드"
-                  onClick={() => {
-                    const blob = new Blob([r.markdown], { type: 'text/markdown;charset=utf-8' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    const dateStr = new Date().toISOString().slice(0, 10);
-                    a.href = url;
-                    a.download = `${singleData.companyName || '보고서'}_분석_${dateStr}.md`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                  }}
-                  className="shrink-0 flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-500 bg-slate-50 border border-slate-200 rounded-lg hover:bg-primary/5 hover:border-primary/30 hover:text-primary transition-all"
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>download</span>
-                  MD 다운로드
-                </button>
-                <button
-                  type="button"
                   title="PDF 파일로 다운로드"
                   onClick={() => handleExportPDF('report')}
                   disabled={pdfLoading === 'report'}
