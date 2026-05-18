@@ -145,72 +145,69 @@ body {
     size: A4 portrait;
   }
 
-  /* ── 화면 전용 요소 숨기기 ── */
-  header,
-  nav,
-  aside,
-  footer,
-  [class*="TopNav"],
-  [class*="SideNav"],
-  [class*="sidebar"],
-  .fixed {
-    display: none !important;
-  }
-
-  /* 모든 버튼 숨기기 (CSV 다운로드, PDF 버튼, 상세보기 등) */
+  /* ── 화면 전용 UI 완전 숨기기 ── */
+  /* TopNavBar: <header class="fixed top-0 ..."> */
+  header { display: none !important; }
+  /* SideNavBar: <aside class="fixed left-0 w-64 ..."> */
+  aside { display: none !important; }
+  /* fixed 클래스를 가진 모든 요소 (위 두 가지 + 기타 오버레이) */
+  .fixed { display: none !important; }
+  /* 모든 버튼 (탭 전환, CSV/PDF 다운로드, 상세보기 등) */
   button { display: none !important; }
+  /* 모바일 하단 네비 */
+  nav { display: none !important; }
 
-  /* ── 레이아웃 초기화 ── */
+  /* ── 레이아웃 마진·패딩 초기화 ── */
   body {
     background: #fff !important;
-    padding: 0 !important;
     margin: 0 !important;
+    padding: 0 !important;
   }
 
-  /* fixed 헤더로 인한 상단 여백 제거 */
-  main, [class*="pt-"] {
+  /* 사이드바 때문에 생긴 md:ml-64 (256px) 왼쪽 마진 제거 */
+  [class*="ml-64"] { margin-left: 0 !important; }
+
+  /* fixed 헤더 때문에 생긴 pt-24 (96px) 상단 패딩 제거 */
+  main {
     padding-top: 0 !important;
     margin-top: 0 !important;
-  }
-
-  /* ml-64 사이드바 마진 제거 */
-  [class*="ml-"] {
-    margin-left: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    max-width: 100% !important;
   }
 
   /* ── Bento Grid → 단일 컬럼 ── */
   .bento-grid {
     display: block !important;
     width: 100% !important;
+    gap: 0 !important;
   }
   .bento-grid > * {
     width: 100% !important;
     max-width: 100% !important;
-    margin-bottom: 14px !important;
+    margin-bottom: 12px !important;
     break-inside: avoid;
     page-break-inside: avoid;
   }
 
-  /* ── Overflow 해제 (테이블 클리핑 방지) ── */
+  /* ── Overflow 해제 (테이블/카드 클리핑 방지) ── */
   .overflow-hidden,
   .overflow-x-auto,
-  .overflow-y-auto {
-    overflow: visible !important;
-  }
+  .overflow-y-auto { overflow: visible !important; }
 
-  /* ── 그림자·변형·애니메이션 제거 ── */
+  /* ── 배경색 보존 + 효과 제거 ── */
   * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
     animation: none !important;
     transition: none !important;
     box-shadow: none !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
   }
 
-  /* ── 링크 색상 ── */
+  /* ── 링크 ── */
   a { color: inherit !important; text-decoration: none !important; }
 
   /* ── 페이지 나눔 최적화 ── */
-  section, article, table { break-inside: avoid; page-break-inside: avoid; }
+  section, table { break-inside: avoid; page-break-inside: avoid; }
   h1, h2, h3, h4 { break-after: avoid; page-break-after: avoid; }
 }
